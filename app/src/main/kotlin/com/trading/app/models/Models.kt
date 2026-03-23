@@ -1,0 +1,202 @@
+package com.trading.app.models
+
+import androidx.compose.ui.graphics.vector.ImageVector
+
+data class SymbolSettings(
+    val upColor: String = "#26a69a",
+    val downColor: String = "#ef5350",
+    val borderVisible: Boolean = true,
+    val wickVisible: Boolean = true,
+    val barColorer: Boolean = true,
+    val precision: String = "Default",
+    val timezone: String = "(UTC-8) Los Angeles"
+)
+
+data class StatusLineSettings(
+    val logo: Boolean = true,
+    val symbol: Boolean = true,
+    val titleMode: String = "Description",
+    val openMarketStatus: Boolean = true,
+    val ohlc: Boolean = true,
+    val barChangeValues: Boolean = true,
+    val volume: Boolean = true,
+    val lastDayChange: Boolean = false,
+    val indicatorTitles: Boolean = true,
+    val indicatorInputs: Boolean = true,
+    val indicatorValues: Boolean = true,
+    val indicatorBackground: Boolean = true,
+    val indicatorBackgroundOpacity: Int = 50
+)
+
+data class ScalesSettings(
+    val plusButton: Boolean = true,
+    val countdown: Boolean = true,
+    val noOverlappingLabels: Boolean = true,
+    val lockRatio: Boolean = false,
+    val lockRatioValue: String = "0.0530608",
+    val placement: String = "Auto",
+    val currencyAndUnit: String = "Always visible",
+    val scaleModes: String = "Visible on mouse over",
+    val symbolLabel: String = "Name, value, line",
+    val prevDayClose: Boolean = false,
+    val highLow: Boolean = false,
+    val bidAsk: Boolean = false,
+    val lastPriceLine: Boolean = true,
+    val askPriceLine: Boolean = true,
+    val showAskAndLastPrice: Boolean = true
+)
+
+data class CanvasSettings(
+    val backgroundType: String = "Solid",
+    val background: String = "#1c1c1c",
+    val backgroundGradientEnd: String = "#0c0c0d",
+    val gridVisible: Boolean = true,
+    val gridType: String = "Vert and horz",
+    val gridColor: String = "#662A2E39",
+    val horzGridColor: String = "#662A2E39",
+    val crosshairColor: String = "#758696",
+    val crosshairStyle: Int = 1,
+    val watermarkVisible: Boolean = false,
+    val watermarkType: String = "Replay mode",
+    val watermarkColor: String = "#662A2E39",
+    val scaleTextColor: String = "#d1d4dc",
+    val scaleFontSize: Int = 11,
+    val scaleLineColor: String = "#662A2E39",
+    val navigationButtons: String = "Visible on mouse over",
+    val paneButtons: String = "Visible on mouse over",
+    val marginTop: Int = 10,
+    val marginBottom: Int = 8,
+    val marginRight: Int = 10
+)
+
+data class TradingSettings(
+    val buySellButtons: Boolean = true,
+    val oneClickTrading: Boolean = false,
+    val executionSound: Boolean = false,
+    val executionSoundVolume: Int = 50,
+    val executionSoundType: String = "Alarm Clock",
+    val rejectionNotifications: Boolean = false,
+    val positionsAndOrders: Boolean = true,
+    val reversePositionButton: Boolean = true,
+    val projectOrder: Boolean = false,
+    val profitLossValue: Boolean = true,
+    val positionsMode: String = "Money",
+    val bracketsMode: String = "Money",
+    val executionMarks: Boolean = true,
+    val executionLabels: Boolean = false,
+    val extendedPriceLines: Boolean = true,
+    val alignment: String = "Right",
+    val screenshotVisibility: Boolean = false
+)
+
+data class AlertsSettings(
+    val alertLines: Boolean = true,
+    val alertLinesColor: String = "#26a69a",
+    val onlyActiveAlerts: Boolean = true,
+    val alertVolume: Boolean = true,
+    val volumeLevel: Int = 80,
+    val hideToasts: Boolean = true
+)
+
+data class EventsSettings(
+    val ideas: Boolean = false,
+    val ideasMode: String = "All ideas",
+    val sessionBreaks: Boolean = false,
+    val sessionBreaksColor: String = "#42a5f5",
+    val economicEvents: Boolean = true,
+    val onlyFutureEvents: Boolean = true,
+    val eventsBreaks: Boolean = false,
+    val eventsBreaksColor: String = "#363a45",
+    val latestNews: Boolean = true,
+    val newsNotification: Boolean = false
+)
+
+data class ChartSettings(
+    val symbol: SymbolSettings = SymbolSettings(),
+    val statusLine: StatusLineSettings = StatusLineSettings(),
+    val scales: ScalesSettings = ScalesSettings(),
+    val canvas: CanvasSettings = CanvasSettings(),
+    val trading: TradingSettings = TradingSettings(),
+    val alerts: AlertsSettings = AlertsSettings(),
+    val events: EventsSettings = EventsSettings()
+)
+
+data class OHLCData(
+    val time: Long,
+    val open: Float,
+    val high: Float,
+    val low: Float,
+    val close: Float,
+    val volume: Float = 0f
+)
+
+data class Drawing(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val type: String,
+    val points: List<ChartPoint>,
+    val color: String = "#2962FF",
+    val width: Float = 2f,
+    val text: String? = null,
+    val isLocked: Boolean = false,
+    val isVisible: Boolean = true
+)
+
+data class ChartPoint(
+    val time: Long,
+    val price: Float,
+    val x: Float = 0f,
+    val y: Float = 0f
+)
+
+data class SymbolInfo(
+    val ticker: String,
+    val name: String,
+    val exchange: String = "",
+    val type: String = "",
+    val price: Float = 0f,
+    val change: Float = 0f,
+    val changePercent: Float = 0f
+)
+
+data class TimeZone(
+    val label: String,
+    val value: String,
+    val offsetLabel: String
+)
+
+data class UserAlert(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val symbol: String,
+    val condition: String,
+    val price: Float,
+    val message: String,
+    val isActive: Boolean = true,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+data class Position(
+    val id: String,
+    val symbol: String,
+    val type: String, // "buy" or "sell"
+    val entryPrice: Float,
+    val volume: Float,
+    val time: Long
+)
+
+data class Indicator(
+    val id: String,
+    val name: String,
+    val description: String,
+    val favorite: Boolean = false
+)
+
+data class ToolItem(
+    val id: String,
+    val name: String,
+    val icon: ImageVector
+)
+
+data class ChartSnapshot(
+    val drawings: List<Drawing>,
+    val activeIndicators: List<String>
+)
