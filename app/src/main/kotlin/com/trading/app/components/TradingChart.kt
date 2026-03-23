@@ -133,8 +133,11 @@ fun TradingChart(
     var orderType by remember { mutableStateOf("BUY") }
     var orderPrice by remember { mutableStateOf(0f) }
 
-    var priceScaleFactor by remember { mutableFloatStateOf(2.5f) }
+    var priceScaleFactor by remember { mutableFloatStateOf(1.0f) }
     var priceCenterOffset by remember { mutableFloatStateOf(0f) }
+    var baseCenter by remember { mutableFloatStateOf(0f) }
+    var baseRange by remember { mutableFloatStateOf(0f) }
+    
     var lastY by remember { mutableFloatStateOf(0f) }
     var isDraggingAxis by remember { mutableStateOf(false) }
     var isManualMode by remember { mutableStateOf(false) }
@@ -213,14 +216,14 @@ fun TradingChart(
         }
     }
 
-    // Chart Area Background Color - Lighter version of 0xFF08090C
-    Box(modifier = Modifier.fillMaxSize().background(ComposeColor(0xFF161924))) {
+    // Chart Area Background Color
+    Box(modifier = Modifier.fillMaxSize().background(ComposeColor(0xFF131722))) {
         AndroidView(
             factory = { context ->
                 val chart = CombinedChart(context)
                 val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
                     override fun onDoubleTap(e: MotionEvent): Boolean {
-                        priceScaleFactor = 2.5f
+                        priceScaleFactor = 1.0f
                         priceCenterOffset = 0f
                         isManualMode = false
                         chart.invalidate()
@@ -234,16 +237,18 @@ fun TradingChart(
                     setTouchEnabled(true)
                     isDragEnabled = true
                     isScaleXEnabled = true
-                    isScaleYEnabled = false 
+                    isScaleYEnabled = true
                     setPinchZoom(true)
-                    setDrawGridBackground(false)
-                    setDrawBorders(false)
-                    setBackgroundColor(AndroidColor.TRANSPARENT)
                     
-                    // Controlled bottom offset to match the 24dp height of pair tabs
+                    // Unified background color for chart and axis
+                    setDrawGridBackground(false)
+                    setBackgroundColor(AndroidColor.parseColor("#131722"))
+                    
+                    setDrawBorders(false)
+                    
+                    // Controlled offsets
                     minOffset = 0f
-                    // Set bottom extra offset to ensure the date pane area is exactly 24dp high
-                    setExtraOffsets(12f, 0f, 0f, 9f)
+                    setExtraOffsets(0f, 0f, 0f, 9f)
 
                     setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
                         override fun onValueSelected(e: Entry?, h: Highlight?) {
@@ -259,7 +264,7 @@ fun TradingChart(
                     xAxis.apply {
                         position = XAxis.XAxisPosition.BOTTOM
                         setDrawGridLines(true)
-                        gridColor = safeParseColor("#363A45")
+                        gridColor = safeParseColor("#363A45") 
                         textColor = AndroidColor.WHITE
                         textSize = 9f
                         setLabelCount(6, false)
@@ -299,15 +304,9 @@ fun TradingChart(
                         gridColor = safeParseColor("#363A45")
                         textColor = safeParseColor("#D1D4DC")
                         textSize = 11f
-                        setLabelCount(18, true)
-                        // Position labels outside so they don't enter header or date pane content area
+                        setLabelCount(12, false) // Flexible label count for nice numbers
                         setPosition(YAxis.YAxisLabelPosition.OUTSIDE_CHART)
-                        // Draw axis line so grid lines touch it
-                        setDrawAxisLine(true)
-                        axisLineColor = safeParseColor("#363A45")
-                        // Add spacing to ensure labels don't crowd edges
-                        setSpaceTop(5f)
-                        setSpaceBottom(5f)
+                        setDrawAxisLine(false)
                     }
 
                     axisLeft.apply {
@@ -324,19 +323,24 @@ fun TradingChart(
                         when (event.action) {
                             MotionEvent.ACTION_DOWN -> {
                                 lastY = event.y
-                                isDraggingAxis = event.x > v.width * 0.85f
+                                isDraggingAxis = event.x > v.width * 0.88f
                                 isDraggingAxis
                             }
                             MotionEvent.ACTION_MOVE -> {
                                 val deltaY = event.y - lastY 
+                                val visibleRange = chartView.axisRight.axisMaximum - chartView.axisRight.axisMinimum
+                                
                                 if (isDraggingAxis) {
                                     isManualMode = true
-                                    val scaleDelta = (lastY - event.y) / (v.height * 0.4f)
-                                    priceScaleFactor *= (1f + scaleDelta)
-                                    priceScaleFactor = priceScaleFactor.coerceIn(0.1f, 15f)
-                                } else if (Math.abs(deltaY) > 20) {
+                                    // High-sensitivity exponential scaling for TradingView feel
+                                    val sensitivity = 0.012f 
+                                    val scaleFactorChange = Math.exp((-deltaY * sensitivity).toDouble()).toFloat()
+                                    priceScaleFactor *= scaleFactorChange
+                                    // Allowed extreme range to see 100k or -100k easily
+                                    priceScaleFactor = priceScaleFactor.coerceIn(0.00001f, 10000f)
+                                } else if (Math.abs(deltaY) > 10) {
                                     isManualMode = true
-                                    val visibleRange = chartView.axisRight.axisMaximum - chartView.axisRight.axisMinimum
+                                    // Vertical Panning logic (moving candles up/down)
                                     if (visibleRange > 0) {
                                         val priceDelta = (deltaY / v.height) * visibleRange
                                         priceCenterOffset += priceDelta 
@@ -459,17 +463,23 @@ fun TradingChart(
                 val visibleStart = chart.lowestVisibleX
                 val visibleEnd = chart.highestVisibleX
                 
-                val visibleCandles = currentCandles.filter { it.x in visibleStart..visibleEnd }
-                if (visibleCandles.isNotEmpty()) {
-                    val minPrice = visibleCandles.minOf { it.low }
-                    val maxPrice = visibleCandles.maxOf { it.high }
-                    val priceRange = maxPrice - minPrice
-                    val baseCenter = (maxPrice + minPrice) / 2f
-                    val centerPrice = baseCenter + priceCenterOffset
-                    val halfRange = (priceRange / 2f) / priceScaleFactor
+                if (!isManualMode) {
+                    val visibleCandles = currentCandles.filter { it.x in visibleStart..visibleEnd }
+                    if (visibleCandles.isNotEmpty()) {
+                        val min = visibleCandles.minOf { it.low }
+                        val max = visibleCandles.maxOf { it.high }
+                        baseCenter = (max + min) / 2f
+                        baseRange = max - min
+                    }
+                }
+                
+                if (baseRange > 0) {
+                    val currentCenter = baseCenter + priceCenterOffset
+                    val currentHalfRange = (baseRange / 2f) / priceScaleFactor
                     
-                    chart.axisRight.axisMinimum = centerPrice - (halfRange * 1.6f) 
-                    chart.axisRight.axisMaximum = centerPrice + (halfRange * 1.02f)
+                    // Balanced range for visible expansion/contraction
+                    chart.axisRight.axisMinimum = currentCenter - currentHalfRange 
+                    chart.axisRight.axisMaximum = currentCenter + currentHalfRange
                 }
 
                 val visibleVolumes = volumeEntries.filter { it.x in visibleStart..visibleEnd }
@@ -496,7 +506,7 @@ fun TradingChart(
         // OHLC Overlay aligned to the left edge
         Column(
             modifier = Modifier
-                .padding(4.dp)
+                .padding(4.dp) 
                 .align(Alignment.TopStart)
         ) {
             // Line 1: Flags and Name
@@ -510,14 +520,14 @@ fun TradingChart(
                         modifier = Modifier
                             .size(18.dp)
                             .background(ComposeColor(0xFFF05252), RoundedCornerShape(9.dp))
-                            .border(1.5.dp, ComposeColor(0xFF161924), RoundedCornerShape(9.dp))
+                            .border(1.5.dp, ComposeColor(0xFF08090C), RoundedCornerShape(9.dp))
                     )
                     Box(
                         modifier = Modifier
                             .offset(x = 10.dp)
                             .size(18.dp)
                             .background(ComposeColor(0xFF2962FF), RoundedCornerShape(9.dp))
-                            .border(1.5.dp, ComposeColor(0xFF161924), RoundedCornerShape(9.dp))
+                            .border(1.5.dp, ComposeColor(0xFF08090C), RoundedCornerShape(9.dp))
                     )
                 }
                 
@@ -552,12 +562,12 @@ fun TradingChart(
                 }
             }
             
-            // All aligned items start here
             val change = currentQuote?.change ?: 0f
             val changePercent = currentQuote?.changePercent ?: 0f
             val lastPrice = currentQuote?.lastPrice ?: 0f
             val changeColor = if (change >= 0f) ComposeColor(0xFF089981) else ComposeColor(0xFFF05252)
             
+            // Line 2: Price and Change
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = String.format("%.3f", lastPrice),
@@ -575,6 +585,7 @@ fun TradingChart(
             
             Spacer(modifier = Modifier.height(6.dp))
             
+            // Line 3: OHLC
             val displayData = highlightedCandle ?: currentQuote?.let { 
                 CandleEntry(0f, it.high, it.low, it.open, it.lastPrice) 
             }
@@ -587,6 +598,7 @@ fun TradingChart(
             
             Spacer(modifier = Modifier.height(2.dp))
             
+            // Line 4: Bid / Ask
             Row {
                 Text(text = "Bid ", color = ComposeColor(0xFF787B86), fontSize = 11.sp)
                 Text(text = String.format("%.5f", currentQuote?.bid ?: 0f), color = ComposeColor.White, fontSize = 11.sp)
@@ -597,6 +609,7 @@ fun TradingChart(
             
             Spacer(modifier = Modifier.height(8.dp))
             
+            // Line 5: Buy/Sell Buttons
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(
                     modifier = Modifier
@@ -650,7 +663,7 @@ fun TradingChart(
             Text("Volume", color = ComposeColor(0xFF787B86), fontSize = 12.sp)
         }
 
-        // Currency Dropdown at the top of Price Axis
+        // Currency Dropdown
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)

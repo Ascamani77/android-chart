@@ -34,10 +34,9 @@ fun TradingApp() {
     
     LaunchedEffect(symbol, timeframe) {
         val newPair = symbol to timeframe
-        if (recentPairs.firstOrNull() != newPair) {
-            recentPairs.remove(newPair)
+        if (!recentPairs.contains(newPair)) {
             recentPairs.add(0, newPair)
-            if (recentPairs.size > 3) {
+            if (recentPairs.size > 6) {
                 recentPairs.removeAt(recentPairs.size - 1)
             }
         }
