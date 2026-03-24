@@ -43,7 +43,8 @@ fun Header(
     onToggleReplay: () -> Unit = {},
     isReplayActive: Boolean = false,
     isAnalyzing: Boolean = false,
-    onDownloadChart: () -> Unit = {}
+    onDownloadChart: () -> Unit = {},
+    backgroundColor: Color = Color(0xFF08090C)
 ) {
     val scrollState = rememberScrollState()
     var showStyleMenu by remember { mutableStateOf(false) }
@@ -54,7 +55,7 @@ fun Header(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
-                .background(Color(0xFF08090C))
+                .background(backgroundColor)
                 .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

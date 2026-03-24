@@ -4,7 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,7 +24,8 @@ fun TradingPanel(
     analysisContent: String,
     isAnalyzing: Boolean,
     onRefreshAnalysis: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    backgroundColor: Color = Color(0xFF131722)
 ) {
     val tabs = listOf("Stock Screener", "Pine Editor", "Strategy Tester", "Trading Panel", "AI Analysis")
 
@@ -31,7 +33,7 @@ fun TradingPanel(
         modifier = Modifier
             .fillMaxWidth()
             .height(300.dp)
-            .background(Color(0xFF131722))
+            .background(backgroundColor)
             .padding(top = 1.dp)
     ) {
         // Tabs

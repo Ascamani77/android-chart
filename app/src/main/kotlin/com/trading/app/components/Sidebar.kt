@@ -30,7 +30,8 @@ fun Sidebar(
     onLockToggle: () -> Unit,
     isVisible: Boolean,
     onVisibilityToggle: () -> Unit,
-    onClearDrawings: () -> Unit
+    onClearDrawings: () -> Unit,
+    backgroundColor: Color = Color(0xFF08090C)
 ) {
     val scrollState = rememberScrollState()
 
@@ -38,7 +39,7 @@ fun Sidebar(
         modifier = Modifier
             .width(52.dp)
             .fillMaxHeight()
-            .background(Color(0xFF08090C))
+            .background(backgroundColor)
     ) {
         // Right separator line
         Box(

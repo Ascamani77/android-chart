@@ -33,12 +33,13 @@ fun BottomBar(
     recentPairs: List<Pair<String, String>> = emptyList(),
     currentSymbol: String = "",
     currentTimeframe: String = "",
-    onPairSelect: (String, String) -> Unit = { _, _ -> }
+    onPairSelect: (String, String) -> Unit = { _, _ -> },
+    backgroundColor: Color = Color(0xFF08090C)
 ) {
     var currentTime by remember { mutableStateOf("") }
     var marketStatus by remember { mutableStateOf("Market Closed") }
     var marketStatusColor by remember { mutableStateOf(Color(0xFFF23645)) }
-    
+
     val bottomScrollState = rememberScrollState()
     val pairsScrollState = rememberScrollState()
 
@@ -68,14 +69,14 @@ fun BottomBar(
         }
     }
 
-    Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF08090C))) {
+    Column(modifier = Modifier.fillMaxWidth().background(backgroundColor)) {
         // MT5 Style Recent Pairs Row - Scrollable
         if (recentPairs.isNotEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)
-                    .background(Color(0xFF08090C))
+                    .background(backgroundColor)
                     .horizontalScroll(pairsScrollState),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -126,8 +127,8 @@ fun BottomBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(36.dp) 
-                .background(Color(0xFF08090C))
+                .height(36.dp)
+                .background(backgroundColor)
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -164,7 +165,7 @@ fun BottomBar(
                 tint = Color.White,
                 modifier = Modifier.size(18.dp).clickable { onGoToClick() }
             )
-            
+
             Spacer(modifier = Modifier.width(16.dp))
 
             // Fixed Market Status & Time

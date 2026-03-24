@@ -4,7 +4,6 @@ import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.view.GestureDetector
 import android.view.MotionEvent
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,12 +17,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.github.mikephil.charting.charts.CombinedChart
+import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.*
@@ -118,16 +117,22 @@ fun TradingChart(
     showAtr: Boolean = false,
     atrPeriod: Int = 14,
     showVolume: Boolean = true,
+    onVolumeToggle: (Boolean) -> Unit = {},
+    onIndicatorSettingsClick: (String) -> Unit = {},
     isMagnetEnabled: Boolean = false,
     isLocked: Boolean = false,
-    isVisible: Boolean = true
+    isVisible: Boolean = true,
+    selectedCurrency: String = "USD",
+    onCurrencyClick: () -> Unit = {},
+    isFullscreen: Boolean = false,
+    onFullscreenExit: () -> Unit = {}
 ) {
     var candleEntries by remember { mutableStateOf<List<CandleEntry>>(emptyList()) }
     var volumeEntries by remember { mutableStateOf<List<BarEntry>>(emptyList()) }
-    
+
     // State to store live updates from MT5
     var currentQuote by remember { mutableStateOf<SymbolQuote?>(null) }
-    
+
     var highlightedCandle by remember { mutableStateOf<CandleEntry?>(null) }
     var showOrderDialog by remember { mutableStateOf(false) }
     var orderType by remember { mutableStateOf("BUY") }
@@ -137,17 +142,16 @@ fun TradingChart(
     var priceCenterOffset by remember { mutableFloatStateOf(0f) }
     var baseCenter by remember { mutableFloatStateOf(0f) }
     var baseRange by remember { mutableFloatStateOf(0f) }
-    
+
     var lastY by remember { mutableFloatStateOf(0f) }
     var isDraggingAxis by remember { mutableStateOf(false) }
     var isManualMode by remember { mutableStateOf(false) }
     var initialZoomDone by remember { mutableStateOf(false) }
 
-    var selectedCurrency by remember { mutableStateOf("USD") }
     var showCurrencyMenu by remember { mutableStateOf(false) }
 
     // MT5 Live Connection
-    val mt5Service = remember { 
+    val mt5Service = remember {
         Mt5Service(pcIpAddress = "192.168.1.100") { quote -> // Replace with your actual PC IP
             currentQuote = quote
         }
@@ -177,7 +181,7 @@ fun TradingChart(
             val close = open + (random.nextFloat() - 0.5f) * 100f
             val high = maxOf(open, close) + random.nextFloat() * 50f
             val low = minOf(open, close) - random.nextFloat() * 50f
-            
+
             val entry = CandleEntry(i.toFloat(), high, low, open, close, now - (500 - i) * interval)
             newCandles.add(entry)
             val volumeColor = if (close >= open) safeParseColor("#089981") else safeParseColor("#F05252")
@@ -187,7 +191,7 @@ fun TradingChart(
 
         candleEntries = newCandles
         volumeEntries = newVolume
-        initialZoomDone = false 
+        initialZoomDone = false
 
         while(true) {
             val last = candleEntries.lastOrNull()
@@ -197,7 +201,7 @@ fun TradingChart(
                 val ask = lp + (random.nextFloat() * 2f)
                 val ch = lp - last.open
                 val chp = (ch / last.open) * 100f
-                
+
                 currentQuote = SymbolQuote(
                     name = symbol,
                     lastPrice = lp,
@@ -217,7 +221,7 @@ fun TradingChart(
     }
 
     // Chart Area Background Color
-    Box(modifier = Modifier.fillMaxSize().background(ComposeColor(0xFF131722))) {
+    Box(modifier = Modifier.fillMaxSize().background(ComposeColor(safeParseColor(chartSettings.canvas.background)))) {
         AndroidView(
             factory = { context ->
                 val chart = CombinedChart(context)
@@ -239,13 +243,13 @@ fun TradingChart(
                     isScaleXEnabled = true
                     isScaleYEnabled = true
                     setPinchZoom(true)
-                    
+
                     // Unified background color for chart and axis
                     setDrawGridBackground(false)
-                    setBackgroundColor(AndroidColor.parseColor("#131722"))
-                    
+                    setBackgroundColor(safeParseColor(chartSettings.canvas.background))
+
                     setDrawBorders(false)
-                    
+
                     // Controlled offsets
                     minOffset = 0f
                     setExtraOffsets(0f, 0f, 0f, 9f)
@@ -263,21 +267,21 @@ fun TradingChart(
 
                     xAxis.apply {
                         position = XAxis.XAxisPosition.BOTTOM
-                        setDrawGridLines(true)
-                        gridColor = safeParseColor("#363A45") 
-                        textColor = AndroidColor.WHITE
-                        textSize = 9f
+                        setDrawGridLines(chartSettings.canvas.gridVisible)
+                        gridColor = safeParseColor(chartSettings.canvas.gridColor)
+                        textColor = safeParseColor(chartSettings.canvas.scaleTextColor)
+                        textSize = chartSettings.canvas.scaleFontSize.toFloat()
                         setLabelCount(6, false)
                         setAvoidFirstLastClipping(true)
                         yOffset = 6f
                         setDrawAxisLine(true)
-                        axisLineColor = safeParseColor("#2A2E39")
+                        axisLineColor = safeParseColor(chartSettings.canvas.scaleLineColor)
                         axisLineWidth = 1f
-                        
+
                         valueFormatter = object : ValueFormatter() {
                             private val dayFormat = SimpleDateFormat("d", Locale.US)
                             private val monthFormat = SimpleDateFormat("MMM", Locale.US)
-                            
+
                             override fun getFormattedValue(value: Float): String {
                                 val currentEntries = candleEntries
                                 val index = value.toInt()
@@ -286,7 +290,7 @@ fun TradingChart(
                                     val date = Date(millis)
                                     val cal = Calendar.getInstance().apply { timeInMillis = millis }
                                     val dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
-                                    
+
                                     return if (dayOfMonth <= 5) {
                                         monthFormat.format(date).replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.US) else it.toString() }
                                     } else {
@@ -300,11 +304,11 @@ fun TradingChart(
 
                     axisRight.apply {
                         isEnabled = true
-                        setDrawGridLines(true)
-                        gridColor = safeParseColor("#363A45")
-                        textColor = safeParseColor("#D1D4DC")
-                        textSize = 11f
-                        setLabelCount(12, false) // Flexible label count for nice numbers
+                        setDrawGridLines(chartSettings.canvas.gridVisible)
+                        gridColor = safeParseColor(chartSettings.canvas.gridColor)
+                        textColor = safeParseColor(chartSettings.canvas.scaleTextColor)
+                        textSize = chartSettings.canvas.scaleFontSize.toFloat()
+                        setLabelCount(12, false)
                         setPosition(YAxis.YAxisLabelPosition.OUTSIDE_CHART)
                         setDrawAxisLine(false)
                     }
@@ -327,23 +331,20 @@ fun TradingChart(
                                 isDraggingAxis
                             }
                             MotionEvent.ACTION_MOVE -> {
-                                val deltaY = event.y - lastY 
+                                val deltaY = event.y - lastY
                                 val visibleRange = chartView.axisRight.axisMaximum - chartView.axisRight.axisMinimum
-                                
+
                                 if (isDraggingAxis) {
                                     isManualMode = true
-                                    // High-sensitivity exponential scaling for TradingView feel
-                                    val sensitivity = 0.012f 
+                                    val sensitivity = 0.012f
                                     val scaleFactorChange = Math.exp((-deltaY * sensitivity).toDouble()).toFloat()
                                     priceScaleFactor *= scaleFactorChange
-                                    // Allowed extreme range to see 100k or -100k easily
                                     priceScaleFactor = priceScaleFactor.coerceIn(0.00001f, 10000f)
                                 } else if (Math.abs(deltaY) > 10) {
                                     isManualMode = true
-                                    // Vertical Panning logic (moving candles up/down)
                                     if (visibleRange > 0) {
                                         val priceDelta = (deltaY / v.height) * visibleRange
-                                        priceCenterOffset += priceDelta 
+                                        priceCenterOffset += priceDelta
                                     }
                                 }
                                 lastY = event.y
@@ -366,16 +367,24 @@ fun TradingChart(
 
                 val combinedData = CombinedData()
 
+                // Apply dynamic styles to match TradingView look
+                chart.setBackgroundColor(safeParseColor(chartSettings.canvas.background))
+                chart.xAxis.gridColor = safeParseColor(chartSettings.canvas.gridColor)
+                chart.axisRight.gridColor = safeParseColor(chartSettings.canvas.gridColor)
+
                 when (style) {
                     "line", "line_markers", "step_line", "kagi" -> {
                         val lineEntries = currentCandles.map { Entry(it.x, it.close) }
                         val lineDataSet = LineDataSet(ArrayList(lineEntries), "Line").apply {
                             axisDependency = YAxis.AxisDependency.RIGHT
-                            color = safeParseColor("#2962FF")
+                            color = safeParseColor(chartSettings.symbol.upColor)
                             setDrawCircles(style == "line_markers")
                             setDrawValues(false)
                             lineWidth = 2f
                             mode = if (style == "step_line") LineDataSet.Mode.STEPPED else LineDataSet.Mode.LINEAR
+                            highLightColor = safeParseColor(chartSettings.canvas.crosshairColor)
+                            highlightLineWidth = 0.8f
+                            enableDashedHighlightLine(10f, 10f, 0f)
                         }
                         combinedData.setData(LineData(lineDataSet))
                     }
@@ -383,13 +392,16 @@ fun TradingChart(
                         val lineEntries = currentCandles.map { Entry(it.x, it.close) }
                         val areaDataSet = LineDataSet(ArrayList(lineEntries), "Area").apply {
                             axisDependency = YAxis.AxisDependency.RIGHT
-                            color = safeParseColor("#2962FF")
+                            color = safeParseColor(chartSettings.symbol.upColor)
                             setDrawCircles(false)
                             setDrawValues(false)
                             setDrawFilled(true)
-                            fillColor = safeParseColor("#2962FF")
+                            fillColor = safeParseColor(chartSettings.symbol.upColor)
                             fillAlpha = 50
                             lineWidth = 2f
+                            highLightColor = safeParseColor(chartSettings.canvas.crosshairColor)
+                            highlightLineWidth = 0.8f
+                            enableDashedHighlightLine(10f, 10f, 0f)
                         }
                         combinedData.setData(LineData(areaDataSet))
                     }
@@ -398,71 +410,89 @@ fun TradingChart(
                         val columnDataSet = BarDataSet(ArrayList(barEntries), "Columns").apply {
                             axisDependency = YAxis.AxisDependency.RIGHT
                             setDrawValues(false)
-                            colors = currentCandles.map { if (it.close >= it.open) safeParseColor("#089981") else safeParseColor("#F05252") }
+                            colors = currentCandles.map { if (it.close >= it.open) safeParseColor(chartSettings.symbol.upColor) else safeParseColor(chartSettings.symbol.downColor) }
+                            highLightColor = safeParseColor(chartSettings.canvas.crosshairColor)
+                            setHighLightAlpha(255)
                         }
                         combinedData.setData(BarData(columnDataSet))
                     }
                     else -> {
                         val candleDataSet = CandleDataSet(ArrayList(currentCandles), "Candles").apply {
                             axisDependency = YAxis.AxisDependency.RIGHT
-                            setShadowColor(AndroidColor.WHITE)
                             shadowColorSameAsCandle = true
-                            setShadowWidth(2.0f)
-                            
+                            setShadowWidth(0.8f) // Thin TradingView-style wicks
+
                             when (style) {
                                 "hollow_candles" -> {
-                                    setIncreasingColor(safeParseColor("#089981"))
+                                    setIncreasingColor(safeParseColor(chartSettings.symbol.upColor))
                                     setIncreasingPaintStyle(Paint.Style.STROKE)
-                                    setDecreasingColor(safeParseColor("#F05252"))
+                                    setDecreasingColor(safeParseColor(chartSettings.symbol.downColor))
                                     setDecreasingPaintStyle(Paint.Style.FILL)
                                 }
                                 "bars" -> {
-                                    setIncreasingColor(safeParseColor("#089981"))
-                                    setDecreasingColor(safeParseColor("#F05252"))
-                                    setShadowWidth(1.5f)
+                                    setIncreasingColor(safeParseColor(chartSettings.symbol.upColor))
+                                    setDecreasingColor(safeParseColor(chartSettings.symbol.downColor))
+                                    setShadowWidth(1.2f)
                                     barSpace = 0.3f
                                 }
-                                "volume_candles", "volume_footprint", "heikin_ashi" -> {
-                                    setIncreasingColor(safeParseColor("#089981"))
-                                    setDecreasingColor(safeParseColor("#F05252"))
-                                    setShadowWidth(2.0f)
-                                }
                                 else -> {
-                                    setDecreasingColor(safeParseColor("#F05252"))
-                                    setDecreasingPaintStyle(Paint.Style.FILL)
-                                    setIncreasingColor(safeParseColor("#089981"))
+                                    // Default "candles" style - clean TradingView look
+                                    setIncreasingColor(safeParseColor(chartSettings.symbol.upColor))
                                     setIncreasingPaintStyle(Paint.Style.FILL)
+                                    setDecreasingColor(safeParseColor(chartSettings.symbol.downColor))
+                                    setDecreasingPaintStyle(Paint.Style.FILL)
+                                    setShadowWidth(0.8f)
                                 }
                             }
-                            
+
                             setNeutralColor(safeParseColor("#787B86"))
                             setDrawValues(false)
-                            barSpace = 0.1f 
-                            highlightLineWidth = 1f
-                            highLightColor = AndroidColor.GRAY
+                            barSpace = 0.15f // Balanced spacing
+                            highlightLineWidth = 0.8f
+                            highLightColor = safeParseColor(chartSettings.canvas.crosshairColor)
+                            enableDashedHighlightLine(10f, 10f, 0f) // Dashed crosshair
+                            
+                            if (!chartSettings.symbol.wickVisible) {
+                                setShadowWidth(0f)
+                            }
                         }
                         combinedData.setData(CandleData(candleDataSet))
                     }
                 }
 
-                // Add Volume to BarData
-                val volumeBarDataSet = BarDataSet(ArrayList(volumeEntries), "Volume").apply {
-                    axisDependency = YAxis.AxisDependency.LEFT
-                    setDrawValues(false)
-                    colors = volumeEntries.map { it.data as Int }
-                    setHighLightAlpha(0)
+                // Add Current Price Line (Dashed)
+                chart.axisRight.removeAllLimitLines()
+                currentQuote?.let { quote ->
+                    val priceLine = LimitLine(quote.lastPrice).apply {
+                        lineWidth = 0.8f
+                        lineColor = safeParseColor(if (quote.change >= 0) chartSettings.symbol.upColor else chartSettings.symbol.downColor)
+                        enableDashedLine(10f, 10f, 0f)
+                    }
+                    chart.axisRight.addLimitLine(priceLine)
                 }
-                
-                val currentBarData = combinedData.barData ?: BarData()
-                currentBarData.addDataSet(volumeBarDataSet)
-                currentBarData.barWidth = 0.8f
-                combinedData.setData(currentBarData)
+
+                // Add Volume to BarData
+                if (showVolume && chartSettings.statusLine.volume) {
+                    val volumeBarDataSet = BarDataSet(ArrayList(volumeEntries), "Volume").apply {
+                        axisDependency = YAxis.AxisDependency.LEFT
+                        setDrawValues(false)
+                        colors = volumeEntries.map { it.data as Int }
+                        setHighLightAlpha(0)
+                    }
+
+                    val currentBarData = combinedData.barData ?: BarData()
+                    currentBarData.addDataSet(volumeBarDataSet)
+                    currentBarData.barWidth = 0.8f
+                    combinedData.setData(currentBarData)
+                } else {
+                    combinedData.setData(BarData()) 
+                }
 
                 chart.data = combinedData
-                
+
                 val visibleStart = chart.lowestVisibleX
                 val visibleEnd = chart.highestVisibleX
-                
+
                 if (!isManualMode) {
                     val visibleCandles = currentCandles.filter { it.x in visibleStart..visibleEnd }
                     if (visibleCandles.isNotEmpty()) {
@@ -472,24 +502,22 @@ fun TradingChart(
                         baseRange = max - min
                     }
                 }
-                
+
                 if (baseRange > 0) {
                     val currentCenter = baseCenter + priceCenterOffset
                     val currentHalfRange = (baseRange / 2f) / priceScaleFactor
-                    
-                    // Balanced range for visible expansion/contraction
-                    chart.axisRight.axisMinimum = currentCenter - currentHalfRange 
+                    chart.axisRight.axisMinimum = currentCenter - currentHalfRange
                     chart.axisRight.axisMaximum = currentCenter + currentHalfRange
                 }
 
                 val visibleVolumes = volumeEntries.filter { it.x in visibleStart..visibleEnd }
                 if (visibleVolumes.isNotEmpty()) {
                     val maxVol = visibleVolumes.maxOf { it.y }
-                    chart.axisLeft.axisMaximum = maxVol * 6f 
+                    chart.axisLeft.axisMaximum = maxVol * 6f
                 }
 
                 chart.notifyDataSetChanged()
-                
+
                 if (!initialZoomDone) {
                     val totalCandles = currentCandles.size.toFloat()
                     val viewportWidth = 50f
@@ -498,229 +526,250 @@ fun TradingChart(
                     chart.moveViewToX(totalCandles - (viewportWidth / 2f))
                     initialZoomDone = true
                 }
-                
+
                 chart.invalidate()
             }
         )
 
         // OHLC Overlay aligned to the left edge
-        Column(
-            modifier = Modifier
-                .padding(4.dp) 
-                .align(Alignment.TopStart)
-        ) {
-            // Line 1: Flags and Name
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Overlapping Icons (Flags)
-                Box(
-                    contentAlignment = Alignment.CenterStart, 
-                    modifier = Modifier.size(width = 32.dp, height = 24.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(18.dp)
-                            .background(ComposeColor(0xFFF05252), RoundedCornerShape(9.dp))
-                            .border(1.5.dp, ComposeColor(0xFF08090C), RoundedCornerShape(9.dp))
-                    )
-                    Box(
-                        modifier = Modifier
-                            .offset(x = 10.dp)
-                            .size(18.dp)
-                            .background(ComposeColor(0xFF2962FF), RoundedCornerShape(9.dp))
-                            .border(1.5.dp, ComposeColor(0xFF08090C), RoundedCornerShape(9.dp))
-                    )
-                }
-                
-                Spacer(modifier = Modifier.width(6.dp))
-                
-                Text(
-                    text = getFullSymbolName(symbol),
-                    color = ComposeColor.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                // Status Pill
-                Row(
-                    modifier = Modifier
-                        .background(ComposeColor(0xFF1E222D), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .background(ComposeColor(0xFF089981), RoundedCornerShape(3.dp))
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.Default.SyncAlt,
-                        contentDescription = null,
-                        tint = ComposeColor(0xFFF23645),
-                        modifier = Modifier.size(10.dp)
-                    )
-                }
-            }
-            
-            val change = currentQuote?.change ?: 0f
-            val changePercent = currentQuote?.changePercent ?: 0f
-            val lastPrice = currentQuote?.lastPrice ?: 0f
-            val changeColor = if (change >= 0f) ComposeColor(0xFF089981) else ComposeColor(0xFFF05252)
-            
-            // Line 2: Price and Change
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = String.format("%.3f", lastPrice),
-                    color = changeColor,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = String.format("%+8.3f (%+8.2f%%)", change, changePercent),
-                    color = changeColor,
-                    fontSize = 13.sp
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(6.dp))
-            
-            // Line 3: OHLC
-            val displayData = highlightedCandle ?: currentQuote?.let { 
-                CandleEntry(0f, it.high, it.low, it.open, it.lastPrice) 
-            }
-            Row {
-                OHLCItem("O", String.format("%.2f", displayData?.open ?: 0f))
-                OHLCItem("H", String.format("%.2f", displayData?.high ?: 0f))
-                OHLCItem("L", String.format("%.2f", displayData?.low ?: 0f))
-                OHLCItem("C", String.format("%.2f", displayData?.close ?: 0f))
-            }
-            
-            Spacer(modifier = Modifier.height(2.dp))
-            
-            // Line 4: Bid / Ask
-            Row {
-                Text(text = "Bid ", color = ComposeColor(0xFF787B86), fontSize = 11.sp)
-                Text(text = String.format("%.5f", currentQuote?.bid ?: 0f), color = ComposeColor.White, fontSize = 11.sp)
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(text = "Ask ", color = ComposeColor(0xFF787B86), fontSize = 11.sp)
-                Text(text = String.format("%.5f", currentQuote?.ask ?: 0f), color = ComposeColor.White, fontSize = 11.sp)
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Line 5: Buy/Sell Buttons
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(
-                    modifier = Modifier
-                        .width(70.dp)
-                        .height(44.dp)
-                        .background(ComposeColor(0xFFF05252), RoundedCornerShape(4.dp))
-                        .clickable { 
-                            orderType = "SELL"
-                            orderPrice = currentQuote?.bid ?: 0f
-                            showOrderDialog = true
+        if (chartSettings.statusLine.symbol || chartSettings.statusLine.ohlc) {
+            Column(
+                modifier = Modifier
+                    .padding(4.dp)
+                    .align(Alignment.TopStart)
+            ) {
+                // Line 1: Flags and Name
+                if (chartSettings.statusLine.symbol) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (chartSettings.statusLine.logo) {
+                            Box(
+                                contentAlignment = Alignment.CenterStart,
+                                modifier = Modifier.size(width = 32.dp, height = 24.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .background(ComposeColor(0xFFF05252), RoundedCornerShape(9.dp))
+                                        .border(1.5.dp, ComposeColor(0xFF08090C), RoundedCornerShape(9.dp))
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .offset(x = 10.dp)
+                                        .size(18.dp)
+                                        .background(ComposeColor(0xFF2962FF), RoundedCornerShape(9.dp))
+                                        .border(1.5.dp, ComposeColor(0xFF08090C), RoundedCornerShape(9.dp))
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
                         }
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text("SELL", color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Text(String.format("%.2f", currentQuote?.bid ?: 0f), color = ComposeColor.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-                
-                Box(
-                    modifier = Modifier
-                        .width(40.dp)
-                        .height(44.dp)
-                        .background(ComposeColor(0xFF1E222D))
-                        .border(1.dp, ComposeColor(0xFF2A2E39)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("40", color = ComposeColor.White, fontSize = 13.sp)
-                }
-                
-                Column(
-                    modifier = Modifier
-                        .width(70.dp)
-                        .height(44.dp)
-                        .background(ComposeColor(0xFF2962FF), RoundedCornerShape(4.dp))
-                        .clickable { 
-                            orderType = "BUY"
-                            orderPrice = currentQuote?.ask ?: 0f
-                            showOrderDialog = true
+
+                        Text(
+                            text = if (chartSettings.statusLine.titleMode == "Description") getFullSymbolName(symbol) else symbol,
+                            color = ComposeColor.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        if (chartSettings.statusLine.openMarketStatus) {
+                            Row(
+                                modifier = Modifier
+                                    .background(ComposeColor(0xFF1E222D), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(ComposeColor(0xFF089981), RoundedCornerShape(3.dp))
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.SyncAlt,
+                                    contentDescription = null,
+                                    tint = ComposeColor(0xFFF23645),
+                                    modifier = Modifier.size(10.dp)
+                                )
+                            }
                         }
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text("BUY", color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Text(String.format("%.2f", currentQuote?.ask ?: 0f), color = ComposeColor.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                val change = currentQuote?.change ?: 0f
+                val changePercent = currentQuote?.changePercent ?: 0f
+                val lastPrice = currentQuote?.lastPrice ?: 0f
+                val changeColor = if (change >= 0f) ComposeColor(safeParseColor(chartSettings.symbol.upColor)) else ComposeColor(safeParseColor(chartSettings.symbol.downColor))
+
+                if (chartSettings.statusLine.ohlc) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = String.format("%.3f", lastPrice),
+                            color = changeColor,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        if (chartSettings.statusLine.barChangeValues) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = String.format("%+8.3f (%+8.2f%%)", change, changePercent),
+                                color = changeColor,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    val displayData = highlightedCandle ?: currentQuote?.let {
+                        CandleEntry(0f, it.high, it.low, it.open, it.lastPrice)
+                    }
+                    Row {
+                        OHLCItem("O", String.format("%.2f", displayData?.open ?: 0f))
+                        OHLCItem("H", String.format("%.2f", displayData?.high ?: 0f))
+                        OHLCItem("L", String.format("%.2f", displayData?.low ?: 0f))
+                        OHLCItem("C", String.format("%.2f", displayData?.close ?: 0f))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                if (chartSettings.scales.bidAskMode != "Hidden") {
+                    Row {
+                        Text(text = "Bid ", color = ComposeColor(0xFF787B86), fontSize = 11.sp)
+                        Text(text = String.format("%.5f", currentQuote?.bid ?: 0f), color = ComposeColor.White, fontSize = 11.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(text = "Ask ", color = ComposeColor(0xFF787B86), fontSize = 11.sp)
+                        Text(text = String.format("%.5f", currentQuote?.ask ?: 0f), color = ComposeColor.White, fontSize = 11.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (chartSettings.trading.buySellButtons) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(
+                            modifier = Modifier
+                                .width(70.dp)
+                                .height(44.dp)
+                                .background(ComposeColor(safeParseColor(chartSettings.symbol.downColor)), RoundedCornerShape(4.dp))
+                                .clickable {
+                                    orderType = "SELL"
+                                    orderPrice = currentQuote?.bid ?: 0f
+                                    showOrderDialog = true
+                                }
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("SELL", color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text(String.format("%.2f", currentQuote?.bid ?: 0f), color = ComposeColor.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(40.dp)
+                                .height(44.dp)
+                                .background(ComposeColor(0xFF1E222D))
+                                .border(1.dp, ComposeColor(0xFF2A2E39)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("40", color = ComposeColor.White, fontSize = 13.sp)
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .width(70.dp)
+                                .height(44.dp)
+                                .background(ComposeColor(0xFF2962FF), RoundedCornerShape(4.dp))
+                                .clickable {
+                                    orderType = "BUY"
+                                    orderPrice = currentQuote?.ask ?: 0f
+                                    showOrderDialog = true
+                                }
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("BUY", color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text(String.format("%.2f", currentQuote?.ask ?: 0f), color = ComposeColor.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                if (showVolume && chartSettings.statusLine.volume) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onVolumeToggle(!showVolume) }) {
+                        Text("Volume", color = ComposeColor(0xFF787B86), fontSize = 12.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(onClick = { onIndicatorSettingsClick("Volume") }, modifier = Modifier.size(16.dp)) {
+                            Icon(Icons.Default.KeyboardArrowDown, null, tint = ComposeColor(0xFF787B86))
+                        }
+                    }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            Text("Volume", color = ComposeColor(0xFF787B86), fontSize = 12.sp)
         }
 
         // Currency Dropdown
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 4.dp, end = 4.dp)
-        ) {
-            Surface(
-                color = ComposeColor(0xFF1E222D),
-                shape = RoundedCornerShape(4.dp),
+        if (chartSettings.scales.currencyAndUnit != "Hidden") {
+            Box(
                 modifier = Modifier
-                    .clickable { showCurrencyMenu = true }
-                    .padding(2.dp)
+                    .align(Alignment.TopEnd)
+                    .padding(top = 4.dp, end = 4.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        selectedCurrency,
-                        color = ComposeColor(0xFFD1D4DC),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Icon(
-                        Icons.Default.KeyboardArrowDown,
-                        null,
-                        tint = ComposeColor(0xFF787B86),
-                        modifier = Modifier.size(12.dp)
-                    )
-                }
-            }
-
-            DropdownMenu(
-                expanded = showCurrencyMenu,
-                onDismissRequest = { showCurrencyMenu = false },
-                modifier = Modifier.background(ComposeColor(0xFF1E222D))
-            ) {
-                listOf("USD", "EUR", "GBP", "JPY", "BTC").forEach { currency ->
-                    DropdownMenuItem(
-                        text = { Text(currency, color = ComposeColor.White, fontSize = 12.sp) },
-                        onClick = {
-                            selectedCurrency = currency
-                            showCurrencyMenu = false
+                Surface(
+                    color = ComposeColor(0xFF1E222D),
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier
+                        .clickable { 
+                            onCurrencyClick()
+                            showCurrencyMenu = true 
                         }
-                    )
+                        .padding(2.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            selectedCurrency,
+                            color = ComposeColor(0xFFD1D4DC),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Icon(
+                            Icons.Default.KeyboardArrowDown,
+                            null,
+                            tint = ComposeColor(0xFF787B86),
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+                }
+
+                DropdownMenu(
+                    expanded = showCurrencyMenu,
+                    onDismissRequest = { showCurrencyMenu = false },
+                    modifier = Modifier.background(ComposeColor(0xFF1E222D))
+                ) {
+                    listOf("USD", "EUR", "GBP", "JPY", "BTC").forEach { currency ->
+                        DropdownMenuItem(
+                            text = { Text(currency, color = ComposeColor.White, fontSize = 12.sp) },
+                            onClick = {
+                                showCurrencyMenu = false
+                            }
+                        )
+                    }
                 }
             }
         }
-        
+
         if (showOrderDialog) {
             AlertDialog(
                 onDismissRequest = { showOrderDialog = false },
                 title = { Text(text = "Place Order", color = ComposeColor.White) },
-                text = { 
+                text = {
                     Text(
                         text = "Are you sure you want to $orderType 40 units of $symbol at $orderPrice?",
                         color = ComposeColor.White
-                    ) 
+                    )
                 },
                 confirmButton = {
                     TextButton(onClick = { showOrderDialog = false }) {
@@ -734,6 +783,15 @@ fun TradingChart(
                 },
                 containerColor = ComposeColor(0xFF1E222D)
             )
+        }
+        
+        if (isFullscreen) {
+            IconButton(
+                onClick = { onFullscreenExit() },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
+            ) {
+                Icon(Icons.Default.SyncAlt, contentDescription = "Exit Fullscreen", tint = ComposeColor.White)
+            }
         }
     }
 }

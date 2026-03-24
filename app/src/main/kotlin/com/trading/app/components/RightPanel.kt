@@ -25,7 +25,8 @@ fun RightPanel(
     isSidebarVisible: Boolean,
     isWatchlistVisible: Boolean,
     onSidebarToggle: () -> Unit,
-    onWatchlistToggle: () -> Unit
+    onWatchlistToggle: () -> Unit,
+    backgroundColor: Color = Color(0xFF1E222D)
 ) {
     val watchlist = listOf(
         "BTCUSD" to 65432.10,
@@ -45,7 +46,7 @@ fun RightPanel(
                 modifier = Modifier
                     .width(12.dp)
                     .fillMaxHeight()
-                    .background(Color(0xFF1E222D))
+                    .background(backgroundColor)
                     .border(width = 0.5.dp, color = Color(0xFF2A2E39))
                     .clickable { onSidebarToggle() },
                 contentAlignment = Alignment.Center
@@ -63,7 +64,7 @@ fun RightPanel(
                 modifier = Modifier
                     .width(48.dp)
                     .fillMaxHeight()
-                    .background(Color(0xFF1E222D))
+                    .background(backgroundColor)
                     .border(width = 0.5.dp, color = Color(0xFF2A2E39))
                     .padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -102,7 +103,7 @@ fun RightPanel(
                     modifier = Modifier
                         .width(280.dp)
                         .fillMaxHeight()
-                        .background(Color(0xFF1E222D))
+                        .background(backgroundColor)
                         .border(width = 0.5.dp, color = Color(0xFF2A2E39))
                 ) {
                     // Header

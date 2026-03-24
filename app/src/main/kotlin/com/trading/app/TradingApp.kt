@@ -9,7 +9,18 @@ import androidx.compose.ui.graphics.Color
 import com.google.ai.client.generativeai.GenerativeModel
 import com.trading.app.components.*
 import com.trading.app.models.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+// Helper to parse color string to Compose Color
+private fun parseComposeColor(colorString: String?, defaultColor: Color = Color(0xFF131722)): Color {
+    if (colorString.isNullOrBlank()) return defaultColor
+    return try {
+        Color(android.graphics.Color.parseColor(colorString))
+    } catch (e: Exception) {
+        defaultColor
+    }
+}
 
 @Composable
 fun TradingApp() {
@@ -25,6 +36,10 @@ fun TradingApp() {
     var isMagnetEnabled by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(false) }
     var areDrawingsVisible by remember { mutableStateOf(true) }
+    
+    // Currency State
+    var selectedCurrency by remember { mutableStateOf("USD") }
+    var showCurrencyModal by remember { mutableStateOf(false) }
     
     // Sidebar visibility state - Defaulted to false (hidden)
     var isSidebarVisible by remember { mutableStateOf(false) }
@@ -87,20 +102,16 @@ fun TradingApp() {
     var atrPeriod by remember { mutableIntStateOf(14) }
     var showVolume by remember { mutableStateOf(true) }
 
-    // AI Analysis State
-    var analysisContent by remember { mutableStateOf("") }
-    var isAnalyzing by remember { mutableStateOf(false) }
-
-    // UI State
+    // Navigation and UI State
     var isFullscreen by remember { mutableStateOf(false) }
-    var isBottomPanelVisible by remember { mutableStateOf(false) }
-    var activeTab by remember { mutableStateOf("Trading Panel") }
-    
-    // Right Sidebar States
     var isRightSidebarVisible by remember { mutableStateOf(false) }
     var isWatchlistVisible by remember { mutableStateOf(false) }
+    var isBottomPanelVisible by remember { mutableStateOf(false) }
+    var activeTab by remember { mutableStateOf("Trading Panel") }
+    var analysisContent by remember { mutableStateOf("Click refresh to generate analysis...") }
+    var isAnalyzing by remember { mutableStateOf(false) }
     
-    // Modals State
+    // Modal Visibility
     var showSymbolSearch by remember { mutableStateOf(false) }
     var showIndicatorModal by remember { mutableStateOf(false) }
     var showGoToDateModal by remember { mutableStateOf(false) }
@@ -108,6 +119,7 @@ fun TradingApp() {
     var showToolSearchModal by remember { mutableStateOf(false) }
     var showSideMenu by remember { mutableStateOf(false) }
     var showAlertModal by remember { mutableStateOf(false) }
+    var showCaptureModal by remember { mutableStateOf(false) }
     var showIndicatorSettingsModal by remember { mutableStateOf<String?>(null) }
 
     val generativeModel = remember {
@@ -177,7 +189,13 @@ fun TradingApp() {
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF131722)) {
+    val appBackgroundColor = when (chartSettings.canvas.fullChartColor) {
+        "Pure Black" -> Color.Black
+        "Dark Blue" -> Color(0xFF131722)
+        else -> parseComposeColor(chartSettings.canvas.background)
+    }
+
+    Surface(modifier = Modifier.fillMaxSize(), color = appBackgroundColor) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (!isFullscreen) {
                 Header(
@@ -197,12 +215,14 @@ fun TradingApp() {
                     canRedo = redoStack.isNotEmpty(),
                     onFullscreenClick = { isFullscreen = true },
                     onToolSearchClick = { showToolSearchModal = true },
-                    onSideMenuClick = { isSidebarVisible = !isSidebarVisible },
+                    onSideMenuClick = { showSideMenu = true },
                     onRightPanelToggle = { 
                         isWatchlistVisible = !isWatchlistVisible 
                         if (isWatchlistVisible) isRightSidebarVisible = true
                     },
-                    isRightPanelVisible = isWatchlistVisible
+                    isRightPanelVisible = isWatchlistVisible,
+                    onDownloadChart = { showCaptureModal = true },
+                    backgroundColor = appBackgroundColor
                 )
             }
 
@@ -220,7 +240,8 @@ fun TradingApp() {
                         onLockToggle = { isLocked = !isLocked },
                         isVisible = areDrawingsVisible,
                         onVisibilityToggle = { areDrawingsVisible = !areDrawingsVisible },
-                        onClearDrawings = { drawings.clear() }
+                        onClearDrawings = { drawings.clear() },
+                        backgroundColor = appBackgroundColor
                     )
                 }
 
@@ -251,57 +272,70 @@ fun TradingApp() {
                             showAtr = showAtr,
                             atrPeriod = atrPeriod,
                             showVolume = showVolume,
+                            onVolumeToggle = { showVolume = it },
+                            onIndicatorSettingsClick = { showIndicatorSettingsModal = it },
                             isMagnetEnabled = isMagnetEnabled,
                             isLocked = isLocked,
-                            isVisible = areDrawingsVisible
+                            isVisible = areDrawingsVisible,
+                            selectedCurrency = selectedCurrency,
+                            onCurrencyClick = { showCurrencyModal = true },
+                            isFullscreen = isFullscreen,
+                            onFullscreenExit = { isFullscreen = false }
                         )
                     }
                     
-                    if (isBottomPanelVisible) {
+                    if (!isFullscreen && isBottomPanelVisible) {
                         TradingPanel(
                             activeTab = activeTab,
                             onTabChange = { activeTab = it },
                             analysisContent = analysisContent,
                             isAnalyzing = isAnalyzing,
                             onRefreshAnalysis = { refreshAnalysis() },
-                            onClose = { isBottomPanelVisible = false }
+                            onClose = { isBottomPanelVisible = false },
+                            backgroundColor = appBackgroundColor
                         )
                     }
                 }
                 
                 // Right Panel (Watchlist, etc.)
-                RightPanel(
-                    symbol = symbol,
-                    onSymbolSelect = { symbol = it },
-                    isSidebarVisible = isRightSidebarVisible,
-                    isWatchlistVisible = isWatchlistVisible,
-                    onSidebarToggle = { isRightSidebarVisible = !isRightSidebarVisible },
-                    onWatchlistToggle = { isWatchlistVisible = !isWatchlistVisible }
-                )
+                if (!isFullscreen) {
+                    RightPanel(
+                        symbol = symbol,
+                        onSymbolSelect = { symbol = it },
+                        isSidebarVisible = isRightSidebarVisible,
+                        isWatchlistVisible = isWatchlistVisible,
+                        onSidebarToggle = { isRightSidebarVisible = !isRightSidebarVisible },
+                        onWatchlistToggle = { isWatchlistVisible = !isWatchlistVisible },
+                        backgroundColor = appBackgroundColor
+                    )
+                }
             }
 
-            BottomBar(
-                onRangeClick = { handleRangeChange(it) },
-                onGoToClick = { showGoToDateModal = true },
-                onTimeZoneClick = { /* Show Timezone Modal */ },
-                selectedTimeZone = selectedTz.label,
-                onTabClick = { 
-                    if (activeTab == it && isBottomPanelVisible) {
-                        isBottomPanelVisible = false
-                    } else {
-                        activeTab = it
-                        isBottomPanelVisible = true
-                    }
-                },
-                activeTab = if (isBottomPanelVisible) activeTab else null,
-                recentPairs = recentPairs,
-                currentSymbol = symbol,
-                currentTimeframe = timeframe,
-                onPairSelect = { s: String, t: String ->
-                    symbol = s
-                    timeframe = t
-                }
-            )
+            if (!isFullscreen) {
+                BottomBar(
+                    onRangeClick = { handleRangeChange(it) },
+                    onGoToClick = { showGoToDateModal = true },
+                    onTimeZoneClick = { /* Show Timezone Modal */ },
+                    selectedTimeZone = selectedTz.label,
+                    onTabClick = { 
+                        if (activeTab == it && isBottomPanelVisible) {
+                            isBottomPanelVisible = false
+                        } else {
+                            activeTab = it
+                            isBottomPanelVisible = true
+                        }
+                    },
+                    activeTab = if (isBottomPanelVisible) activeTab else null,
+                    recentPairs = recentPairs,
+                    currentSymbol = symbol,
+                    currentTimeframe = timeframe,
+                    onPairSelect = { s: String, t: String ->
+                        symbol = s
+                        timeframe = t
+                    },
+                    backgroundColor = appBackgroundColor
+                )
+            }
         }
 
         // Modals
@@ -309,6 +343,14 @@ fun TradingApp() {
             SymbolSearchModal(
                 onClose = { showSymbolSearch = false },
                 onSymbolSelect = { symbol = it }
+            )
+        }
+        if (showCurrencyModal) {
+            CurrencySelectionModal(
+                currentSymbol = symbol,
+                selectedCurrency = selectedCurrency,
+                onCurrencySelect = { selectedCurrency = it },
+                onClose = { showCurrencyModal = false }
             )
         }
         if (showIndicatorModal) {
@@ -338,7 +380,15 @@ fun TradingApp() {
         }
         if (showSideMenu) {
             SideMenu(
-                onClose = { showSideMenu = false }
+                onClose = { showSideMenu = false },
+                onNavigate = { destination ->
+                    when(destination) {
+                        "Drawings" -> isSidebarVisible = !isSidebarVisible
+                        "Analysis" -> { activeTab = "AI Analysis"; isBottomPanelVisible = true }
+                        "Tools" -> showToolSearchModal = true
+                        "Settings" -> showSettingsModal = true
+                    }
+                }
             )
         }
         if (showAlertModal) {
@@ -346,6 +396,13 @@ fun TradingApp() {
                 symbol = symbol,
                 onAlertCreate = { userAlerts.add(it) },
                 onClose = { showAlertModal = false }
+            )
+        }
+        if (showCaptureModal) {
+            ChartCaptureModal(
+                onClose = { showCaptureModal = false },
+                onDownload = { /* Implement download */ },
+                onShare = { /* Implement share */ }
             )
         }
         showIndicatorSettingsModal?.let { indicatorId ->
@@ -359,6 +416,7 @@ fun TradingApp() {
                     "SMA2" -> sma2Period
                     "BB" -> bbPeriod
                     "ATR" -> atrPeriod
+                    "Volume" -> 20 // Mock value for volume
                     else -> 14
                 },
                 onPeriodChange = { 

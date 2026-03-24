@@ -3,13 +3,18 @@ package com.trading.app.models
 import androidx.compose.ui.graphics.vector.ImageVector
 
 data class SymbolSettings(
-    val upColor: String = "#26a69a",
-    val downColor: String = "#ef5350",
+    val upColor: String = "#089981",
+    val downColor: String = "#f23645",
+    val bodyVisible: Boolean = true,
     val borderVisible: Boolean = true,
+    val borderColorUp: String = "#089981",
+    val borderColorDown: String = "#f23645",
     val wickVisible: Boolean = true,
-    val barColorer: Boolean = true,
+    val wickColorUp: String = "#089981",
+    val wickColorDown: String = "#f23645",
+    val barColorer: Boolean = false, // Color bars based on previous close
     val precision: String = "Default",
-    val timezone: String = "(UTC-8) Los Angeles"
+    val timezone: String = "(UTC-7) Los Angeles"
 )
 
 data class StatusLineSettings(
@@ -29,31 +34,32 @@ data class StatusLineSettings(
 )
 
 data class ScalesSettings(
+    val currencyAndUnit: String = "Always visible",
+    val scaleModes: String = "Visible on tap",
+    val lockRatio: Boolean = false,
+    val lockRatioValue: String = "17.2210131",
+    val scalesPlacement: String = "Auto",
+    val noOverlappingLabels: Boolean = false,
     val plusButton: Boolean = true,
     val countdown: Boolean = true,
-    val noOverlappingLabels: Boolean = true,
-    val lockRatio: Boolean = false,
-    val lockRatioValue: String = "0.0530608",
-    val placement: String = "Auto",
-    val currencyAndUnit: String = "Always visible",
-    val scaleModes: String = "Visible on mouse over",
     val symbolLabel: String = "Name, value, line",
-    val prevDayClose: Boolean = false,
-    val highLow: Boolean = false,
-    val bidAsk: Boolean = false,
-    val lastPriceLine: Boolean = true,
-    val askPriceLine: Boolean = true,
-    val showAskAndLastPrice: Boolean = true
+    val symbolLastValueMode: String = "Value according to scale",
+    val highLowMode: String = "Hidden",
+    val bidAskMode: String = "Hidden",
+    val dayOfWeekOnLabels: Boolean = true,
+    val dateFormat: String = "Mon 29 Sep '97",
+    val timeFormat: String = "24-hours",
+    val saveLeftEdge: Boolean = true
 )
 
 data class CanvasSettings(
     val backgroundType: String = "Solid",
-    val background: String = "#1c1c1c",
+    val background: String = "#131722",
     val backgroundGradientEnd: String = "#0c0c0d",
     val gridVisible: Boolean = true,
     val gridType: String = "Vert and horz",
-    val gridColor: String = "#662A2E39",
-    val horzGridColor: String = "#662A2E39",
+    val gridColor: String = "#1f222d",
+    val horzGridColor: String = "#1f222d",
     val crosshairColor: String = "#758696",
     val crosshairStyle: Int = 1,
     val watermarkVisible: Boolean = false,
@@ -61,12 +67,14 @@ data class CanvasSettings(
     val watermarkColor: String = "#662A2E39",
     val scaleTextColor: String = "#d1d4dc",
     val scaleFontSize: Int = 11,
-    val scaleLineColor: String = "#662A2E39",
+    val scaleLineColor: String = "#2a2e39",
     val navigationButtons: String = "Visible on mouse over",
     val paneButtons: String = "Visible on mouse over",
     val marginTop: Int = 10,
     val marginBottom: Int = 8,
-    val marginRight: Int = 10
+    val marginRight: Int = 10,
+    val fullChartColor: String = "Default", // Options: "Default", "Pure Black", "Dark Blue", "OLED Black"
+    val headerVisibility: String = "Always visible" // Options: "Always visible", "Auto-hide"
 )
 
 data class TradingSettings(

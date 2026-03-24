@@ -1,47 +1,27 @@
 package com.trading.app.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.trading.app.models.ChartSettings
-import android.graphics.Color as AndroidColor
-
-private fun safeParseColor(colorString: String?, defaultColor: Int = AndroidColor.GRAY): Int {
-    if (colorString.isNullOrBlank()) return defaultColor
-    return try {
-        if (colorString.startsWith("rgba", ignoreCase = true)) {
-            val parts = colorString.substringAfter("(").substringBefore(")").split(",")
-            val r = parts[0].trim().toInt()
-            val g = parts[1].trim().toInt()
-            val b = parts[2].trim().toInt()
-            val a = (parts.getOrNull(3)?.trim()?.toFloat() ?: 1f).let { (it * 255).toInt() }
-            AndroidColor.argb(a, r, g, b)
-        } else if (colorString.startsWith("rgb", ignoreCase = true)) {
-            val parts = colorString.substringAfter("(").substringBefore(")").split(",")
-            val r = parts[0].trim().toInt()
-            val g = parts[1].trim().toInt()
-            val b = parts[2].trim().toInt()
-            AndroidColor.rgb(r, g, b)
-        } else {
-            AndroidColor.parseColor(colorString)
-        }
-    } catch (e: Exception) {
-        defaultColor
-    }
-}
 
 @Composable
 fun SettingsModal(
@@ -49,72 +29,149 @@ fun SettingsModal(
     onUpdate: (ChartSettings) -> Unit,
     onClose: () -> Unit
 ) {
-    Dialog(onDismissRequest = onClose) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.8f)
-                .padding(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E222D))
+    var activeSubModal by remember { mutableStateOf<String?>(null) }
+
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.Black
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Chart Settings", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Icon(
-                        Icons.Default.Close,
-                        null,
-                        tint = Color.White,
-                        modifier = Modifier.clickable { onClose() }
-                    )
-                }
-                
-                Divider(color = Color(0xFF363A45))
-                
-                // Content
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp)
-                ) {
-                    Text("Symbol", color = Color(0xFF2962FF), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    SettingRow("Up Color", settings.symbol.upColor) { onUpdate(settings.copy(symbol = settings.symbol.copy(upColor = it))) }
-                    SettingRow("Down Color", settings.symbol.downColor) { onUpdate(settings.copy(symbol = settings.symbol.copy(downColor = it))) }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Canvas", color = Color(0xFF2962FF), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    SettingRow("Background", settings.canvas.background) { onUpdate(settings.copy(canvas = settings.canvas.copy(background = it))) }
-                    SettingRow("Grid Color", settings.canvas.gridColor) { onUpdate(settings.copy(canvas = settings.canvas.copy(gridColor = it))) }
-                }
-                
-                Divider(color = Color(0xFF363A45))
-                
-                // Footer
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = onClose) {
-                        Text("Cancel", color = Color(0xFF787B86))
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (activeSubModal == null) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Header
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 20.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Settings",
+                                color = Color.White,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            IconButton(onClick = onClose) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Close",
+                                    tint = Color(0xFF787B86),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+
+                        // Scrollable Settings List
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            SettingsItem("Symbol", Icons.Default.CandlestickChart) { activeSubModal = "Symbol" }
+                            SettingsItem("Status line", Icons.Default.Notes) { activeSubModal = "Status line" }
+                            SettingsItem("Scales and lines", Icons.Default.Straighten) { activeSubModal = "Scales and lines" }
+                            SettingsItem("Canvas", Icons.Default.Edit) { activeSubModal = "Canvas" }
+                            SettingsItem("Trading", Icons.Default.TrendingUp) { activeSubModal = "Trading" }
+                            SettingsItem("Alerts", Icons.Default.NotificationsNone) { activeSubModal = "Alerts" }
+                            SettingsItem("Events", Icons.Default.CalendarToday) { activeSubModal = "Events" }
+                        }
+
+                        // Footer
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp, 36.dp)
+                                    .border(1.dp, Color(0xFF2A2E39), RoundedCornerShape(8.dp))
+                                    .clickable { },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.MoreHoriz, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Button(
+                                    onClick = onClose,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                                    border = BorderStroke(1.dp, Color(0xFF2A2E39)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(36.dp)
+                                ) {
+                                    Text("Cancel", color = Color.White, fontSize = 14.sp)
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Button(
+                                    onClick = onClose,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(36.dp)
+                                ) {
+                                    Text("Ok", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
-                    Button(
-                        onClick = onClose,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2962FF))
-                    ) {
-                        Text("Apply")
+                } else {
+                    when (activeSubModal) {
+                        "Symbol" -> {
+                            SymbolSettingsModal(
+                                settings = settings,
+                                onUpdate = onUpdate,
+                                onClose = { activeSubModal = null }
+                            )
+                        }
+                        "Status line" -> {
+                            StatusLineSettingsModal(
+                                settings = settings,
+                                onUpdate = onUpdate,
+                                onClose = { activeSubModal = null }
+                            )
+                        }
+                        "Scales and lines" -> {
+                            ScalesAndLinesSettingsModal(
+                                settings = settings,
+                                onUpdate = onUpdate,
+                                onClose = { activeSubModal = null }
+                            )
+                        }
+                        "Canvas" -> {
+                            CanvasSettingsModal(
+                                settings = settings,
+                                onUpdate = onUpdate,
+                                onClose = { activeSubModal = null }
+                            )
+                        }
+                        "Trading" -> {
+                            TradingSettingsModal(
+                                settings = settings,
+                                onUpdate = onUpdate,
+                                onClose = { activeSubModal = null }
+                            )
+                        }
+                        "Alerts" -> {
+                            AlertsSettingsModal(
+                                settings = settings,
+                                onUpdate = onUpdate,
+                                onClose = { activeSubModal = null }
+                            )
+                        }
+                        "Events" -> {
+                            EventsSettingsModal(
+                                settings = settings,
+                                onUpdate = onUpdate,
+                                onClose = { activeSubModal = null }
+                            )
+                        }
                     }
                 }
             }
@@ -123,20 +180,38 @@ fun SettingsModal(
 }
 
 @Composable
-fun SettingRow(label: String, value: String, onValueChange: (String) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, color = Color(0xFFD1D4DC), fontSize = 14.sp)
-        Box(
+fun SettingsItem(label: String, icon: ImageVector, onClick: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
             modifier = Modifier
-                .size(24.dp)
-                .background(Color(safeParseColor(value)))
-                .clickable { /* Color picker would go here */ }
+                .fillMaxWidth()
+                .clickable { onClick() }
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                icon,
+                null,
+                tint = Color(0xFFD1D4DC),
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                label,
+                color = Color.White,
+                fontSize = 16.sp,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                Icons.Default.ChevronRight,
+                null,
+                tint = Color(0xFF434651),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Divider(
+            color = Color(0xFF1E222D),
+            modifier = Modifier.padding(start = 56.dp)
         )
     }
 }
