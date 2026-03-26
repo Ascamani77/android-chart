@@ -1,10 +1,10 @@
-#Wed Mar 25 00:36:01 GMT+01:00 2026
-base.0=C\:\\Users\\HP\\Downloads\\kotlin 2\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes.dex
-base.1=C\:\\Users\\HP\\Downloads\\kotlin 2\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
-base.2=C\:\\Users\\HP\\Downloads\\kotlin 2\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\10\\classes.dex
-base.3=C\:\\Users\\HP\\Downloads\\kotlin 2\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\12\\classes.dex
-base.4=C\:\\Users\\HP\\Downloads\\kotlin 2\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\14\\classes.dex
-base.5=C\:\\Users\\HP\\Downloads\\kotlin 2\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes2.dex
+#Fri Mar 27 00:33:20 GMT+01:00 2026
+base.0=C\:\\Users\\HP\\AndroidStudioProjects\\kotlin 2\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes.dex
+base.1=C\:\\Users\\HP\\AndroidStudioProjects\\kotlin 2\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
+base.2=C\:\\Users\\HP\\AndroidStudioProjects\\kotlin 2\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\10\\classes.dex
+base.3=C\:\\Users\\HP\\AndroidStudioProjects\\kotlin 2\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\12\\classes.dex
+base.4=C\:\\Users\\HP\\AndroidStudioProjects\\kotlin 2\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\14\\classes.dex
+base.5=C\:\\Users\\HP\\AndroidStudioProjects\\kotlin 2\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes2.dex
 path.0=classes.dex
 path.1=0/classes.dex
 path.2=10/classes.dex

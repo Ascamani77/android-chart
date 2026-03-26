@@ -44,6 +44,8 @@ fun Header(
     isReplayActive: Boolean = false,
     isAnalyzing: Boolean = false,
     onDownloadChart: () -> Unit = {},
+    isCrosshairActive: Boolean = false,
+    onCrosshairToggle: () -> Unit = {},
     backgroundColor: Color = Color(0xFF08090C)
 ) {
     val scrollState = rememberScrollState()
@@ -54,7 +56,7 @@ fun Header(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
+                .height(50.4.dp)
                 .background(backgroundColor)
                 .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -62,13 +64,13 @@ fun Header(
             // Menu Icon to toggle sidebar
             IconButton(
                 onClick = onSideMenuClick,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(42.dp)
             ) {
                 Icon(
                     Icons.Default.Menu,
                     contentDescription = "Menu",
                     tint = Color.White,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(26.dp)
                 )
             }
 
@@ -81,18 +83,18 @@ fun Header(
             ) {
                 Row(
                     modifier = Modifier
-                        .height(32.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .height(32.4.dp)
+                        .clip(RoundedCornerShape(18.dp))
                         .background(Color(0xFF2A2E39))
                         .clickable { onSymbolClick() }
-                        .padding(horizontal = 10.dp),
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Icon(Icons.Default.Diamond, null, tint = Color(0xFF787B86), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Diamond, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
                 }
             }
 
@@ -103,9 +105,24 @@ fun Header(
                     .horizontalScroll(scrollState),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Crosshair Toggle Button
+                IconButton(
+                    onClick = onCrosshairToggle,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.Default.FilterCenterFocus,
+                        contentDescription = "Crosshair",
+                        tint = if (isCrosshairActive) Color(0xFF2962FF) else Color(0xFFD1D4DC),
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+
+                HeaderDivider()
+
                 // Compare button
-                IconButton(onClick = { /* Compare */ }, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Outlined.AddCircleOutline, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(20.dp))
+                IconButton(onClick = { /* Compare */ }, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Outlined.AddCircleOutline, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                 }
 
                 HeaderDivider()
@@ -129,16 +146,16 @@ fun Header(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
                             .clickable { onTimeframeClick(id) }
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
 
                 // Dropdown for more timeframes
                 Box {
-                    IconButton(onClick = { showTimeframeMenu = true }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
+                    IconButton(onClick = { showTimeframeMenu = true }, modifier = Modifier.size(42.dp)) {
+                        Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(26.dp))
                     }
                     
                     DropdownMenu(
@@ -149,7 +166,7 @@ fun Header(
                         DropdownMenuItem(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Add, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.Add, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text("Add custom interval...", color = Color(0xFFD1D4DC), fontSize = 14.sp)
                                 }
@@ -216,8 +233,8 @@ fun Header(
 
                 // Chart Style
                 Box {
-                    IconButton(onClick = { showStyleMenu = true }, modifier = Modifier.size(36.dp)) {
-                        Icon(getStyleIcon(chartStyle), null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(20.dp))
+                    IconButton(onClick = { showStyleMenu = true }, modifier = Modifier.size(48.dp)) {
+                        Icon(getStyleIcon(chartStyle), null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                     }
                     
                     DropdownMenu(
@@ -275,17 +292,17 @@ fun Header(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .clickable { onIndicatorClick() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.WaterfallChart, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.WaterfallChart, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Indicators", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text("Indicators", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
                 
                 // Layout icon next to indicators
-                IconButton(onClick = { }, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.GridView, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(18.dp))
+                IconButton(onClick = { }, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.GridView, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(24.dp))
                 }
 
                 HeaderDivider()
@@ -295,12 +312,12 @@ fun Header(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .clickable { onAlertClick() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Outlined.NotificationsNone, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Outlined.NotificationsNone, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Alert", color = Color.White, fontSize = 13.sp)
+                    Text("Alert", color = Color.White, fontSize = 14.sp)
                 }
 
                 // Replay
@@ -308,29 +325,29 @@ fun Header(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .clickable { onToggleReplay() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Replay, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Replay, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Replay", color = Color.White, fontSize = 13.sp)
+                    Text("Replay", color = Color.White, fontSize = 14.sp)
                 }
 
                 HeaderDivider()
 
                 // Undo/Redo
-                IconButton(onClick = onUndo, enabled = canUndo, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Undo, null, tint = if(canUndo) Color.White else Color(0xFF434651), modifier = Modifier.size(18.dp))
+                IconButton(onClick = onUndo, enabled = canUndo, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Default.Undo, null, tint = if(canUndo) Color.White else Color(0xFF434651), modifier = Modifier.size(24.dp))
                 }
-                IconButton(onClick = onRedo, enabled = canRedo, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Redo, null, tint = if(canRedo) Color.White else Color(0xFF434651), modifier = Modifier.size(18.dp))
+                IconButton(onClick = onRedo, enabled = canRedo, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Default.Redo, null, tint = if(canRedo) Color.White else Color(0xFF434651), modifier = Modifier.size(24.dp))
                 }
 
                 HeaderDivider()
 
                 // Layout options (Square)
-                IconButton(onClick = { }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.CropSquare, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(18.dp))
+                IconButton(onClick = { }, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Default.CropSquare, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(24.dp))
                 }
                 
                 // Save Button
@@ -338,27 +355,27 @@ fun Header(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .clickable { }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Save", color = Color(0xFF2962FF), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF2962FF), modifier = Modifier.size(16.dp))
+                    Text("Save", color = Color(0xFF2962FF), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF2962FF), modifier = Modifier.size(22.dp))
                 }
 
                 HeaderDivider()
 
                 // Utility Icons
-                IconButton(onClick = onToolSearchClick, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Search, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(20.dp))
+                IconButton(onClick = onToolSearchClick, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Default.Search, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                 }
-                IconButton(onClick = onSettingsClick, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Settings, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(20.dp))
+                IconButton(onClick = onSettingsClick, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Default.Settings, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                 }
-                IconButton(onClick = onFullscreenClick, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Fullscreen, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(20.dp))
+                IconButton(onClick = onFullscreenClick, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Default.Fullscreen, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                 }
-                IconButton(onClick = onDownloadChart, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.CameraAlt, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(20.dp))
+                IconButton(onClick = onDownloadChart, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Default.CameraAlt, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -368,11 +385,11 @@ fun Header(
                     onClick = { /* Trade */ },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF08090C)),
                     contentPadding = PaddingValues(horizontal = 12.dp),
-                    modifier = Modifier.height(32.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.height(32.4.dp),
+                    shape = RoundedCornerShape(18.dp),
                     border = BorderStroke(1.dp, Color(0xFF2A2E39))
                 ) {
-                    Text("Trade", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Trade", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -382,10 +399,10 @@ fun Header(
                     onClick = { /* Publish */ },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 12.dp),
-                    modifier = Modifier.height(32.dp),
-                    shape = RoundedCornerShape(16.dp)
+                    modifier = Modifier.height(32.4.dp),
+                    shape = RoundedCornerShape(18.dp)
                 ) {
-                    Text("Publish", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Publish", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -402,8 +419,8 @@ fun TimeframeHeader(label: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = Color(0xFF787B86), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        Icon(Icons.Default.KeyboardArrowUp, null, tint = Color(0xFF787B86), modifier = Modifier.size(14.dp))
+        Text(label, color = Color(0xFF787B86), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Icon(Icons.Default.KeyboardArrowUp, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
     }
 }
 
@@ -426,14 +443,14 @@ fun TimeframeItem(
                 Text(
                     label,
                     color = if (isSelected) Color.White else Color(0xFFD1D4DC),
-                    fontSize = 14.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    fontSize = 15.sp,
+                    fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
                 )
                 Icon(
                     Icons.Default.StarOutline,
                     null,
                     tint = Color(0xFF787B86),
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
         },
@@ -450,7 +467,7 @@ fun HeaderDivider() {
     Divider(
         modifier = Modifier
             .padding(horizontal = 4.dp)
-            .height(24.dp)
+            .height(28.dp)
             .width(1.dp),
         color = Color(0xFF2A2E39)
     )
@@ -473,13 +490,13 @@ fun StyleMenuItem(
                     icon,
                     null,
                     tint = if (isSelected) Color(0xFF2962FF) else Color(0xFFD1D4DC),
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(26.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     label,
                     color = if (isSelected) Color.White else Color(0xFFD1D4DC),
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                 )
             }

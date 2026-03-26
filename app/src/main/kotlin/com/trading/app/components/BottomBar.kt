@@ -37,7 +37,7 @@ fun BottomBar(
     backgroundColor: Color = Color(0xFF08090C)
 ) {
     var currentTime by remember { mutableStateOf("") }
-    var marketStatus by remember { mutableStateOf("Market Closed") }
+    var marketStatus by remember { mutableStateOf("Closed") }
     var marketStatusColor by remember { mutableStateOf(Color(0xFFF23645)) }
 
     val bottomScrollState = rememberScrollState()
@@ -59,23 +59,31 @@ fun BottomBar(
             val hour = now.get(Calendar.HOUR_OF_DAY)
             val day = now.get(Calendar.DAY_OF_WEEK)
             if (day in Calendar.MONDAY..Calendar.FRIDAY && hour in 9..16) {
-                marketStatus = "Market Open"
+                marketStatus = "Open"
                 marketStatusColor = Color(0xFF089981)
             } else {
-                marketStatus = "Market Closed"
+                marketStatus = "Closed"
                 marketStatusColor = Color(0xFFF23645)
             }
             delay(1000)
         }
     }
 
-    Column(modifier = Modifier.fillMaxWidth().background(backgroundColor)) {
-        // MT5 Style Recent Pairs Row - Scrollable
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(backgroundColor)
+            .navigationBarsPadding() // Pushes the content up to avoid overlap with system navigation
+    ) {
+        // Subtle top border to separate the bottom bar from the chart area
+        Divider(modifier = Modifier.fillMaxWidth().height(0.5.dp), color = Color(0xFF2A2E39))
+
+        // Last Viewed Pane (Recent Pairs) - MOVED TO TOP
         if (recentPairs.isNotEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(24.dp)
+                    .height(26.dp)
                     .background(backgroundColor)
                     .horizontalScroll(pairsScrollState),
                 verticalAlignment = Alignment.CenterVertically
@@ -95,7 +103,6 @@ fun BottomBar(
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Flag Icon
                             Box(
                                 modifier = Modifier
                                     .size(14.dp, 10.dp)
@@ -110,36 +117,34 @@ fun BottomBar(
                             )
                         }
                     }
-                    // Divider between pair tabs
                     Divider(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(1.dp),
+                        modifier = Modifier.fillMaxHeight().width(1.dp),
                         color = Color(0xFF2A2E39)
                     )
                 }
             }
+
+            // White separator line between last viewed pane and date pane
+            Divider(modifier = Modifier.fillMaxWidth().height(2.dp), color = Color.White.copy(alpha = 0.2f))
         }
 
-        // Very Dull Separator Line
-        Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color.White.copy(alpha = 0.1f))
-
+        // Date Pane (Range selection, time, market status) - NOW BELOW LAST VIEWED
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(36.dp)
+                .height(40.dp)
                 .background(backgroundColor)
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Scrollable section for Range Selection
             Row(
                 modifier = Modifier
                     .weight(1f)
+                    .fillMaxHeight()
                     .horizontalScroll(bottomScrollState),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Range Selection
                 val ranges = listOf("1D", "5D", "1M", "3M", "6M", "YTD", "1Y", "5Y", "All")
                 ranges.forEach { range ->
                     Text(
@@ -154,7 +159,7 @@ fun BottomBar(
                 }
             }
 
-            // Fixed section (Not scrollable)
+            // Fixed section
             Spacer(modifier = Modifier.width(12.dp))
             Divider(modifier = Modifier.height(20.dp).width(1.dp), color = Color(0xFF2A2E39))
             Spacer(modifier = Modifier.width(12.dp))
@@ -166,10 +171,13 @@ fun BottomBar(
                 modifier = Modifier.size(18.dp).clickable { onGoToClick() }
             )
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // Fixed Market Status & Time
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Market Status & Time
+            Row(
+                modifier = Modifier.fillMaxHeight(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Box(
                     modifier = Modifier
                         .size(8.dp)
@@ -178,9 +186,8 @@ fun BottomBar(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(marketStatus, color = Color(0xFF787B86), fontSize = 14.sp)
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(currentTime, color = Color.White, fontSize = 14.sp)
-                Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     selectedTimeZone,
                     color = Color.White,
@@ -194,13 +201,13 @@ fun BottomBar(
 
 fun getSymbolFlagColor(symbol: String): Color {
     return when {
-        symbol.contains("BTC") -> Color(0xFFF7931A) // Bitcoin Orange
-        symbol.contains("ETH") -> Color(0xFF627EEA) // Ethereum Blue
-        symbol.contains("USD") -> Color(0xFF008500) // USD Green
-        symbol.contains("EUR") -> Color(0xFF003399) // EUR Blue
-        symbol.contains("AAPL") -> Color(0xFF555555) // Apple Grey
-        symbol.contains("TSLA") -> Color(0xFFE81123) // Tesla Red
-        symbol.contains("GOLD") -> Color(0xFFFFD700) // Gold
+        symbol.contains("BTC") -> Color(0xFFF7931A)
+        symbol.contains("ETH") -> Color(0xFF627EEA)
+        symbol.contains("USD") -> Color(0xFF008500)
+        symbol.contains("EUR") -> Color(0xFF003399)
+        symbol.contains("AAPL") -> Color(0xFF555555)
+        symbol.contains("TSLA") -> Color(0xFFE81123)
+        symbol.contains("GOLD") -> Color(0xFFFFD700)
         else -> Color(0xFF2962FF)
     }
 }

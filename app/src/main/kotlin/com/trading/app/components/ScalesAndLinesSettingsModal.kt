@@ -5,8 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,14 +20,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.trading.app.models.ChartSettings
-import com.trading.app.models.ScalesSettings
+import com.trading.app.models.ColorPickerState
 
 @Composable
 fun ScalesAndLinesSettingsModal(
@@ -32,6 +38,8 @@ fun ScalesAndLinesSettingsModal(
     onClose: () -> Unit
 ) {
     var tempSettings by remember { mutableStateOf(settings.scales) }
+    var colorPickerTarget by remember { mutableStateOf<ColorPickerState?>(null) }
+    var showAdvancedPicker by remember { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = onClose,
@@ -71,24 +79,26 @@ fun ScalesAndLinesSettingsModal(
                         .padding(horizontal = 16.dp)
                 ) {
                     // PRICE SCALE
-                    SectionHeader("PRICE SCALE")
+                    ScalesSectionHeader("PRICE SCALE")
                     
                     SettingsDropdownRow(
                         label = "Currency and Unit",
                         value = tempSettings.currencyAndUnit,
-                        options = listOf("Always visible", "Visible on mouse over", "Hidden"),
+                        options = listOf("Visible on tap", "Always visible", "Always invisible"),
                         onValueChange = { tempSettings = tempSettings.copy(currencyAndUnit = it) }
                     )
                     
                     SettingsDropdownRow(
                         label = "Scale modes (A and L)",
                         value = tempSettings.scaleModes,
-                        options = listOf("Visible on tap", "Always visible", "Hidden"),
+                        options = listOf("Visible on tap", "Always visible", "Always invisible"),
                         onValueChange = { tempSettings = tempSettings.copy(scaleModes = it) }
                     )
                     
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(
@@ -101,7 +111,10 @@ fun ScalesAndLinesSettingsModal(
                             modifier = Modifier
                                 .width(120.dp)
                                 .height(36.dp)
-                                .background(if (tempSettings.lockRatio) Color.Transparent else Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                                .background(
+                                    if (tempSettings.lockRatio) Color.Transparent else Color(0xFF1E222D),
+                                    RoundedCornerShape(4.dp)
+                                )
                                 .border(1.dp, Color(0xFF363A45), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 8.dp),
                             contentAlignment = Alignment.CenterStart
@@ -118,13 +131,17 @@ fun ScalesAndLinesSettingsModal(
                     )
 
                     // PRICE LABELS & LINES
-                    SectionHeader("PRICE LABELS & LINES")
+                    ScalesSectionHeader("PRICE LABELS & LINES")
                     
                     ScalesCheckboxRow("No overlapping labels", tempSettings.noOverlappingLabels) { tempSettings = tempSettings.copy(noOverlappingLabels = it) }
                     
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { tempSettings = tempSettings.copy(plusButton = !tempSettings.plusButton) }
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                tempSettings = tempSettings.copy(plusButton = !tempSettings.plusButton)
+                            }
                     ) {
                         Checkbox(
                             checked = tempSettings.plusButton,
@@ -141,11 +158,33 @@ fun ScalesAndLinesSettingsModal(
                     SettingsLabelDropdownRow(
                         label = "Symbol",
                         value = tempSettings.symbolLabel,
-                        options = listOf("Name, value, line", "Name", "Value", "None"),
+                        options = listOf("Price", "Percentage value"),
                         onValueChange = { tempSettings = tempSettings.copy(symbolLabel = it) }
                     )
-                    Row(modifier = Modifier.padding(start = 48.dp, bottom = 8.dp)) {
-                        SymbolLinePreview()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(modifier = Modifier.weight(1f))
+                        Box(
+                            modifier = Modifier
+                                .width(160.dp)
+                                .height(36.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            SymbolLinePreview(
+                                lineColor = tempSettings.symbolLineColor,
+                                onLineColorClick = { 
+                                    colorPickerTarget = ColorPickerState(
+                                        title = "Symbol Line Color", 
+                                        initialHex = tempSettings.symbolLineColor, 
+                                        onAddClick = { showAdvancedPicker = true }
+                                    ) { tempSettings = tempSettings.copy(symbolLineColor = it) } 
+                                }
+                            )
+                        }
                     }
                     
                     SettingsLabelDropdownRow(
@@ -158,27 +197,92 @@ fun ScalesAndLinesSettingsModal(
                     SettingsLabelDropdownRow(
                         label = "High and low",
                         value = tempSettings.highLowMode,
-                        options = listOf("Hidden", "Price", "Lines", "Both"),
+                        options = listOf("Value, line", "Value", "Line"),
                         onValueChange = { tempSettings = tempSettings.copy(highLowMode = it) }
                     )
-                    Row(modifier = Modifier.padding(start = 48.dp, bottom = 8.dp)) {
-                        SymbolLinePreview()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(modifier = Modifier.weight(1f))
+                        Box(
+                            modifier = Modifier
+                                .width(160.dp)
+                                .height(36.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(android.graphics.Color.parseColor(tempSettings.highLowLineColor)))
+                                    .border(1.dp, Color.White, RoundedCornerShape(4.dp))
+                                    .clickable {
+                                        colorPickerTarget = ColorPickerState(
+                                            title = "High/Low Line Color",
+                                            initialHex = tempSettings.highLowLineColor,
+                                            onAddClick = { showAdvancedPicker = true }
+                                        ) {
+                                            tempSettings = tempSettings.copy(highLowLineColor = it)
+                                        }
+                                    }
+                            )
+                        }
                     }
+                    
+                    SettingsLabelDropdownRow(
+                        label = "Indicators and financials",
+                        value = tempSettings.indicatorsAndFinancials,
+                        options = listOf("Value or name", "Value", "Name"),
+                        onValueChange = { tempSettings = tempSettings.copy(indicatorsAndFinancials = it) }
+                    )
                     
                     SettingsLabelDropdownRow(
                         label = "Bid and ask",
                         value = tempSettings.bidAskMode,
-                        options = listOf("Hidden", "Price", "Lines", "Both"),
+                        options = listOf("Value, line", "Value", "Line"),
                         onValueChange = { tempSettings = tempSettings.copy(bidAskMode = it) }
                     )
-                    Row(modifier = Modifier.padding(start = 48.dp, bottom = 16.dp)) {
-                        ColorBox("#2962FF", {})
-                        Spacer(modifier = Modifier.width(8.dp))
-                        ColorBox("#F05252", {})
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(modifier = Modifier.weight(1f))
+                        Box(
+                            modifier = Modifier
+                                .width(160.dp)
+                                .height(36.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                privateColorBox(tempSettings.bidColor, { 
+                                    colorPickerTarget = ColorPickerState(
+                                        title = "Bid Color", 
+                                        initialHex = tempSettings.bidColor, 
+                                        onAddClick = { showAdvancedPicker = true }
+                                    ) { tempSettings = tempSettings.copy(bidColor = it) } 
+                                })
+                                privateColorBox(tempSettings.askColor, { 
+                                    colorPickerTarget = ColorPickerState(
+                                        title = "Ask Color", 
+                                        initialHex = tempSettings.askColor, 
+                                        onAddClick = { showAdvancedPicker = true }
+                                    ) { tempSettings = tempSettings.copy(askColor = it) } 
+                                })
+                            }
+                        }
                     }
 
                     // TIME SCALE
-                    SectionHeader("TIME SCALE")
+                    ScalesSectionHeader("TIME SCALE")
                     
                     ScalesCheckboxRow("Day of week on labels", tempSettings.dayOfWeekOnLabels) { tempSettings = tempSettings.copy(dayOfWeekOnLabels = it) }
                     
@@ -201,44 +305,112 @@ fun ScalesAndLinesSettingsModal(
                 }
 
                 // Footer
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                Surface(
+                    color = Color(0xFF131722),
+                    border = BorderStroke(1.dp, Color(0xFF2A2E39))
                 ) {
-                    Box(
-                        modifier = Modifier.size(44.dp, 36.dp).border(1.dp, Color(0xFF2A2E39), RoundedCornerShape(8.dp)).clickable { },
-                        contentAlignment = Alignment.Center
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Icon(Icons.Default.MoreHoriz, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Button(
-                            onClick = onClose,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                            border = BorderStroke(1.dp, Color(0xFF2A2E39)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(36.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp, 36.dp)
+                                .border(1.dp, Color(0xFF2A2E39), RoundedCornerShape(8.dp))
+                                .clickable { },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text("Cancel", color = Color.White, fontSize = 14.sp)
+                            Icon(Icons.Default.MoreHoriz, null, tint = Color.White, modifier = Modifier.size(20.dp))
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Button(
-                            onClick = { 
-                                onUpdate(settings.copy(scales = tempSettings))
-                                onClose()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(36.dp)
-                        ) {
-                            Text("Ok", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Button(
+                                onClick = onClose,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                                border = BorderStroke(1.dp, Color(0xFF2A2E39)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Text("Cancel", color = Color.White, fontSize = 14.sp)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Button(
+                                onClick = { 
+                                    try {
+                                        val updatedSettings = settings.copy(scales = tempSettings)
+                                        onUpdate(updatedSettings)
+                                        onClose()
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("ScalesAndLinesSettings", "Failed to apply settings changes", e)
+                                        onClose()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Text("Ok", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    colorPickerTarget?.let { state ->
+        ColorPickerDialog(
+            state = state,
+            onClose = { colorPickerTarget = null }
+        )
+    }
+
+    if (showAdvancedPicker) {
+        AdvancedColorPickerModal(
+            onDismiss = { showAdvancedPicker = false },
+            onColorAdded = { _ ->
+                showAdvancedPicker = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun privateColorBox(hex: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(android.graphics.Color.parseColor(hex)))
+            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+            .clickable { onClick() }
+    )
+}
+
+@Composable
+private fun ScalesSectionHeader(title: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            title,
+            color = Color(0xFF787B86),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Icon(
+            Icons.Default.KeyboardArrowUp,
+            null,
+            tint = Color(0xFF787B86),
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
 
@@ -252,7 +424,9 @@ fun SettingsDropdownRow(
     var expanded by remember { mutableStateOf(false) }
 
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
@@ -274,7 +448,9 @@ fun SettingsDropdownRow(
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                modifier = Modifier.background(Color(0xFF1E222D)).border(1.dp, Color(0xFF363A45))
+                modifier = Modifier
+                    .background(Color(0xFF1E222D))
+                    .border(1.dp, Color(0xFF363A45))
             ) {
                 options.forEach { option ->
                     DropdownMenuItem(
@@ -304,7 +480,9 @@ fun SettingsLabelDropdownRow(
     var expanded by remember { mutableStateOf(false) }
 
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (label.isNotEmpty()) {
@@ -330,7 +508,9 @@ fun SettingsLabelDropdownRow(
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                modifier = Modifier.background(Color(0xFF1E222D)).border(1.dp, Color(0xFF363A45))
+                modifier = Modifier
+                    .background(Color(0xFF1E222D))
+                    .border(1.dp, Color(0xFF363A45))
             ) {
                 options.forEach { option ->
                     DropdownMenuItem(
@@ -352,7 +532,10 @@ fun SettingsLabelDropdownRow(
 @Composable
 fun ScalesCheckboxRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }.padding(vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(
@@ -365,7 +548,7 @@ fun ScalesCheckboxRow(label: String, checked: Boolean, onCheckedChange: (Boolean
 }
 
 @Composable
-fun SymbolLinePreview() {
+fun SymbolLinePreview(lineColor: String = "#FFFFFF", onLineColorClick: () -> Unit = {}) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -382,17 +565,124 @@ fun SymbolLinePreview() {
                 .clip(RoundedCornerShape(2.dp))
         ) {
             Row(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.weight(1f).fillMaxHeight().background(Color(0xFFF05252)))
-                Box(modifier = Modifier.weight(1f).fillMaxHeight().background(Color(0xFF089981)))
+                Box(modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .background(Color(0xFFF05252)))
+                Box(modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .background(Color(0xFF089981)))
             }
         }
         Spacer(modifier = Modifier.width(8.dp))
-        // White line
+        // White line (clickable)
         Box(
             modifier = Modifier
                 .width(24.dp)
                 .height(1.dp)
-                .background(Color.White)
+                .background(Color(android.graphics.Color.parseColor(lineColor)))
+                .clickable { onLineColorClick() }
         )
+    }
+}
+
+@Composable
+fun AdvancedColorPickerModal(
+    onDismiss: () -> Unit,
+    onColorAdded: (Color) -> Unit
+) {
+    var selectedColor by remember { mutableStateOf(Color(0xFFF0F3FA)) }
+    var hexText by remember { mutableStateOf("#f0f3fa") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFF1E222D),
+            modifier = Modifier.width(300.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Header: Color Preview, Hex Input, and Add Button
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(selectedColor, RoundedCornerShape(4.dp))
+                            .border(
+                                1.dp,
+                                Color.White.copy(alpha = 0.2f),
+                                RoundedCornerShape(4.dp)
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    BasicTextField(
+                        value = hexText,
+                        onValueChange = { hexText = it },
+                        textStyle = TextStyle(
+                            color = Color.White,
+                            fontSize = 14.sp
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(
+                                Color(0xFF2A2E39),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .border(
+                                1.dp,
+                                Color(0xFF363A45),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = {
+                        onColorAdded(selectedColor)
+                        onDismiss()
+                    }) {
+                        Text("Add", color = Color.White)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // HSV Saturation/Value Area (Simplified representation)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                listOf(
+                                    Color.White,
+                                    Color.Blue
+                                )
+                            )
+                        )
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Hue Slider
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(20.dp)
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                listOf(
+                                    Color.Red,
+                                    Color.Yellow,
+                                    Color.Green,
+                                    Color.Cyan,
+                                    Color.Blue,
+                                    Color.Magenta,
+                                    Color.Red
+                                )
+                            )
+                        )
+                )
+            }
+        }
     }
 }

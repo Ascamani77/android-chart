@@ -156,8 +156,14 @@ fun AlertsSettingsModal(
                         Spacer(modifier = Modifier.width(12.dp))
                         Button(
                             onClick = { 
-                                onUpdate(settings.copy(alerts = tempSettings))
-                                onClose()
+                                try {
+                                    val updatedSettings = settings.copy(alerts = tempSettings)
+                                    onUpdate(updatedSettings)
+                                    onClose()
+                                } catch (e: Exception) {
+                                    android.util.Log.e("AlertsSettings", "Failed to apply settings changes", e)
+                                    onClose()
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                             shape = RoundedCornerShape(8.dp),

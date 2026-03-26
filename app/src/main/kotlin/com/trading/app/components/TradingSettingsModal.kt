@@ -33,6 +33,11 @@ fun TradingSettingsModal(
 ) {
     var tempSettings by remember { mutableStateOf(settings.trading) }
 
+    // Apply changes in real-time to the chart
+    LaunchedEffect(tempSettings) {
+        onUpdate(settings.copy(trading = tempSettings))
+    }
+
     Dialog(
         onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -90,6 +95,18 @@ fun TradingSettingsModal(
                     // APPEARANCE
                     SectionHeader("APPEARANCE")
                     
+                    TradingCheckboxRow(
+                        label = "Buy/Sell buttons",
+                        checked = tempSettings.buySellButtons,
+                        onCheckedChange = { tempSettings = tempSettings.copy(buySellButtons = it) }
+                    )
+
+                    TradingCheckboxRow(
+                        label = "Buy/Sell labels on chart",
+                        checked = tempSettings.showBuySellLabels,
+                        onCheckedChange = { tempSettings = tempSettings.copy(showBuySellLabels = it) }
+                    )
+
                     TradingCheckboxRow(
                         label = "Positions and orders",
                         checked = tempSettings.positionsAndOrders,
@@ -208,8 +225,14 @@ fun TradingSettingsModal(
                         Spacer(modifier = Modifier.width(12.dp))
                         Button(
                             onClick = { 
-                                onUpdate(settings.copy(trading = tempSettings))
-                                onClose()
+                                try {
+                                    val updatedSettings = settings.copy(trading = tempSettings)
+                                    onUpdate(updatedSettings)
+                                    onClose()
+                                } catch (e: Exception) {
+                                    android.util.Log.e("TradingSettings", "Failed to apply settings changes", e)
+                                    onClose()
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                             shape = RoundedCornerShape(8.dp),

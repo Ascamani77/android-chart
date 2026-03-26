@@ -1,9 +1,12 @@
 package com.trading.app.components
 
+import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.view.GestureDetector
 import android.view.MotionEvent
+import androidx.compose.foundation.Canvas as ComposeCanvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,7 +19,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,11 +38,14 @@ import com.github.mikephil.charting.formatter.ValueFormatter
 import com.github.mikephil.charting.highlight.Highlight
 import com.github.mikephil.charting.listener.OnChartValueSelectedListener
 import com.trading.app.data.Mt5Service
+import com.trading.app.models.ChartPoint
 import com.trading.app.models.ChartSettings
 import com.trading.app.models.Drawing
 import kotlinx.coroutines.delay
+import kotlin.math.hypot
 import java.text.SimpleDateFormat
 import java.util.*
+import android.util.Log
 
 // Data class to match the "Quote" structure
 data class SymbolQuote(
@@ -57,16 +68,18 @@ private fun safeParseColor(colorString: String?, defaultColor: Int = AndroidColo
     return try {
         if (colorString.startsWith("rgba", ignoreCase = true)) {
             val parts = colorString.substringAfter("(").substringBefore(")").split(",")
-            val r = parts[0].trim().toInt()
-            val g = parts[1].trim().toInt()
-            val b = parts[2].trim().toInt()
-            val a = (parts.getOrNull(3)?.trim()?.toFloat() ?: 1f).let { (it * 255).toInt() }
+            if (parts.size < 3) return defaultColor
+            val r = parts.getOrNull(0)?.trim()?.toIntOrNull() ?: return defaultColor
+            val g = parts.getOrNull(1)?.trim()?.toIntOrNull() ?: return defaultColor
+            val b = parts.getOrNull(2)?.trim()?.toIntOrNull() ?: return defaultColor
+            val a = (parts.getOrNull(3)?.trim()?.toFloatOrNull() ?: 1f).let { (it * 255).toInt().coerceIn(0, 255) }
             AndroidColor.argb(a, r, g, b)
         } else if (colorString.startsWith("rgb", ignoreCase = true)) {
             val parts = colorString.substringAfter("(").substringBefore(")").split(",")
-            val r = parts[0].trim().toInt()
-            val g = parts[1].trim().toInt()
-            val b = parts[2].trim().toInt()
+            if (parts.size < 3) return defaultColor
+            val r = parts.getOrNull(0)?.trim()?.toIntOrNull() ?: return defaultColor
+            val g = parts.getOrNull(1)?.trim()?.toIntOrNull() ?: return defaultColor
+            val b = parts.getOrNull(2)?.trim()?.toIntOrNull() ?: return defaultColor
             AndroidColor.rgb(r, g, b)
         } else {
             AndroidColor.parseColor(colorString)
@@ -74,6 +87,11 @@ private fun safeParseColor(colorString: String?, defaultColor: Int = AndroidColo
     } catch (e: Exception) {
         defaultColor
     }
+}
+
+private fun applyOpacity(color: Int, opacity: Int): Int {
+    val alpha = (opacity / 100f * 255).toInt().coerceIn(0, 255)
+    return (color and 0x00FFFFFF) or (alpha shl 24)
 }
 
 private fun getFullSymbolName(symbol: String): String {
@@ -117,6 +135,8 @@ fun TradingChart(
     showAtr: Boolean = false,
     atrPeriod: Int = 14,
     showVolume: Boolean = true,
+    isCrosshairActive: Boolean = false,
+    onCrosshairToggle: (Boolean) -> Unit = {},
     onVolumeToggle: (Boolean) -> Unit = {},
     onIndicatorSettingsClick: (String) -> Unit = {},
     isMagnetEnabled: Boolean = false,
@@ -125,7 +145,9 @@ fun TradingChart(
     selectedCurrency: String = "USD",
     onCurrencyClick: () -> Unit = {},
     isFullscreen: Boolean = false,
-    onFullscreenExit: () -> Unit = {}
+    onFullscreenExit: () -> Unit = {},
+    scrollToTimestamp: Long? = null,
+    onScrollDone: () -> Unit = {}
 ) {
     var candleEntries by remember { mutableStateOf<List<CandleEntry>>(emptyList()) }
     var volumeEntries by remember { mutableStateOf<List<BarEntry>>(emptyList()) }
@@ -149,6 +171,37 @@ fun TradingChart(
     var initialZoomDone by remember { mutableStateOf(false) }
 
     var showCurrencyMenu by remember { mutableStateOf(false) }
+    
+    // Crosshair State
+    var crosshairX by remember { mutableFloatStateOf(0f) }
+    var crosshairY by remember { mutableFloatStateOf(0f) }
+    var isTouchingChart by remember { mutableStateOf(false) }
+    // Prevent duplicate drawing when creating on ACTION_DOWN
+    var crosshairCreatedOnTap by remember { mutableStateOf(false) }
+    // Track whether crosshair coordinates have been initialized to chart center
+    var crosshairInitialized by remember { mutableStateOf(false) }
+    // Track pointer move state and previous crosshair position to distinguish tap vs drag
+    var pointerMoved by remember { mutableStateOf(false) }
+    var prevCrossX by remember { mutableFloatStateOf(0f) }
+    var prevCrossY by remember { mutableFloatStateOf(0f) }
+    var crosshairPriceText by remember { mutableStateOf("") }
+    var crosshairDateText by remember { mutableStateOf("") }
+    var crosshairPriceValue by remember { mutableFloatStateOf(0f) }
+    
+    // Use updated state for the listener to avoid stale closure
+    val currentIsCrosshairActive by rememberUpdatedState(isCrosshairActive)
+
+    // We'll initialize crosshair coordinates to chart center inside the AndroidView update block
+    LaunchedEffect(isCrosshairActive) {
+        if (isCrosshairActive) {
+            // ensure crosshair remains visible until explicitly tapped to draw
+            isTouchingChart = true
+            crosshairInitialized = false
+        } else {
+            isTouchingChart = false
+            crosshairInitialized = false
+        }
+    }
 
     // MT5 Live Connection
     val mt5Service = remember {
@@ -224,18 +277,18 @@ fun TradingChart(
     Box(modifier = Modifier.fillMaxSize().background(ComposeColor(safeParseColor(chartSettings.canvas.background)))) {
         AndroidView(
             factory = { context ->
-                val chart = CombinedChart(context)
+                val chartView = CombinedChart(context)
                 val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
                     override fun onDoubleTap(e: MotionEvent): Boolean {
                         priceScaleFactor = 1.0f
                         priceCenterOffset = 0f
                         isManualMode = false
-                        chart.invalidate()
+                        chartView.invalidate()
                         return true
                     }
                 })
 
-                chart.apply {
+                chartView.apply {
                     description.isEnabled = false
                     legend.isEnabled = false
                     setTouchEnabled(true)
@@ -250,52 +303,26 @@ fun TradingChart(
 
                     setDrawBorders(false)
 
-                    // Controlled offsets
+                    // Remove all offsets to let chart touch edges completely, but add bottom offset for date axis
                     minOffset = 0f
-                    setExtraOffsets(0f, 0f, 0f, 9f)
-
-                    setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
-                        override fun onValueSelected(e: Entry?, h: Highlight?) {
-                            if (e is CandleEntry) {
-                                highlightedCandle = e
-                            }
-                        }
-                        override fun onNothingSelected() {
-                            highlightedCandle = null
-                        }
-                    })
+                    setExtraOffsets(0f, 0f, 0f, 15f)
 
                     xAxis.apply {
                         position = XAxis.XAxisPosition.BOTTOM
                         setDrawGridLines(chartSettings.canvas.gridVisible)
-                        gridColor = safeParseColor(chartSettings.canvas.gridColor)
+                        gridColor = applyOpacity(safeParseColor(chartSettings.canvas.gridColor), chartSettings.canvas.gridOpacity)
+                        gridLineWidth = 0.7f
                         textColor = safeParseColor(chartSettings.canvas.scaleTextColor)
-                        textSize = chartSettings.canvas.scaleFontSize.toFloat()
+                        textSize = ((chartSettings.canvas.scaleFontSize.toFloat() + 6f) * 0.5f) * 1.4f
                         setLabelCount(6, false)
-                        setAvoidFirstLastClipping(true)
-                        yOffset = 6f
-                        setDrawAxisLine(true)
-                        axisLineColor = safeParseColor(chartSettings.canvas.scaleLineColor)
-                        axisLineWidth = 1f
-
+                        yOffset = 8f
                         valueFormatter = object : ValueFormatter() {
-                            private val dayFormat = SimpleDateFormat("d", Locale.US)
-                            private val monthFormat = SimpleDateFormat("MMM", Locale.US)
-
+                            private val sdf = SimpleDateFormat("dd MMM", Locale.US)
                             override fun getFormattedValue(value: Float): String {
-                                val currentEntries = candleEntries
-                                val index = value.toInt()
-                                if (index >= 0 && index < currentEntries.size) {
-                                    val millis = currentEntries[index].data as? Long ?: return ""
-                                    val date = Date(millis)
-                                    val cal = Calendar.getInstance().apply { timeInMillis = millis }
-                                    val dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
-
-                                    return if (dayOfMonth <= 5) {
-                                        monthFormat.format(date).replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.US) else it.toString() }
-                                    } else {
-                                        dayFormat.format(date)
-                                    }
+                                val idx = value.toInt()
+                                if (idx >= 0 && idx < candleEntries.size) {
+                                    val millis = candleEntries[idx].data as? Long
+                                    if (millis != null) return sdf.format(Date(millis))
                                 }
                                 return ""
                             }
@@ -305,25 +332,135 @@ fun TradingChart(
                     axisRight.apply {
                         isEnabled = true
                         setDrawGridLines(chartSettings.canvas.gridVisible)
-                        gridColor = safeParseColor(chartSettings.canvas.gridColor)
+                        gridColor = applyOpacity(safeParseColor(chartSettings.canvas.horzGridColor), chartSettings.canvas.gridOpacity)
+                        gridLineWidth = 0.7f
                         textColor = safeParseColor(chartSettings.canvas.scaleTextColor)
-                        textSize = chartSettings.canvas.scaleFontSize.toFloat()
-                        setLabelCount(12, false)
-                        setPosition(YAxis.YAxisLabelPosition.OUTSIDE_CHART)
+                        textSize = ((chartSettings.canvas.scaleFontSize.toFloat() + 6f) * 0.5f) * 1.4f
+                        setLabelCount(10, false)
                         setDrawAxisLine(false)
+                        // Disable auto-scaling so we can control it manually
+                        setDrawLabels(true)
+                        valueFormatter = object : ValueFormatter() {
+                            override fun getFormattedValue(value: Float): String {
+                                return String.format("%.2f", value)
+                            }
+                        }
                     }
 
                     axisLeft.apply {
-                        isEnabled = true
-                        setDrawLabels(false)
-                        setDrawGridLines(false)
-                        setDrawAxisLine(false)
-                        axisMinimum = 0f
+                        isEnabled = false // Use right axis for price
                     }
 
+                    // Touch listener for axis scaling and manual mode
                     setOnTouchListener { v, event ->
+                        val chart = v as CombinedChart
+                        if (currentIsCrosshairActive) {
+                            when (event.action) {
+                                MotionEvent.ACTION_DOWN -> {
+                                    Log.d("TradingChart", "ACTION_DOWN event=(${event.x},${event.y})")
+                                    pointerMoved = false
+                                    prevCrossX = event.x
+                                    prevCrossY = event.y
+                                    crosshairX = event.x
+                                    crosshairY = event.y
+                                    try {
+                                        val trans = chart.getTransformer(YAxis.AxisDependency.RIGHT)
+                                        val point = trans.getValuesByTouchPoint(crosshairX, crosshairY)
+                                        crosshairPriceValue = point.y.toFloat()
+                                        crosshairPriceText = String.format("%.2f", crosshairPriceValue)
+                                        // compute date label from nearest candle index
+                                        val idx = point.x.toInt().coerceIn(0, candleEntries.size - 1)
+                                        val millis = candleEntries.getOrNull(idx)?.data as? Long
+                                        if (millis != null) {
+                                            val df = SimpleDateFormat("dd MMM yyyy", Locale.US)
+                                            crosshairDateText = df.format(Date(millis))
+                                        }
+                                    } catch (e: Exception) {
+                                        // ignore mapping errors
+                                    }
+                                    isTouchingChart = true
+                                    chart.invalidate()
+                                    return@setOnTouchListener true
+                                }
+                                MotionEvent.ACTION_MOVE -> {
+                                    Log.d("TradingChart", "ACTION_MOVE event=(${event.x},${event.y})")
+                                    // Update crosshair while dragging
+                                    pointerMoved = true
+                                    crosshairX = event.x
+                                    crosshairY = event.y
+                                    try {
+                                        val trans = chart.getTransformer(YAxis.AxisDependency.RIGHT)
+                                        val point = trans.getValuesByTouchPoint(crosshairX, crosshairY)
+                                        crosshairPriceValue = point.y.toFloat()
+                                        crosshairPriceText = String.format("%.2f", crosshairPriceValue)
+                                        val idx = point.x.toInt().coerceIn(0, candleEntries.size - 1)
+                                        val millis = candleEntries.getOrNull(idx)?.data as? Long
+                                        if (millis != null) {
+                                            val df = SimpleDateFormat("dd MMM yyyy", Locale.US)
+                                            crosshairDateText = df.format(Date(millis))
+                                        }
+                                    } catch (e: Exception) {}
+                                    isTouchingChart = true
+                                    chart.invalidate()
+                                    return@setOnTouchListener true
+                                }
+                                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                                    Log.d("TradingChart", "ACTION_UP event=(${event.x},${event.y}) pointerMoved=$pointerMoved")
+                                    // If user didn't move (a tap) and tapped near previous crosshair, create the line
+                                    if (!pointerMoved) {
+                                        val density = context.resources.displayMetrics.density
+                                        val tapThresholdPx = 24f * density
+                                        val dist = hypot(event.x - prevCrossX, event.y - prevCrossY)
+                                        Log.d("TradingChart", "tap dist=$dist threshold=$tapThresholdPx prev=($prevCrossX,$prevCrossY)")
+                                        if (dist <= tapThresholdPx) {
+                                            val trans = chart.getTransformer(YAxis.AxisDependency.RIGHT)
+                                            val point = trans.getValuesByTouchPoint(event.x, event.y)
+                                            val price = point.y.toFloat()
+
+                                            Log.d("TradingChart", "Creating horizontal line at price=$price point.x=${point.x}")
+
+                                            val newDrawing = Drawing(
+                                                type = "Horizontal Line",
+                                                points = listOf(ChartPoint(time = System.currentTimeMillis(), price = price)),
+                                                color = chartSettings.canvas.crosshairColor,
+                                                width = chartSettings.canvas.crosshairThickness.toFloat()
+                                            )
+                                            // Immediately add a LimitLine to the chart for instant feedback
+                                            try {
+                                                val limitLine = LimitLine(price).apply {
+                                                    lineColor = safeParseColor(newDrawing.color)
+                                                    lineWidth = newDrawing.width
+                                                    label = String.format("%.2f", price)
+                                                    // show label on right side near axis
+                                                    labelPosition = LimitLine.LimitLabelPosition.RIGHT_TOP
+                                                    textSize = (7f * 1.05f) * 1.4f
+                                                }
+                                                chart.axisRight.addLimitLine(limitLine)
+                                            } catch (e: Exception) {}
+
+                                            onDrawingUpdate(newDrawing)
+
+                                            // deactivate crosshair in parent
+                                            onCrosshairToggle(false)
+                                            isTouchingChart = false
+                                            // clear crosshair labels
+                                            crosshairPriceText = String.format("%.2f", price)
+                                            // leave date as-is
+                                            chart.invalidate()
+                                            return@setOnTouchListener true
+                                        }
+                                    }
+
+                                    // otherwise just end dragging without creating a line
+                                    // keep crosshair visible until user taps to create the line
+                                    isTouchingChart = true
+                                    chart.invalidate()
+                                    return@setOnTouchListener true
+                                }
+                            }
+                        }
+
                         gestureDetector.onTouchEvent(event)
-                        val chartView = v as CombinedChart
                         when (event.action) {
                             MotionEvent.ACTION_DOWN -> {
                                 lastY = event.y
@@ -332,7 +469,7 @@ fun TradingChart(
                             }
                             MotionEvent.ACTION_MOVE -> {
                                 val deltaY = event.y - lastY
-                                val visibleRange = chartView.axisRight.axisMaximum - chartView.axisRight.axisMinimum
+                                val visibleRange = chart.axisRight.axisMaximum - chart.axisRight.axisMinimum
 
                                 if (isDraggingAxis) {
                                     isManualMode = true
@@ -348,7 +485,7 @@ fun TradingChart(
                                     }
                                 }
                                 lastY = event.y
-                                chartView.invalidate()
+                                chart.invalidate()
                                 isDraggingAxis
                             }
                             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -359,18 +496,55 @@ fun TradingChart(
                         }
                     }
                 }
+                chartView
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize()
+                .padding(
+                    top = chartSettings.canvas.marginTop.dp,
+                    bottom = chartSettings.canvas.marginBottom.dp,
+                    end = chartSettings.canvas.marginRight.dp
+                ),
             update = { chart ->
                 val currentCandles = candleEntries
                 if (currentCandles.isEmpty()) return@AndroidView
 
+                // Handle Go To Date
+                scrollToTimestamp?.let { target ->
+                    val index = currentCandles.indexOfFirst { (it.data as? Long ?: 0L) >= target }
+                    if (index != -1) {
+                        chart.moveViewToX(index.toFloat())
+                        onScrollDone()
+                    }
+                }
+
+                // Initialize crosshair position to chart center when toggled on
+                if (isCrosshairActive && !crosshairInitialized) {
+                    crosshairX = chart.width / 2f
+                    crosshairY = chart.height / 2f
+                    isTouchingChart = true
+                    crosshairInitialized = true
+                } else if (!isCrosshairActive) {
+                    crosshairInitialized = false
+                }
+
+                // Update chart state based on crosshair mode
+                chart.isDragEnabled = !isCrosshairActive
+                chart.isScaleXEnabled = !isCrosshairActive
+                chart.isScaleYEnabled = !isCrosshairActive
+
                 val combinedData = CombinedData()
 
                 // Apply dynamic styles to match TradingView look
-                chart.setBackgroundColor(safeParseColor(chartSettings.canvas.background))
-                chart.xAxis.gridColor = safeParseColor(chartSettings.canvas.gridColor)
-                chart.axisRight.gridColor = safeParseColor(chartSettings.canvas.gridColor)
+                // Apply background color based on fullChartColor setting or custom background
+                val bgColor = when (chartSettings.canvas.fullChartColor) {
+                    "Pure Black" -> "#000000"
+                    "Dark Blue" -> "#0a2540"
+                    "OLED Black" -> "#0a0a0a"
+                    else -> chartSettings.canvas.background
+                }
+                chart.setBackgroundColor(safeParseColor(bgColor))
+                chart.xAxis.gridColor = applyOpacity(safeParseColor(chartSettings.canvas.gridColor), chartSettings.canvas.gridOpacity)
+                chart.axisRight.gridColor = applyOpacity(safeParseColor(chartSettings.canvas.horzGridColor), chartSettings.canvas.gridOpacity)
 
                 when (style) {
                     "line", "line_markers", "step_line", "kagi" -> {
@@ -382,7 +556,7 @@ fun TradingChart(
                             setDrawValues(false)
                             lineWidth = 2f
                             mode = if (style == "step_line") LineDataSet.Mode.STEPPED else LineDataSet.Mode.LINEAR
-                            highLightColor = safeParseColor(chartSettings.canvas.crosshairColor)
+                            highLightColor = if (isCrosshairActive) AndroidColor.TRANSPARENT else safeParseColor(chartSettings.canvas.crosshairColor)
                             highlightLineWidth = 0.8f
                             enableDashedHighlightLine(10f, 10f, 0f)
                         }
@@ -399,7 +573,7 @@ fun TradingChart(
                             fillColor = safeParseColor(chartSettings.symbol.upColor)
                             fillAlpha = 50
                             lineWidth = 2f
-                            highLightColor = safeParseColor(chartSettings.canvas.crosshairColor)
+                            highLightColor = if (isCrosshairActive) AndroidColor.TRANSPARENT else safeParseColor(chartSettings.canvas.crosshairColor)
                             highlightLineWidth = 0.8f
                             enableDashedHighlightLine(10f, 10f, 0f)
                         }
@@ -411,7 +585,7 @@ fun TradingChart(
                             axisDependency = YAxis.AxisDependency.RIGHT
                             setDrawValues(false)
                             colors = currentCandles.map { if (it.close >= it.open) safeParseColor(chartSettings.symbol.upColor) else safeParseColor(chartSettings.symbol.downColor) }
-                            highLightColor = safeParseColor(chartSettings.canvas.crosshairColor)
+                            highLightColor = if (isCrosshairActive) AndroidColor.TRANSPARENT else safeParseColor(chartSettings.canvas.crosshairColor)
                             setHighLightAlpha(255)
                         }
                         combinedData.setData(BarData(columnDataSet))
@@ -430,11 +604,24 @@ fun TradingChart(
                                     setDecreasingPaintStyle(Paint.Style.FILL)
                                 }
                                 "bars" -> {
-                                    setIncreasingColor(safeParseColor(chartSettings.symbol.upColor))
-                                    setDecreasingColor(safeParseColor(chartSettings.symbol.downColor))
-                                    setShadowWidth(1.2f)
-                                    barSpace = 0.3f
-                                }
+                                // Render as compact candle-style bars (visible bodies with thin wicks)
+                                // - use filled bodies so each bar has a visible rectangle
+                                // - keep wicks slightly thicker for visibility
+                                setIncreasingColor(safeParseColor(chartSettings.symbol.upColor))
+                                setDecreasingColor(safeParseColor(chartSettings.symbol.downColor))
+                                shadowColorSameAsCandle = true
+                                setShadowWidth(1.2f)
+                                // Draw bodies as filled rectangles (small width)
+                                setIncreasingPaintStyle(Paint.Style.FILL)
+                                setDecreasingPaintStyle(Paint.Style.FILL)
+                                // Make the bodies narrow but visible (closer to TradingView look)
+                                // reduce barSpace so bodies are wider and not rendered as single lines
+                                barSpace = 0.05f
+                                setDrawValues(false)
+                                highLightColor = if (isCrosshairActive) AndroidColor.TRANSPARENT else safeParseColor(chartSettings.canvas.crosshairColor)
+                                highlightLineWidth = 0.8f
+                                enableDashedHighlightLine(10f, 10f, 0f)
+                                    }
                                 else -> {
                                     // Default "candles" style - clean TradingView look
                                     setIncreasingColor(safeParseColor(chartSettings.symbol.upColor))
@@ -449,46 +636,93 @@ fun TradingChart(
                             setDrawValues(false)
                             barSpace = 0.15f // Balanced spacing
                             highlightLineWidth = 0.8f
-                            highLightColor = safeParseColor(chartSettings.canvas.crosshairColor)
+                            highLightColor = if (isCrosshairActive) AndroidColor.TRANSPARENT else safeParseColor(chartSettings.canvas.crosshairColor)
                             enableDashedHighlightLine(10f, 10f, 0f) // Dashed crosshair
                             
+                            // Apply wick visibility
                             if (!chartSettings.symbol.wickVisible) {
                                 setShadowWidth(0f)
                             }
+                            
+                            // Apply wick colors when wickVisible is true
+                            if (chartSettings.symbol.wickVisible && !shadowColorSameAsCandle) {
+                                shadowColor = safeParseColor(chartSettings.symbol.wickColorUp)
+                            }
                         }
-                        combinedData.setData(CandleData(candleDataSet))
+                        
+                        // Only show candles if bodyVisible is true
+                        if (chartSettings.symbol.bodyVisible) {
+                            combinedData.setData(CandleData(candleDataSet))
+                        } else {
+                            // If body not visible, create empty data
+                            combinedData.setData(CandleData(ArrayList()))
+                        }
+                    }
+                }
+
+                // Add Drawings (including the horizontal lines placed by crosshair)
+                chart.axisRight.removeAllLimitLines()
+                drawings.forEach { drawing ->
+                    if (drawing.type == "Horizontal Line" && drawing.points.isNotEmpty()) {
+                        val price = drawing.points[0].price
+                        val limitLine = LimitLine(price).apply {
+                            lineColor = safeParseColor(drawing.color)
+                            lineWidth = drawing.width
+                            label = String.format("%.2f", price)
+                            // show label on right side near axis
+                            labelPosition = LimitLine.LimitLabelPosition.RIGHT_TOP
+                            textSize = (7f * 1.05f) * 1.4f
+                        }
+                        chart.axisRight.addLimitLine(limitLine)
                     }
                 }
 
                 // Add Current Price Line (Dashed)
-                chart.axisRight.removeAllLimitLines()
                 currentQuote?.let { quote ->
                     val priceLine = LimitLine(quote.lastPrice).apply {
                         lineWidth = 0.8f
                         lineColor = safeParseColor(if (quote.change >= 0) chartSettings.symbol.upColor else chartSettings.symbol.downColor)
                         enableDashedLine(10f, 10f, 0f)
+                        label = String.format("%.2f", quote.lastPrice)
+                        labelPosition = LimitLine.LimitLabelPosition.RIGHT_TOP
+                        textSize = ((chartSettings.canvas.scaleFontSize.toFloat() + 6f) * 0.5f * 1.05f) * 1.4f
                     }
                     chart.axisRight.addLimitLine(priceLine)
                 }
 
-                // Add Volume to BarData
-                if (showVolume && chartSettings.statusLine.volume) {
-                    val volumeBarDataSet = BarDataSet(ArrayList(volumeEntries), "Volume").apply {
-                        axisDependency = YAxis.AxisDependency.LEFT
-                        setDrawValues(false)
-                        colors = volumeEntries.map { it.data as Int }
-                        setHighLightAlpha(0)
-                    }
+                // Attach volume as a BarDataSet so volume bars render on the chart.
+                // We keep volume on the LEFT axis so it doesn't scale with price data.
+                if (showVolume && volumeEntries.isNotEmpty()) {
+                    try {
+                        val volEntriesList = ArrayList<BarEntry>(volumeEntries.map { BarEntry(it.x, it.y).apply { data = it.data } })
+                        val volColors = volEntriesList.map { (it.data as? Int) ?: safeParseColor(chartSettings.symbol.upColor) }
+                        val volumeDataSet = BarDataSet(volEntriesList, "Volume").apply {
+                            axisDependency = YAxis.AxisDependency.LEFT
+                            setDrawValues(false)
+                            colors = volColors
+                            highLightColor = if (isCrosshairActive) AndroidColor.TRANSPARENT else safeParseColor(chartSettings.canvas.crosshairColor)
+                        }
 
-                    val currentBarData = combinedData.barData ?: BarData()
-                    currentBarData.addDataSet(volumeBarDataSet)
-                    currentBarData.barWidth = 0.8f
-                    combinedData.setData(currentBarData)
-                } else {
-                    combinedData.setData(BarData()) 
+                        // If the CombinedData already has BarData (e.g. "columns" style), append the volume dataset to it.
+                        val existingBarData = combinedData.barData
+                        if (existingBarData != null) {
+                            existingBarData.addDataSet(volumeDataSet)
+                            existingBarData.notifyDataChanged()
+                            combinedData.setData(existingBarData)
+                        } else {
+                            combinedData.setData(BarData(volumeDataSet))
+                        }
+                    } catch (e: Exception) {
+                        // swallow errors so chart still renders even if volume drawing fails
+                    }
                 }
 
                 chart.data = combinedData
+
+                // Re-apply background and margin settings
+                chart.setBackgroundColor(safeParseColor(bgColor))
+                chart.minOffset = 0f
+                chart.setExtraOffsets(0f, 0f, 0f, 15f)
 
                 val visibleStart = chart.lowestVisibleX
                 val visibleEnd = chart.highestVisibleX
@@ -516,6 +750,44 @@ fun TradingChart(
                     chart.axisLeft.axisMaximum = maxVol * 6f
                 }
 
+                // Re-apply grid settings to reflect gridType changes
+                val showVertGrid = chartSettings.canvas.gridType in listOf("Vert and horz", "Vert")
+                chart.xAxis.apply {
+                    setDrawGridLines(chartSettings.canvas.gridVisible && showVertGrid)
+                    gridColor = applyOpacity(safeParseColor(chartSettings.canvas.gridColor), chartSettings.canvas.gridOpacity)
+                    gridLineWidth = 0.7f
+                    yOffset = 8f
+                }
+                val showHorzGrid = chartSettings.canvas.gridType in listOf("Vert and horz", "Horz")
+                chart.axisRight.apply {
+                    setDrawGridLines(chartSettings.canvas.gridVisible && showHorzGrid)
+                    gridColor = applyOpacity(safeParseColor(chartSettings.canvas.horzGridColor), chartSettings.canvas.gridOpacity)
+                    gridLineWidth = 0.7f
+                }
+
+                // Re-apply Symbol settings to candlestick colors and visibility
+                chart.data?.let { data ->
+                    if (data is CombinedData) {
+                        // Update candle data if it exists
+                        data.candleData?.let { candleData ->
+                            candleData.dataSets.forEach { dataSet ->
+                                if (dataSet is CandleDataSet) {
+                                    // Update colors
+                                    dataSet.setIncreasingColor(safeParseColor(chartSettings.symbol.upColor))
+                                    dataSet.setDecreasingColor(safeParseColor(chartSettings.symbol.downColor))
+                                    
+                                    // Update wick visibility
+                                    if (!chartSettings.symbol.wickVisible) {
+                                        dataSet.setShadowWidth(0f)
+                                    } else {
+                                        dataSet.setShadowWidth(0.8f)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 chart.notifyDataSetChanged()
 
                 if (!initialZoomDone) {
@@ -531,276 +803,222 @@ fun TradingChart(
             }
         )
 
-        // OHLC Overlay aligned to the left edge
-        if (chartSettings.statusLine.symbol || chartSettings.statusLine.ohlc) {
-            Column(
-                modifier = Modifier
-                    .padding(4.dp)
-                    .align(Alignment.TopStart)
-            ) {
-                // Line 1: Flags and Name
-                if (chartSettings.statusLine.symbol) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (chartSettings.statusLine.logo) {
-                            Box(
-                                contentAlignment = Alignment.CenterStart,
-                                modifier = Modifier.size(width = 32.dp, height = 24.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .background(ComposeColor(0xFFF05252), RoundedCornerShape(9.dp))
-                                        .border(1.5.dp, ComposeColor(0xFF08090C), RoundedCornerShape(9.dp))
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .offset(x = 10.dp)
-                                        .size(18.dp)
-                                        .background(ComposeColor(0xFF2962FF), RoundedCornerShape(9.dp))
-                                        .border(1.5.dp, ComposeColor(0xFF08090C), RoundedCornerShape(9.dp))
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                        }
+        // Custom Crosshair Drawing Layer
+        if (isCrosshairActive && isTouchingChart) {
+            ComposeCanvas(modifier = Modifier.fillMaxSize()) {
+                val crosshairColor = ComposeColor(safeParseColor(chartSettings.canvas.crosshairColor))
+                val strokeWidth = chartSettings.canvas.crosshairThickness.dp.toPx()
+                val pathEffect = when (chartSettings.canvas.crosshairLineStyle) {
+                    "Dashed" -> PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                    "Dotted" -> PathEffect.dashPathEffect(floatArrayOf(2f, 5f), 0f)
+                    else -> null
+                }
+                val padding = 6.dp.toPx()
+                val textSize = (8.sp.toPx() * 1.05f) * 1.4f
 
-                        Text(
-                            text = if (chartSettings.statusLine.titleMode == "Description") getFullSymbolName(symbol) else symbol,
-                            color = ComposeColor.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        if (chartSettings.statusLine.openMarketStatus) {
-                            Row(
-                                modifier = Modifier
-                                    .background(ComposeColor(0xFF1E222D), RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .background(ComposeColor(0xFF089981), RoundedCornerShape(3.dp))
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.Default.SyncAlt,
-                                    contentDescription = null,
-                                    tint = ComposeColor(0xFFF23645),
-                                    modifier = Modifier.size(10.dp)
-                                )
-                            }
-                        }
-                    }
+                // If no touch coordinates available yet, draw at the center
+                val drawX = if (crosshairX == 0f && crosshairY == 0f) size.width / 2f else crosshairX
+                val drawY = if (crosshairX == 0f && crosshairY == 0f) size.height / 2f else crosshairY
+
+                // Calculate label positions ahead of time for line clipping
+                var priceRectLeft = size.width
+                var priceRectTop = drawY
+                var priceRectWidth = 0f
+                var priceRectHeight = textSize + padding
+                
+                var dateRectLeft = drawX
+                var dateRectTop = size.height
+                var dateRectWidth = 0f
+                var dateRectHeight = textSize + padding
+
+                val pricePaint = android.graphics.Paint().apply {
+                    color = AndroidColor.WHITE
+                    this.textSize = textSize
+                    isAntiAlias = true
+                    typeface = android.graphics.Typeface.MONOSPACE
                 }
 
-                val change = currentQuote?.change ?: 0f
-                val changePercent = currentQuote?.changePercent ?: 0f
-                val lastPrice = currentQuote?.lastPrice ?: 0f
-                val changeColor = if (change >= 0f) ComposeColor(safeParseColor(chartSettings.symbol.upColor)) else ComposeColor(safeParseColor(chartSettings.symbol.downColor))
+                val datePaint = android.graphics.Paint().apply {
+                    color = AndroidColor.WHITE
+                    this.textSize = textSize
+                    isAntiAlias = true
+                    typeface = android.graphics.Typeface.MONOSPACE
+                }
 
-                if (chartSettings.statusLine.ohlc) {
+                // Calculate price label size - position inside the price axis
+                if (crosshairPriceText.isNotEmpty()) {
+                    val textWidth = pricePaint.measureText(crosshairPriceText)
+                    priceRectWidth = textWidth + padding * 2f
+                    // Position at far right, inside the axis area
+                    priceRectLeft = size.width - priceRectWidth - 2.dp.toPx()
+                    priceRectTop = (drawY - priceRectHeight / 2f).coerceIn(4.dp.toPx(), size.height - priceRectHeight - 4.dp.toPx())
+                }
+
+                // Calculate date label size
+                if (crosshairDateText.isNotEmpty()) {
+                    val textWidth = datePaint.measureText(crosshairDateText)
+                    dateRectWidth = textWidth + padding * 2f
+                    dateRectLeft = (drawX - dateRectWidth / 2f).coerceIn(4.dp.toPx(), size.width - dateRectWidth - 4.dp.toPx())
+                    dateRectTop = size.height - dateRectHeight - 8.dp.toPx()
+                }
+
+                // Vertical Line - stop before date label
+                val verticalLineEndY = if (crosshairDateText.isNotEmpty()) dateRectTop - 4.dp.toPx() else size.height
+                drawLine(
+                    color = crosshairColor,
+                    start = Offset(drawX, 0f),
+                    end = Offset(drawX, verticalLineEndY),
+                    strokeWidth = strokeWidth,
+                    pathEffect = pathEffect
+                )
+
+                // Horizontal Line - extend to the right, reaching the price axis area
+                drawLine(
+                    color = crosshairColor,
+                    start = Offset(0f, drawY),
+                    end = Offset(size.width, drawY),
+                    strokeWidth = strokeWidth,
+                    pathEffect = pathEffect
+                )
+
+                // Center Dot
+                drawCircle(
+                    color = crosshairColor,
+                    radius = 4.dp.toPx(),
+                    center = Offset(drawX, drawY)
+                )
+
+                // Price label at right axis
+                if (crosshairPriceText.isNotEmpty()) {
+                    drawRoundRect(color = crosshairColor, topLeft = Offset(priceRectLeft, priceRectTop), size = androidx.compose.ui.geometry.Size(priceRectWidth, priceRectHeight), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx(), 4.dp.toPx()))
+                    drawContext.canvas.nativeCanvas.drawText(crosshairPriceText, priceRectLeft + padding, priceRectTop + priceRectHeight - (padding / 2f), pricePaint)
+                }
+
+                // Date label at bottom
+                if (crosshairDateText.isNotEmpty()) {
+                    drawRoundRect(color = crosshairColor, topLeft = Offset(dateRectLeft, dateRectTop), size = androidx.compose.ui.geometry.Size(dateRectWidth, dateRectHeight), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx(), 4.dp.toPx()))
+                    drawContext.canvas.nativeCanvas.drawText(crosshairDateText, dateRectLeft + padding, dateRectTop + dateRectHeight - (padding / 2f), datePaint)
+                }
+            }
+        }
+
+        // OHLC Overlay aligned to the left edge
+        if (chartSettings.statusLine.symbol || chartSettings.statusLine.ohlc || chartSettings.statusLine.barChangeValues || chartSettings.statusLine.volume || chartSettings.statusLine.lastDayChange || chartSettings.statusLine.openMarketStatus) {
+            Column(
+                modifier = Modifier
+                    .padding(8.dp)
+                    .align(Alignment.TopStart)
+            ) {
+                if (chartSettings.statusLine.symbol) {
+                    val fullName = getFullSymbolName(symbol)
+                    val displayText = when (chartSettings.statusLine.titleMode) {
+                        "Name" -> symbol
+                        "Symbol" -> symbol
+                        "Symbol and name" -> "$symbol · $fullName"
+                        else -> symbol
+                    }
+                    
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = String.format("%.3f", lastPrice),
-                            color = changeColor,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
+                            text = displayText,
+                            color = ComposeColor.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                        if (chartSettings.statusLine.barChangeValues) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = timeframe,
+                            color = ComposeColor.Gray,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                
+                if (chartSettings.statusLine.ohlc) {
+                    val lastCandle = candleEntries.lastOrNull()
+                    if (lastCandle != null) {
+                        Row(modifier = Modifier.padding(top = 2.dp)) {
+                            val labelColor = ComposeColor(0xFF9B9B9B)
+                            val valueColor = ComposeColor.White
+                            val fontSize = 11.sp
+                            
+                            Text("O", color = labelColor, fontSize = fontSize)
+                            Text(String.format(" %.2f", lastCandle.open), color = valueColor, fontSize = fontSize)
                             Spacer(modifier = Modifier.width(6.dp))
+                            
+                            Text("H", color = labelColor, fontSize = fontSize)
+                            Text(String.format(" %.2f", lastCandle.high), color = valueColor, fontSize = fontSize)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            
+                            Text("L", color = labelColor, fontSize = fontSize)
+                            Text(String.format(" %.2f", lastCandle.low), color = valueColor, fontSize = fontSize)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            
+                            Text("C", color = labelColor, fontSize = fontSize)
+                            Text(String.format(" %.2f", lastCandle.close), color = valueColor, fontSize = fontSize)
+                            
+                            val change = lastCandle.close - lastCandle.open
+                            val changePct = (change / lastCandle.open) * 100
+                            val color = if (change >= 0) ComposeColor(0xFF089981) else ComposeColor(0xFFF05252)
                             Text(
-                                text = String.format("%+8.3f (%+8.2f%%)", change, changePercent),
-                                color = changeColor,
-                                fontSize = 13.sp
+                                String.format("  %.2f (%.2f%%)", change, changePct),
+                                color = color,
+                                fontSize = fontSize
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    val displayData = highlightedCandle ?: currentQuote?.let {
-                        CandleEntry(0f, it.high, it.low, it.open, it.lastPrice)
-                    }
-                    Row {
-                        OHLCItem("O", String.format("%.2f", displayData?.open ?: 0f))
-                        OHLCItem("H", String.format("%.2f", displayData?.high ?: 0f))
-                        OHLCItem("L", String.format("%.2f", displayData?.low ?: 0f))
-                        OHLCItem("C", String.format("%.2f", displayData?.close ?: 0f))
-                    }
                 }
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                if (chartSettings.scales.bidAskMode != "Hidden") {
-                    Row {
-                        Text(text = "Bid ", color = ComposeColor(0xFF787B86), fontSize = 11.sp)
-                        Text(text = String.format("%.5f", currentQuote?.bid ?: 0f), color = ComposeColor.White, fontSize = 11.sp)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(text = "Ask ", color = ComposeColor(0xFF787B86), fontSize = 11.sp)
-                        Text(text = String.format("%.5f", currentQuote?.ask ?: 0f), color = ComposeColor.White, fontSize = 11.sp)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (chartSettings.trading.buySellButtons) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(
-                            modifier = Modifier
-                                .width(70.dp)
-                                .height(44.dp)
-                                .background(ComposeColor(safeParseColor(chartSettings.symbol.downColor)), RoundedCornerShape(4.dp))
-                                .clickable {
-                                    orderType = "SELL"
-                                    orderPrice = currentQuote?.bid ?: 0f
-                                    showOrderDialog = true
-                                }
-                                .padding(horizontal = 4.dp, vertical = 2.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text("SELL", color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Text(String.format("%.2f", currentQuote?.bid ?: 0f), color = ComposeColor.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .width(40.dp)
-                                .height(44.dp)
-                                .background(ComposeColor(0xFF1E222D))
-                                .border(1.dp, ComposeColor(0xFF2A2E39)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("40", color = ComposeColor.White, fontSize = 13.sp)
-                        }
-
-                        Column(
-                            modifier = Modifier
-                                .width(70.dp)
-                                .height(44.dp)
-                                .background(ComposeColor(0xFF2962FF), RoundedCornerShape(4.dp))
-                                .clickable {
-                                    orderType = "BUY"
-                                    orderPrice = currentQuote?.ask ?: 0f
-                                    showOrderDialog = true
-                                }
-                                .padding(horizontal = 4.dp, vertical = 2.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text("BUY", color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Text(String.format("%.2f", currentQuote?.ask ?: 0f), color = ComposeColor.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-
-                if (showVolume && chartSettings.statusLine.volume) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onVolumeToggle(!showVolume) }) {
-                        Text("Volume", color = ComposeColor(0xFF787B86), fontSize = 12.sp)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(onClick = { onIndicatorSettingsClick("Volume") }, modifier = Modifier.size(16.dp)) {
-                            Icon(Icons.Default.KeyboardArrowDown, null, tint = ComposeColor(0xFF787B86))
-                        }
-                    }
-                }
-            }
-        }
-
-        // Currency Dropdown
-        if (chartSettings.scales.currencyAndUnit != "Hidden") {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 4.dp, end = 4.dp)
-            ) {
-                Surface(
-                    color = ComposeColor(0xFF1E222D),
-                    shape = RoundedCornerShape(4.dp),
-                    modifier = Modifier
-                        .clickable { 
-                            onCurrencyClick()
-                            showCurrencyMenu = true 
-                        }
-                        .padding(2.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                    ) {
+                
+                if (chartSettings.statusLine.barChangeValues) {
+                    val lastCandle = candleEntries.lastOrNull()
+                    if (lastCandle != null && candleEntries.size > 1) {
+                        val prevCandle = candleEntries[candleEntries.size - 2]
+                        val change = lastCandle.close - prevCandle.close
+                        val changePct = (change / prevCandle.close) * 100
+                        val color = if (change >= 0) ComposeColor(0xFF089981) else ComposeColor(0xFFF05252)
+                        
                         Text(
-                            selectedCurrency,
-                            color = ComposeColor(0xFFD1D4DC),
+                            String.format("Bar change: %.2f (%.2f%%)", change, changePct),
+                            color = color,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Icon(
-                            Icons.Default.KeyboardArrowDown,
-                            null,
-                            tint = ComposeColor(0xFF787B86),
-                            modifier = Modifier.size(12.dp)
+                            modifier = Modifier.padding(top = 2.dp)
                         )
                     }
                 }
 
-                DropdownMenu(
-                    expanded = showCurrencyMenu,
-                    onDismissRequest = { showCurrencyMenu = false },
-                    modifier = Modifier.background(ComposeColor(0xFF1E222D))
-                ) {
-                    listOf("USD", "EUR", "GBP", "JPY", "BTC").forEach { currency ->
-                        DropdownMenuItem(
-                            text = { Text(currency, color = ComposeColor.White, fontSize = 12.sp) },
-                            onClick = {
-                                showCurrencyMenu = false
+                // Buy/Sell Labels
+                if (chartSettings.trading.showBuySellLabels) {
+                    currentQuote?.let { quote ->
+                        Row(modifier = Modifier.padding(top = 8.dp)) {
+                            // Sell Label
+                            Column(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(ComposeColor(0xFFF05252))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("SELL", color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text(String.format("%.2f", quote.bid), color = ComposeColor.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
-                        )
+                            
+                            Spacer(modifier = Modifier.width(4.dp))
+                            
+                            // Buy Label
+                            Column(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(ComposeColor(0xFF089981))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("BUY", color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text(String.format("%.2f", quote.ask), color = ComposeColor.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             }
         }
-
-        if (showOrderDialog) {
-            AlertDialog(
-                onDismissRequest = { showOrderDialog = false },
-                title = { Text(text = "Place Order", color = ComposeColor.White) },
-                text = {
-                    Text(
-                        text = "Are you sure you want to $orderType 40 units of $symbol at $orderPrice?",
-                        color = ComposeColor.White
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = { showOrderDialog = false }) {
-                        Text("Confirm", color = ComposeColor(0xFF2962FF))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showOrderDialog = false }) {
-                        Text("Cancel", color = ComposeColor(0xFF1E222D))
-                    }
-                },
-                containerColor = ComposeColor(0xFF1E222D)
-            )
-        }
-        
-        if (isFullscreen) {
-            IconButton(
-                onClick = { onFullscreenExit() },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
-            ) {
-                Icon(Icons.Default.SyncAlt, contentDescription = "Exit Fullscreen", tint = ComposeColor.White)
-            }
-        }
-    }
-}
-
-@Composable
-fun OHLCItem(label: String, value: String) {
-    Row(modifier = Modifier.padding(end = 8.dp)) {
-        Text(text = label, color = ComposeColor(0xFF787B86), fontSize = 11.sp)
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(text = value, color = ComposeColor.White, fontSize = 11.sp)
     }
 }

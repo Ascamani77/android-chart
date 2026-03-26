@@ -2,6 +2,17 @@ package com.trading.app.models
 
 import androidx.compose.ui.graphics.vector.ImageVector
 
+data class ColorPickerState(
+    val title: String,
+    val initialHex: String,
+    val isCrosshair: Boolean = false,
+    val initialThickness: Int = 1,
+    val initialLineStyle: Int = 0,
+    val onCrosshairUpdate: ((String, Int, Int) -> Unit)? = null,
+    val onAddClick: (() -> Unit)? = null,
+    val onColorSelect: (String) -> Unit
+)
+
 data class SymbolSettings(
     val upColor: String = "#089981",
     val downColor: String = "#f23645",
@@ -13,6 +24,10 @@ data class SymbolSettings(
     val wickColorUp: String = "#089981",
     val wickColorDown: String = "#f23645",
     val barColorer: Boolean = false, // Color bars based on previous close
+    val openVisible: Boolean = true,
+    val highVisible: Boolean = true,
+    val lowVisible: Boolean = true,
+    val closeVisible: Boolean = true,
     val precision: String = "Default",
     val timezone: String = "(UTC-7) Los Angeles"
 )
@@ -30,6 +45,7 @@ data class StatusLineSettings(
     val indicatorInputs: Boolean = true,
     val indicatorValues: Boolean = true,
     val indicatorBackground: Boolean = true,
+    val indicatorBackgroundColor: String = "#2a2e39",
     val indicatorBackgroundOpacity: Int = 50
 )
 
@@ -42,10 +58,15 @@ data class ScalesSettings(
     val noOverlappingLabels: Boolean = false,
     val plusButton: Boolean = true,
     val countdown: Boolean = true,
-    val symbolLabel: String = "Name, value, line",
+    val symbolLabel: String = "Price",
+    val symbolLineColor: String = "#FFFFFF",
     val symbolLastValueMode: String = "Value according to scale",
-    val highLowMode: String = "Hidden",
-    val bidAskMode: String = "Hidden",
+    val highLowMode: String = "Value, line",
+    val highLowLineColor: String = "#FFFFFF",
+    val indicatorsAndFinancials: String = "Value or name",
+    val bidAskMode: String = "Value, line",
+    val bidColor: String = "#2962FF",
+    val askColor: String = "#F05252",
     val dayOfWeekOnLabels: Boolean = true,
     val dateFormat: String = "Mon 29 Sep '97",
     val timeFormat: String = "24-hours",
@@ -54,14 +75,16 @@ data class ScalesSettings(
 
 data class CanvasSettings(
     val backgroundType: String = "Solid",
-    val background: String = "#131722",
+    val background: String = "#000000",
     val backgroundGradientEnd: String = "#0c0c0d",
     val gridVisible: Boolean = true,
     val gridType: String = "Vert and horz",
     val gridColor: String = "#1f222d",
     val horzGridColor: String = "#1f222d",
+    val gridOpacity: Int = 20, // 0 to 100
     val crosshairColor: String = "#758696",
-    val crosshairStyle: Int = 1,
+    val crosshairThickness: Int = 1,
+    val crosshairLineStyle: String = "Dashed", // Options: "Solid", "Dashed", "Dotted"
     val watermarkVisible: Boolean = false,
     val watermarkType: String = "Replay mode",
     val watermarkColor: String = "#662A2E39",
@@ -79,6 +102,7 @@ data class CanvasSettings(
 
 data class TradingSettings(
     val buySellButtons: Boolean = true,
+    val showBuySellLabels: Boolean = true,
     val oneClickTrading: Boolean = false,
     val executionSound: Boolean = false,
     val executionSoundVolume: Int = 50,

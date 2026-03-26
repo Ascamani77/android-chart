@@ -134,7 +134,7 @@ fun EventsSettingsModal(
                                 modifier = Modifier
                                     .size(20.dp)
                                     .clip(RoundedCornerShape(2.dp))
-                                    .background(Color(android.graphics.Color.parseColor(tempSettings.eventsBreaksColor)))
+                                    .background(safeParseEventsColor(tempSettings.eventsBreaksColor))
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("----", color = Color(0xFF787B86), fontSize = 14.sp)
@@ -173,8 +173,12 @@ fun EventsSettingsModal(
                         Spacer(modifier = Modifier.width(12.dp))
                         Button(
                             onClick = { 
-                                onUpdate(settings.copy(events = tempSettings))
-                                onClose()
+                                try {
+                                    onUpdate(settings.copy(events = tempSettings))
+                                    onClose()
+                                } catch (e: Exception) {
+                                    onClose()
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                             shape = RoundedCornerShape(8.dp),
@@ -186,6 +190,22 @@ fun EventsSettingsModal(
                 }
             }
         }
+    }
+}
+
+private fun safeParseEventsColor(hex: String): Color {
+    return try {
+        if (hex.startsWith("#")) Color(android.graphics.Color.parseColor(hex))
+        else if (hex.startsWith("rgba")) {
+            val parts = hex.substringAfter("(").substringBefore(")").split(",")
+            val r = parts[0].trim().toInt()
+            val g = parts[1].trim().toInt()
+            val b = parts[2].trim().toInt()
+            val a = parts.getOrNull(3)?.trim()?.toFloat() ?: 1f
+            Color(r / 255f, g / 255f, b / 255f, a)
+        } else Color.Gray
+    } catch (e: Exception) {
+        Color.Gray
     }
 }
 
