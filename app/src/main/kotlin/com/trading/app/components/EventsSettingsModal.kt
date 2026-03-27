@@ -24,6 +24,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.trading.app.models.ChartSettings
 import com.trading.app.models.EventsSettings
+import com.trading.app.models.ColorPickerState
 
 @Composable
 fun EventsSettingsModal(
@@ -32,6 +33,12 @@ fun EventsSettingsModal(
     onClose: () -> Unit
 ) {
     var tempSettings by remember { mutableStateOf(settings.events) }
+    var colorPickerTarget by remember { mutableStateOf<ColorPickerState?>(null) }
+
+    // Apply changes in real-time
+    LaunchedEffect(tempSettings) {
+        onUpdate(settings.copy(events = tempSettings))
+    }
 
     Dialog(
         onDismissRequest = onClose,
@@ -82,8 +89,10 @@ fun EventsSettingsModal(
                             onCheckedChange = { tempSettings = tempSettings.copy(ideas = it) },
                             colors = CheckboxDefaults.colors(checkedColor = Color.White, uncheckedColor = Color(0xFF434651), checkmarkColor = Color.Black)
                         )
-                        Text("Ideas", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Text("Ideas", color = Color.White, fontSize = 14.sp)
                         
+                        Spacer(modifier = Modifier.width(12.dp))
+
                         Box(
                             modifier = Modifier
                                 .width(120.dp)
@@ -119,8 +128,10 @@ fun EventsSettingsModal(
                             onCheckedChange = { tempSettings = tempSettings.copy(eventsBreaks = it) },
                             colors = CheckboxDefaults.colors(checkedColor = Color.White, uncheckedColor = Color(0xFF434651), checkmarkColor = Color.Black)
                         )
-                        Text("Events breaks", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Text("Events breaks", color = Color.White, fontSize = 14.sp)
                         
+                        Spacer(modifier = Modifier.width(12.dp))
+
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -129,6 +140,15 @@ fun EventsSettingsModal(
                                 .background(if (tempSettings.eventsBreaks) Color.Transparent else Color(0xFF1E222D), RoundedCornerShape(4.dp))
                                 .border(1.dp, Color(0xFF363A45), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 8.dp)
+                                .clickable(enabled = tempSettings.eventsBreaks) {
+                                    colorPickerTarget = ColorPickerState(
+                                        title = "Events Breaks Color",
+                                        initialHex = tempSettings.eventsBreaksColor,
+                                        onColorSelect = { newColor ->
+                                            tempSettings = tempSettings.copy(eventsBreaksColor = newColor)
+                                        }
+                                    )
+                                }
                         ) {
                             Box(
                                 modifier = Modifier
@@ -191,11 +211,21 @@ fun EventsSettingsModal(
             }
         }
     }
+
+    colorPickerTarget?.let { state ->
+        ColorPickerDialog(
+            state = state,
+            onClose = { colorPickerTarget = null }
+        )
+    }
 }
 
 private fun safeParseEventsColor(hex: String): Color {
     return try {
-        if (hex.startsWith("#")) Color(android.graphics.Color.parseColor(hex))
+        if (hex.startsWith("#")) {
+             val colorString = if (hex.length == 7) "#FF" + hex.removePrefix("#") else hex
+             Color(android.graphics.Color.parseColor(colorString))
+        }
         else if (hex.startsWith("rgba")) {
             val parts = hex.substringAfter("(").substringBefore(")").split(",")
             val r = parts[0].trim().toInt()

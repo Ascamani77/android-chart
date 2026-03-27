@@ -1,9 +1,11 @@
 package com.trading.app.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -18,9 +20,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,6 +32,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.trading.app.models.ChartSettings
 import com.trading.app.models.ColorPickerState
 import com.trading.app.models.SymbolSettings
+import java.util.*
 
 private val TRADING_VIEW_COLORS = listOf(
     "#ffffff", "#d1d4dc", "#b2b5be", "#868993", "#5d606b", "#434651", "#363a45", "#2a2e39", "#131722", "#000000",
@@ -64,6 +68,14 @@ private fun parseColor(colorString: String?, defaultColor: Color = Color.Gray): 
     }
 }
 
+private fun colorToHex(color: Color): String {
+    return String.format("#%02x%02x%02x", 
+        (color.red * 255).toInt(), 
+        (color.green * 255).toInt(), 
+        (color.blue * 255).toInt()
+    )
+}
+
 @Composable
 fun SymbolSettingsModal(
     settings: ChartSettings,
@@ -83,211 +95,151 @@ fun SymbolSettingsModal(
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                // Header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Default.ArrowBack, null, tint = Color.White)
-                    }
-                    Text(
-                        "Symbol",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Default.Close, null, tint = Color(0xFF787B86))
-                    }
-                }
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp)
-                ) {
-                    Text(
-                        "CANDLES",
-                        color = Color(0xFF787B86),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(vertical = 16.dp)
-                    )
-
-                    // Color bars based on previous close
+                    // Header
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { tempSettings = tempSettings.copy(barColorer = !tempSettings.barColorer) }
-                            .padding(vertical = 12.dp),
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Checkbox(
-                            checked = tempSettings.barColorer,
-                            onCheckedChange = { tempSettings = tempSettings.copy(barColorer = it) },
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = Color.White,
-                                uncheckedColor = Color(0xFF434651),
-                                checkmarkColor = Color.Black
-                            )
-                        )
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.ArrowBack, null, tint = Color.White)
+                        }
                         Text(
-                            "Color bars based on previous close",
+                            "Symbol",
                             color = Color.White,
-                            fontSize = 14.sp
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.Close, null, tint = Color(0xFF787B86))
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Text(
+                            "BARS",
+                            color = Color(0xFF787B86),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(vertical = 16.dp)
+                        )
+
+                        SimpleCheckbox(
+                            label = "Color bars based on previous close",
+                            checked = tempSettings.barColorer,
+                            onCheckedChange = { tempSettings = tempSettings.copy(barColorer = it) }
+                        )
+
+                        SimpleCheckbox(
+                            label = "HLC bars",
+                            checked = tempSettings.hlcBars,
+                            onCheckedChange = { tempSettings = tempSettings.copy(hlcBars = it) }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        ColorSettingRow(
+                            label = "Up color",
+                            color = tempSettings.upColor,
+                            onColorClick = {
+                                colorPickerTarget = ColorPickerState("Up color", tempSettings.upColor) {
+                                    tempSettings = tempSettings.copy(upColor = it)
+                                }
+                            }
+                        )
+
+                        ColorSettingRow(
+                            label = "Down color",
+                            color = tempSettings.downColor,
+                            onColorClick = {
+                                colorPickerTarget = ColorPickerState("Down color", tempSettings.downColor) {
+                                    tempSettings = tempSettings.copy(downColor = it)
+                                }
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        SimpleCheckbox(
+                            label = "Thin bars",
+                            checked = tempSettings.thinBars,
+                            onCheckedChange = { tempSettings = tempSettings.copy(thinBars = it) }
+                        )
+
+                        Text(
+                            "DATA MODIFICATION",
+                            color = Color(0xFF787B86),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 32.dp, bottom = 16.dp)
+                        )
+
+                        SettingsDropdown(
+                            label = "Precision",
+                            value = tempSettings.precision
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        SettingsDropdown(
+                            label = "Timezone",
+                            value = tempSettings.timezone
                         )
                     }
 
-                    // Body
-                    SettingsToggleWithColors(
-                        label = "Body",
-                        checked = tempSettings.bodyVisible,
-                        onCheckedChange = { tempSettings = tempSettings.copy(bodyVisible = it) },
-                        colorUp = tempSettings.upColor,
-                        colorDown = tempSettings.downColor,
-                        onColorUpClick = { colorPickerTarget = ColorPickerState("Up Color", tempSettings.upColor) { tempSettings = tempSettings.copy(upColor = it) } },
-                        onColorDownClick = { colorPickerTarget = ColorPickerState("Down Color", tempSettings.downColor) { tempSettings = tempSettings.copy(downColor = it) } }
-                    )
-
-                    // Borders
-                    SettingsToggleWithColors(
-                        label = "Borders",
-                        checked = tempSettings.borderVisible,
-                        onCheckedChange = { tempSettings = tempSettings.copy(borderVisible = it) },
-                        colorUp = tempSettings.borderColorUp,
-                        colorDown = tempSettings.borderColorDown,
-                        onColorUpClick = { colorPickerTarget = ColorPickerState("Border Up Color", tempSettings.borderColorUp) { tempSettings = tempSettings.copy(borderColorUp = it) } },
-                        onColorDownClick = { colorPickerTarget = ColorPickerState("Border Down Color", tempSettings.borderColorDown) { tempSettings = tempSettings.copy(borderColorDown = it) } }
-                    )
-
-                    // Wick
-                    SettingsToggleWithColors(
-                        label = "Wick",
-                        checked = tempSettings.wickVisible,
-                        onCheckedChange = { tempSettings = tempSettings.copy(wickVisible = it) },
-                        colorUp = tempSettings.wickColorUp,
-                        colorDown = tempSettings.wickColorDown,
-                        onColorUpClick = { colorPickerTarget = ColorPickerState("Wick Up Color", tempSettings.wickColorUp) { tempSettings = tempSettings.copy(wickColorUp = it) } },
-                        onColorDownClick = { colorPickerTarget = ColorPickerState("Wick Down Color", tempSettings.wickColorDown) { tempSettings = tempSettings.copy(wickColorDown = it) } }
-                    )
-
-                    Text(
-                        "OHLC",
-                        color = Color(0xFF787B86),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 32.dp, bottom = 16.dp)
-                    )
-
-                    // Open
-                    SimpleCheckbox(
-                        label = "Open",
-                        checked = tempSettings.openVisible,
-                        onCheckedChange = { tempSettings = tempSettings.copy(openVisible = it) }
-                    )
-
-                    // High
-                    SimpleCheckbox(
-                        label = "High",
-                        checked = tempSettings.highVisible,
-                        onCheckedChange = { tempSettings = tempSettings.copy(highVisible = it) }
-                    )
-
-                    // Low
-                    SimpleCheckbox(
-                        label = "Low",
-                        checked = tempSettings.lowVisible,
-                        onCheckedChange = { tempSettings = tempSettings.copy(lowVisible = it) }
-                    )
-
-                    // Close
-                    SimpleCheckbox(
-                        label = "Close",
-                        checked = tempSettings.closeVisible,
-                        onCheckedChange = { tempSettings = tempSettings.copy(closeVisible = it) }
-                    )
-
-                    Text(
-                        "DATA MODIFICATION",
-                        color = Color(0xFF787B86),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 32.dp, bottom = 16.dp)
-                    )
-
-                    // Precision
-                    SettingsDropdown(
-                        label = "Precision",
-                        value = tempSettings.precision
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Timezone
-                    SettingsDropdown(
-                        label = "Timezone",
-                        value = tempSettings.timezone
-                    )
-                }
-
-                // Footer
-                Surface(
-                    color = Color(0xFF131722),
-                    border = BorderStroke(1.dp, Color(0xFF2A2E39))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    // Footer
+                    Surface(
+                        color = Color.Black,
+                        border = BorderStroke(0.5.dp, Color(0xFF2A2E39))
                     ) {
-                        Box(
+                        Row(
                             modifier = Modifier
-                                .size(36.dp)
-                                .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
-                                .border(1.dp, Color(0xFF434651), RoundedCornerShape(4.dp))
-                                .clickable { },
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.MoreHoriz, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .background(Color(0xFF2A2E39), RoundedCornerShape(8.dp))
+                                    .clickable { /* More options */ },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.MoreHoriz, null, tint = Color.White)
+                            }
 
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        OutlinedButton(
-                            onClick = onClose,
-                            modifier = Modifier.height(36.dp),
-                            border = BorderStroke(1.dp, Color(0xFF434651)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text("Cancel", fontSize = 14.sp)
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Button(
-                            onClick = { 
-                                try {
-                                    val updatedSettings = settings.copy(symbol = tempSettings)
-                                    onUpdate(updatedSettings)
-                                    onClose()
-                                } catch (e: Exception) {
-                                    android.util.Log.e("SymbolSettings", "Failed to apply settings changes", e)
-                                    onClose()
+                            Row {
+                                Button(
+                                    onClick = onClose,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(44.dp),
+                                    contentPadding = PaddingValues(horizontal = 20.dp)
+                                ) {
+                                    Text("Cancel", color = Color.White)
                                 }
-                            },
-                            modifier = Modifier.height(36.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text("Ok", color = Color.Black, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Button(
+                                    onClick = {
+                                        onUpdate(settings.copy(symbol = tempSettings))
+                                        onClose()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(44.dp),
+                                    contentPadding = PaddingValues(horizontal = 24.dp)
+                                ) {
+                                    Text("Ok", color = Color.Black)
+                                }
+                            }
                         }
                     }
                 }
@@ -295,24 +247,24 @@ fun SymbolSettingsModal(
         }
     }
 
-    colorPickerTarget?.let { state ->
-        ColorPickerDialogSymbol(
-            state = state,
+    colorPickerTarget?.let { target ->
+        ColorPickerModal(
+            title = target.title,
+            initialColor = target.initialHex,
+            onColorSelected = {
+                target.onColorSelect(it)
+                colorPickerTarget = null
+            },
             onClose = { colorPickerTarget = null }
         )
     }
 }
-}
 
 @Composable
-fun SettingsToggleWithColors(
+private fun ColorSettingRow(
     label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    colorUp: String,
-    colorDown: String,
-    onColorUpClick: () -> Unit,
-    onColorDownClick: () -> Unit
+    color: String,
+    onColorClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -320,30 +272,18 @@ fun SettingsToggleWithColors(
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Checkbox(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = CheckboxDefaults.colors(
-                checkedColor = Color.White,
-                uncheckedColor = Color(0xFF434651),
-                checkmarkColor = Color.Black
-            )
-        )
         Text(
             label,
             color = Color.White,
             fontSize = 14.sp,
-            modifier = Modifier.width(80.dp)
+            modifier = Modifier.width(100.dp)
         )
-        
-        ColorBox(colorUp, onColorUpClick)
-        Spacer(modifier = Modifier.width(4.dp))
-        ColorBox(colorDown, onColorDownClick)
+        ColorBox(color = color, onClick = onColorClick)
     }
 }
 
 @Composable
-fun SimpleCheckbox(
+private fun SimpleCheckbox(
     label: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
@@ -373,150 +313,276 @@ fun SimpleCheckbox(
 }
 
 @Composable
-fun ColorBox(hex: String, onClick: () -> Unit) {
-    val color = parseColor(hex)
-
+private fun ColorBox(color: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(color)
-            .border(1.dp, Color.White, RoundedCornerShape(4.dp))
-            .clickable { onClick() }
+            .size(36.dp)
+            .background(parseColor(color), RoundedCornerShape(8.dp))
+            .border(1.dp, Color(0xFF434651), RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
     )
 }
 
 @Composable
-fun SettingsDropdown(label: String, value: String) {
+private fun SettingsDropdown(label: String, value: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = Color.White, fontSize = 14.sp, modifier = Modifier.width(100.dp))
-        
+        Text(
+            label,
+            color = Color.White,
+            fontSize = 14.sp,
+            modifier = Modifier.width(100.dp)
+        )
         Box(
             modifier = Modifier
-                .width(160.dp)
-                .height(40.dp)
-                .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
-                .border(1.dp, Color(0xFF434651), RoundedCornerShape(4.dp))
-                .padding(horizontal = 8.dp),
-            contentAlignment = Alignment.CenterStart
+                .border(1.dp, Color(0xFF434651), RoundedCornerShape(8.dp))
+                .clickable { /* open dropdown */ }
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(value, color = Color.White, fontSize = 13.sp)
-                Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(16.dp))
+                Text(
+                    value, 
+                    color = Color.White, 
+                    fontSize = 14.sp,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF787B86))
             }
         }
     }
 }
 
 @Composable
-private fun ColorPickerDialogSymbol(
-    state: ColorPickerState,
+fun ColorPickerModal(
+    title: String,
+    initialColor: String,
+    onColorSelected: (String) -> Unit,
     onClose: () -> Unit
 ) {
-    var currentHex by remember { mutableStateOf(state.initialHex) }
-    var opacity by remember { mutableStateOf(100f) }
+    var selectedColor by remember { mutableStateOf(initialColor) }
+    var opacity by remember { mutableStateOf(100) }
+    var showMixer by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onClose) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+                .width(320.dp)
+                .wrapContentHeight(),
             color = Color(0xFF1E222D),
-            shape = RoundedCornerShape(8.dp),
-            border = BorderStroke(1.dp, Color(0xFF363A45))
+            shape = RoundedCornerShape(8.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(state.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(10),
-                    modifier = Modifier.height(200.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(TRADING_VIEW_COLORS) { colorHex ->
-                        Box(
-                            modifier = Modifier
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(Color(android.graphics.Color.parseColor(colorHex)))
-                                .border(
-                                    width = if (currentHex.lowercase() == colorHex.lowercase()) 2.dp else 0.dp,
-                                    color = Color.White,
-                                    shape = RoundedCornerShape(2.dp)
-                                )
-                                .clickable {
-                                    currentHex = colorHex
-                                    state.onColorSelect(currentHex)
-                                }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Opacity", color = Color(0xFF787B86), fontSize = 12.sp)
-                Slider(
-                    value = opacity,
-                    onValueChange = { opacity = it },
-                    valueRange = 0f..100f,
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = Color(0xFF2962FF),
-                        inactiveTrackColor = Color(0xFF363A45)
-                    )
+            if (showMixer) {
+                ColorMixer(
+                    initialColor = parseColor(selectedColor),
+                    onColorChange = { selectedColor = colorToHex(it) },
+                    onAdd = { onColorSelected(selectedColor) },
+                    onBack = { showMixer = false }
                 )
+            } else {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                // Buttons
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = {
-                            state.onColorSelect(state.initialHex)
-                            onClose()
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF2A2E39)),
-                        border = BorderStroke(1.dp, Color(0xFF363A45))
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(10),
+                        modifier = Modifier.height(200.dp)
                     ) {
-                        Text("Cancel", color = Color(0xFFD1D4DC), fontSize = 13.sp)
+                        items(TRADING_VIEW_COLORS) { color ->
+                            Box(
+                                modifier = Modifier
+                                    .aspectRatio(1f)
+                                    .padding(2.dp)
+                                    .background(parseColor(color))
+                                    .border(
+                                        if (selectedColor.lowercase() == color.lowercase()) 2.dp else 0.dp,
+                                        Color.White
+                                    )
+                                    .clickable { selectedColor = color }
+                            )
+                        }
                     }
 
-                    Button(
-                        onClick = {
-                            try {
-                                val alpha = (opacity / 100f * 255f).toInt().coerceIn(0, 255)
-                                val alphaHex = String.format("%02X", alpha)
-                                val base = currentHex.removePrefix("#")
-                                val rgb = if (base.length >= 6) base.takeLast(6) else base.padStart(6, '0')
-                                val finalHex = "#${alphaHex}${rgb}"
-                                state.onColorSelect(finalHex)
-                            } catch (e: Exception) {
-                                state.onColorSelect(currentHex)
-                            }
-                            onClose()
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2962FF))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Plus Icon for Mixer
+                    IconButton(
+                        onClick = { showMixer = true },
+                        modifier = Modifier.size(32.dp)
                     ) {
-                        Text("Done", fontSize = 13.sp)
+                        Icon(Icons.Default.Add, null, tint = Color.White)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text("Opacity", color = Color(0xFF787B86), fontSize = 12.sp)
+                    Slider(
+                        value = opacity.toFloat(),
+                        onValueChange = { opacity = it.toInt() },
+                        valueRange = 0f..100f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color.White,
+                            activeTrackColor = Color(0xFF2196F3)
+                        )
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = onClose) {
+                            Text("Cancel", color = Color.White)
+                        }
+                        Button(
+                            onClick = { onColorSelected(selectedColor) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                        ) {
+                            Text("Apply", color = Color.White)
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ColorMixer(
+    initialColor: Color,
+    onColorChange: (Color) -> Unit,
+    onAdd: () -> Unit,
+    onBack: () -> Unit
+) {
+    var hsv by remember { 
+        val hsvArr = FloatArray(3)
+        android.graphics.Color.colorToHSV(android.graphics.Color.argb(
+            (initialColor.alpha * 255).toInt(),
+            (initialColor.red * 255).toInt(),
+            (initialColor.green * 255).toInt(),
+            (initialColor.blue * 255).toInt()
+        ), hsvArr)
+        mutableStateOf(Triple(hsvArr[0], hsvArr[1], hsvArr[2])) 
+    }
+
+    val currentColor = Color.hsv(hsv.first, hsv.second, hsv.third)
+
+    Column(modifier = Modifier.padding(16.dp)) {
+        // Mixer Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(currentColor, RoundedCornerShape(4.dp))
+                    .border(1.dp, Color(0xFF434651), RoundedCornerShape(4.dp))
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Surface(
+                color = Color(0xFF2A2E39),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.height(32.dp).width(100.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(colorToHex(currentColor), color = Color.White, fontSize = 14.sp)
+                }
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Button(
+                onClick = onAdd,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.height(32.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp)
+            ) {
+                Text("Add", color = Color.Black, fontSize = 14.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Saturation-Value Picker
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        val newS = (hsv.second + dragAmount.x / size.width).coerceIn(0f, 1f)
+                        val newV = (hsv.third - dragAmount.y / size.height).coerceIn(0f, 1f)
+                        hsv = Triple(hsv.first, newS, newV)
+                        onColorChange(Color.hsv(hsv.first, newS, newV))
+                    }
+                }
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val saturationGradient = Brush.horizontalGradient(
+                    colors = listOf(Color.White, Color.hsv(hsv.first, 1f, 1f))
+                )
+                val valueGradient = Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, Color.Black)
+                )
+                drawRect(saturationGradient)
+                drawRect(valueGradient)
+
+                // Cursor
+                val cursorX = hsv.second * size.width
+                val cursorY = (1f - hsv.third) * size.height
+                drawCircle(
+                    color = Color.White,
+                    radius = 8.dp.toPx(),
+                    center = Offset(cursorX, cursorY),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Hue Slider
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Canvas(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(24.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, _ ->
+                            change.consume()
+                            val newH = (change.position.x / size.width * 360f).coerceIn(0f, 360f)
+                            hsv = Triple(newH, hsv.second, hsv.third)
+                            onColorChange(Color.hsv(newH, hsv.second, hsv.third))
+                        }
+                    }
+            ) {
+                val hueColors = List(361) { Color.hsv(it.toFloat(), 1f, 1f) }
+                drawRect(Brush.horizontalGradient(hueColors))
+                
+                // Slider Handle
+                val handleX = (hsv.first / 360f) * size.width
+                drawRect(
+                    color = Color.White,
+                    topLeft = Offset(handleX - 2.dp.toPx(), 0f),
+                    size = androidx.compose.ui.geometry.Size(4.dp.toPx(), size.height),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        TextButton(onClick = onBack) {
+            Text("Back", color = Color(0xFF787B86))
         }
     }
 }

@@ -24,6 +24,8 @@ data class SymbolSettings(
     val wickColorUp: String = "#089981",
     val wickColorDown: String = "#f23645",
     val barColorer: Boolean = false, // Color bars based on previous close
+    val hlcBars: Boolean = false,
+    val thinBars: Boolean = false,
     val openVisible: Boolean = true,
     val highVisible: Boolean = true,
     val lowVisible: Boolean = true,
@@ -139,6 +141,8 @@ data class EventsSettings(
     val onlyFutureEvents: Boolean = true,
     val eventsBreaks: Boolean = false,
     val eventsBreaksColor: String = "#363a45",
+    val eventsBreaksThickness: Int = 1,
+    val eventsBreaksStyle: String = "Dashed",
     val latestNews: Boolean = true,
     val newsNotification: Boolean = false
 )

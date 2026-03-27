@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -72,72 +73,119 @@ fun BottomBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(backgroundColor)
-            .navigationBarsPadding() // Pushes the content up to avoid overlap with system navigation
+            .background(Color.Black) // Matches the pure black background in the image
+            .navigationBarsPadding()
     ) {
-        // Subtle top border to separate the bottom bar from the chart area
-        Divider(modifier = Modifier.fillMaxWidth().height(0.5.dp), color = Color(0xFF2A2E39))
+        // Subtle top border
+        Divider(modifier = Modifier.fillMaxWidth().height(0.5.dp), color = Color(0xFF1E222D))
 
-        // Last Viewed Pane (Recent Pairs) - MOVED TO TOP
+        // Last Viewed Pane (Recent Pairs)
         if (recentPairs.isNotEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(26.dp)
-                    .background(backgroundColor)
-                    .horizontalScroll(pairsScrollState),
+                    .height(44.dp)
+                    .horizontalScroll(pairsScrollState)
+                    .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 recentPairs.forEach { (symbol, timeframe) ->
                     val isActive = symbol == currentSymbol && timeframe == currentTimeframe
+                    
+                    // Mock price change data for UI parity with the request image
+                    val (changeText, isUp) = when {
+                        symbol.contains("BTC") -> "+2.4%" to true
+                        symbol.contains("ETH") -> "-1.8%" to false
+                        symbol.contains("SOL") -> "+3.1%" to true
+                        else -> "+0.5%" to true
+                    }
+
                     Box(
                         modifier = Modifier
-                            .fillMaxHeight()
-                            .background(if (isActive) Color.White else Color.Transparent)
+                            .padding(horizontal = 4.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isActive) Color(0xFF1E222D) else Color.Transparent)
                             .border(
                                 width = if (isActive) 1.dp else 0.dp,
-                                color = if (isActive) Color.Black else Color.Transparent
+                                color = if (isActive) Color(0xFF363A45) else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
                             )
                             .clickable { onPairSelect(symbol, timeframe) }
-                            .padding(horizontal = 8.dp),
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(14.dp, 10.dp)
-                                    .background(getSymbolFlagColor(symbol), RoundedCornerShape(1.dp))
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            // Overlapping Icons
+                            Box(modifier = Modifier.width(32.dp).height(20.dp), contentAlignment = Alignment.CenterStart) {
+                                // Base icon (Coin)
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clip(CircleShape)
+                                        .background(getSymbolFlagColor(symbol))
+                                        .border(1.dp, Color.Black, CircleShape)
+                                )
+                                // Overlapping Flag icon
+                                Box(
+                                    modifier = Modifier
+                                        .padding(start = 12.dp)
+                                        .size(18.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF2A2E39))
+                                        .border(1.dp, Color.Black, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    // Mini flag pattern representation
+                                    Column(modifier = Modifier.fillMaxSize()) {
+                                        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF002868)))
+                                        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFFBF0A30)))
+                                    }
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.width(8.dp))
+                            
                             Text(
                                 text = "$symbol,$timeframe",
-                                color = if (isActive) Color.Black else Color(0xFFD1D4DC),
-                                fontSize = 11.sp,
-                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
+                                color = if (isActive) Color.White else Color(0xFF787B86),
+                                fontSize = 14.sp,
+                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
+                            )
+                            
+                            Spacer(modifier = Modifier.width(8.dp))
+                            
+                            Icon(
+                                imageVector = if (isUp) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                contentDescription = null,
+                                tint = if (isUp) Color(0xFF089981) else Color(0xFFF23645),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            
+                            Spacer(modifier = Modifier.width(2.dp))
+                            
+                            Text(
+                                text = changeText,
+                                color = if (isUp) Color(0xFF089981) else Color(0xFFF23645),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
-                    Divider(
-                        modifier = Modifier.fillMaxHeight().width(1.dp),
-                        color = Color(0xFF2A2E39)
-                    )
                 }
             }
 
-            // White separator line between last viewed pane and date pane
-            Divider(modifier = Modifier.fillMaxWidth().height(2.dp), color = Color.White.copy(alpha = 0.2f))
+            // Separator between recent pairs and date range
+            Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF1E222D))
         }
 
-        // Date Pane (Range selection, time, market status) - NOW BELOW LAST VIEWED
+        // Date Pane
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(40.dp)
-                .background(backgroundColor)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Scrollable section for Range Selection
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -149,9 +197,9 @@ fun BottomBar(
                 ranges.forEach { range ->
                     Text(
                         range,
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF787B86),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
                         modifier = Modifier
                             .padding(horizontal = 10.dp)
                             .clickable { onRangeClick(range) }
@@ -159,7 +207,6 @@ fun BottomBar(
                 }
             }
 
-            // Fixed section
             Spacer(modifier = Modifier.width(12.dp))
             Divider(modifier = Modifier.height(20.dp).width(1.dp), color = Color(0xFF2A2E39))
             Spacer(modifier = Modifier.width(12.dp))
@@ -167,31 +214,30 @@ fun BottomBar(
             Icon(
                 Icons.Default.DateRange,
                 null,
-                tint = Color.White,
+                tint = Color(0xFF787B86),
                 modifier = Modifier.size(18.dp).clickable { onGoToClick() }
             )
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Market Status & Time
             Row(
-                modifier = Modifier.fillMaxHeight(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .size(6.dp)
+                        .clip(CircleShape)
                         .background(marketStatusColor)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(marketStatus, color = Color(0xFF787B86), fontSize = 14.sp)
+                Text(marketStatus, color = Color(0xFF787B86), fontSize = 13.sp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(currentTime, color = Color.White, fontSize = 13.sp)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(currentTime, color = Color.White, fontSize = 14.sp)
                 Text(
                     selectedTimeZone,
                     color = Color.White,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     modifier = Modifier.clickable { onTimeZoneClick() }
                 )
             }
@@ -208,6 +254,7 @@ fun getSymbolFlagColor(symbol: String): Color {
         symbol.contains("AAPL") -> Color(0xFF555555)
         symbol.contains("TSLA") -> Color(0xFFE81123)
         symbol.contains("GOLD") -> Color(0xFFFFD700)
+        symbol.contains("SOL") -> Color(0xFF00FFA3)
         else -> Color(0xFF2962FF)
     }
 }

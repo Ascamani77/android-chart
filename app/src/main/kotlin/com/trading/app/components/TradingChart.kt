@@ -7,14 +7,17 @@ import android.graphics.Paint
 import android.view.GestureDetector
 import android.view.MotionEvent
 import androidx.compose.foundation.Canvas as ComposeCanvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.SyncAlt
+import androidx.compose.material.icons.filled.Minimize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +28,7 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -305,7 +309,7 @@ fun TradingChart(
 
                     // Remove all offsets to let chart touch edges completely, but add bottom offset for date axis
                     minOffset = 0f
-                    setExtraOffsets(0f, 0f, 0f, 15f)
+                    setExtraOffsets(0f, 0f, 0f, 12f)
 
                     xAxis.apply {
                         position = XAxis.XAxisPosition.BOTTOM
@@ -545,6 +549,7 @@ fun TradingChart(
                 chart.setBackgroundColor(safeParseColor(bgColor))
                 chart.xAxis.gridColor = applyOpacity(safeParseColor(chartSettings.canvas.gridColor), chartSettings.canvas.gridOpacity)
                 chart.axisRight.gridColor = applyOpacity(safeParseColor(chartSettings.canvas.horzGridColor), chartSettings.canvas.gridOpacity)
+                chart.setExtraOffsets(0f, 0f, 0f, 12f)
 
                 when (style) {
                     "line", "line_markers", "step_line", "kagi" -> {
@@ -722,7 +727,7 @@ fun TradingChart(
                 // Re-apply background and margin settings
                 chart.setBackgroundColor(safeParseColor(bgColor))
                 chart.minOffset = 0f
-                chart.setExtraOffsets(0f, 0f, 0f, 15f)
+                chart.setExtraOffsets(0f, 0f, 0f, 12f)
 
                 val visibleStart = chart.lowestVisibleX
                 val visibleEnd = chart.highestVisibleX
@@ -906,30 +911,65 @@ fun TradingChart(
         if (chartSettings.statusLine.symbol || chartSettings.statusLine.ohlc || chartSettings.statusLine.barChangeValues || chartSettings.statusLine.volume || chartSettings.statusLine.lastDayChange || chartSettings.statusLine.openMarketStatus) {
             Column(
                 modifier = Modifier
-                    .padding(8.dp)
+                    .padding(12.dp)
                     .align(Alignment.TopStart)
             ) {
                 if (chartSettings.statusLine.symbol) {
                     val fullName = getFullSymbolName(symbol)
-                    val displayText = when (chartSettings.statusLine.titleMode) {
-                        "Name" -> symbol
-                        "Symbol" -> symbol
-                        "Symbol and name" -> "$symbol · $fullName"
-                        else -> symbol
-                    }
                     
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Double Flag Icon for Currency Pairs
+                        Box(modifier = Modifier.size(24.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clip(CircleShape)
+                                    .background(ComposeColor.White)
+                                    .align(Alignment.TopStart)
+                            ) {
+                                // Add actual flag resource here if available
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clip(CircleShape)
+                                    .background(ComposeColor.White)
+                                    .border(1.5.dp, ComposeColor.Black, CircleShape)
+                                    .align(Alignment.BottomEnd)
+                            ) {
+                                // Add actual flag resource here if available
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
                         Text(
-                            text = displayText,
+                            text = fullName,
                             color = ComposeColor.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                }
+                
+                // Live Price and Change (Green Numbers)
+                currentQuote?.let { quote ->
+                    Row(
+                        modifier = Modifier.padding(top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val color = if (quote.change >= 0) ComposeColor(0xFF089981) else ComposeColor(0xFFF05252)
                         Text(
-                            text = timeframe,
-                            color = ComposeColor.Gray,
-                            fontSize = 12.sp
+                            text = String.format("%.3f", quote.lastPrice),
+                            color = color,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = String.format("%+8.3f (%+8.2f%%)", quote.change, quote.changePercent),
+                            color = color,
+                            fontSize = 11.sp
                         )
                     }
                 }
@@ -985,11 +1025,11 @@ fun TradingChart(
                         )
                     }
                 }
-
+                
                 // Buy/Sell Labels
                 if (chartSettings.trading.showBuySellLabels) {
                     currentQuote?.let { quote ->
-                        Row(modifier = Modifier.padding(top = 8.dp)) {
+                        Row(modifier = Modifier.padding(top = 12.dp)) {
                             // Sell Label
                             Column(
                                 modifier = Modifier
@@ -998,11 +1038,11 @@ fun TradingChart(
                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text("SELL", color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                Text(String.format("%.2f", quote.bid), color = ComposeColor.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("SELL", color = ComposeColor.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text(String.format("%.2f", quote.bid), color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
                             
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             
                             // Buy Label
                             Column(
@@ -1012,10 +1052,31 @@ fun TradingChart(
                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text("BUY", color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                Text(String.format("%.2f", quote.ask), color = ComposeColor.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("BUY", color = ComposeColor.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text(String.format("%.2f", quote.ask), color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
                         }
+                    }
+                }
+
+                // Indicators (Volume) just below Buy/Sell
+                if (showVolume) {
+                    val lastVolume = volumeEntries.lastOrNull()?.y ?: 0f
+                    Row(
+                        modifier = Modifier.padding(top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Vol · Ticks",
+                            color = ComposeColor(0xFFD1D4DC),
+                            fontSize = 11.sp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = String.format("%.0f", lastVolume),
+                            color = ComposeColor(0xFFD1D4DC),
+                            fontSize = 16.sp
+                        )
                     }
                 }
             }

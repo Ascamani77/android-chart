@@ -24,6 +24,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.trading.app.models.AlertsSettings
 import com.trading.app.models.ChartSettings
+import com.trading.app.models.ColorPickerState
 
 @Composable
 fun AlertsSettingsModal(
@@ -32,6 +33,12 @@ fun AlertsSettingsModal(
     onClose: () -> Unit
 ) {
     var tempSettings by remember { mutableStateOf(settings.alerts) }
+    var colorPickerTarget by remember { mutableStateOf<ColorPickerState?>(null) }
+
+    // Apply changes in real-time
+    LaunchedEffect(tempSettings) {
+        onUpdate(settings.copy(alerts = tempSettings))
+    }
 
     Dialog(
         onDismissRequest = onClose,
@@ -82,20 +89,26 @@ fun AlertsSettingsModal(
                             onCheckedChange = { tempSettings = tempSettings.copy(alertLines = it) },
                             colors = CheckboxDefaults.colors(checkedColor = Color.White, uncheckedColor = Color(0xFF434651), checkmarkColor = Color.Black)
                         )
-                        Text("Alert lines", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Text("Alert lines", color = Color.White, fontSize = 14.sp)
                         
-                        // Split color box (Red/Green)
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        // Color box that opens picker
                         Box(
                             modifier = Modifier
                                 .size(36.dp, 32.dp)
                                 .clip(RoundedCornerShape(4.dp))
+                                .background(parseAlertColor(tempSettings.alertLinesColor))
                                 .border(1.dp, Color(0xFF363A45), RoundedCornerShape(4.dp))
-                        ) {
-                            Row(modifier = Modifier.fillMaxSize()) {
-                                Box(modifier = Modifier.weight(1f).fillMaxHeight().background(Color(0xFFF05252)))
-                                Box(modifier = Modifier.weight(1f).fillMaxHeight().background(Color(0xFF089981)))
-                            }
-                        }
+                                .clickable {
+                                    colorPickerTarget = ColorPickerState(
+                                        title = "Alert lines color",
+                                        initialHex = tempSettings.alertLinesColor,
+                                        onAddClick = { /* Handle custom color add if needed */ },
+                                        onColorSelect = { tempSettings = tempSettings.copy(alertLinesColor = it) }
+                                    )
+                                }
+                        )
                     }
 
                     Row(
@@ -175,5 +188,20 @@ fun AlertsSettingsModal(
                 }
             }
         }
+    }
+
+    colorPickerTarget?.let { state ->
+        ColorPickerDialog(
+            state = state,
+            onClose = { colorPickerTarget = null }
+        )
+    }
+}
+
+private fun parseAlertColor(hex: String): Color {
+    return try {
+        Color(android.graphics.Color.parseColor(hex))
+    } catch (e: Exception) {
+        Color.Gray
     }
 }
