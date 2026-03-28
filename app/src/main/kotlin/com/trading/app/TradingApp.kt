@@ -43,7 +43,7 @@ private fun parseComposeColor(colorString: String?, defaultColor: Color = Color(
 @Composable
 fun TradingApp() {
     val scope = rememberCoroutineScope()
-    
+
     // Core State
     var symbol by remember { mutableStateOf("BTCUSD") }
     var timeframe by remember { mutableStateOf("D") }
@@ -55,17 +55,17 @@ fun TradingApp() {
     var isLocked by remember { mutableStateOf(false) }
     var areDrawingsVisible by remember { mutableStateOf(true) }
     var isCrosshairActive by remember { mutableStateOf(false) }
-    
+
     // Currency State
     var selectedCurrency by remember { mutableStateOf("USD") }
     var showCurrencyModal by remember { mutableStateOf(false) }
-    
+
     // Sidebar visibility state - Defaulted to false (hidden)
     var isSidebarVisible by remember { mutableStateOf(false) }
-    
+
     // Recent pairs state
     val recentPairs = remember { mutableStateListOf<Pair<String, String>>() }
-    
+
     LaunchedEffect(symbol, timeframe) {
         val newPair = symbol to timeframe
         if (!recentPairs.contains(newPair)) {
@@ -75,14 +75,14 @@ fun TradingApp() {
             }
         }
     }
-    
+
     // Settings & Data
     var chartSettings by remember { mutableStateOf(ChartSettings()) }
     val drawings = remember { mutableStateListOf<Drawing>() }
     val history = remember { mutableStateListOf<ChartSnapshot>() }
     val redoStack = remember { mutableStateListOf<ChartSnapshot>() }
     val userAlerts = remember { mutableStateListOf<UserAlert>() }
-    
+
     // Timezone
     val timeZones = remember {
         listOf(
@@ -214,7 +214,7 @@ fun TradingApp() {
     var activeTab by remember { mutableStateOf("Trading Panel") }
     var analysisContent by remember { mutableStateOf("Click refresh to generate analysis...") }
     var isAnalyzing by remember { mutableStateOf(false) }
-    
+
     // Modal Visibility
     var showSymbolSearch by remember { mutableStateOf(false) }
     var showIndicatorModal by remember { mutableStateOf(false) }
@@ -318,7 +318,7 @@ fun TradingApp() {
     Surface(modifier = Modifier.fillMaxSize(), color = appBackgroundColor) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (!isFullscreen) {
-                val isHeaderHidden = chartSettings.canvas.headerVisibility == "Auto-hide" && !isSidebarVisible
+                val isHeaderHidden = !chartSettings.canvas.headerVisible || (chartSettings.canvas.headerVisibility == "Auto-hide" && !isSidebarVisible)
                 AnimatedVisibility(
                     visible = !isHeaderHidden,
                     enter = expandVertically(),
@@ -413,10 +413,18 @@ fun TradingApp() {
                             isFullscreen = isFullscreen,
                             onFullscreenExit = { isFullscreen = false },
                             scrollToTimestamp = targetTimestamp,
-                            onScrollDone = { targetTimestamp = null }
+                            onScrollDone = { targetTimestamp = null },
+                            onLongPress = {
+                                showSettingsModal = true
+                                chartSettings = chartSettings.copy(
+                                    canvas = chartSettings.canvas.copy(
+                                        headerVisible = !chartSettings.canvas.headerVisible
+                                    )
+                                )
+                            }
                         )
                     }
-                    
+
                     if (!isFullscreen && isBottomPanelVisible) {
                         TradingPanel(
                             activeTab = activeTab,
@@ -437,7 +445,7 @@ fun TradingApp() {
                     onGoToClick = { showGoToDateModal = true },
                     onTimeZoneClick = { showTimeZoneModal = true },
                     selectedTimeZone = selectedTz.label,
-                    onTabClick = { 
+                    onTabClick = {
                         if (activeTab == it && isBottomPanelVisible) {
                             isBottomPanelVisible = false
                         } else {
@@ -491,7 +499,7 @@ fun TradingApp() {
         if (showSettingsModal) {
             SettingsModal(
                 settings = chartSettings,
-                onUpdate = { 
+                onUpdate = {
                     try {
                         chartSettings = it
                     } catch (e: Exception) {
@@ -566,7 +574,7 @@ fun TradingApp() {
                     "Volume" -> 20 // Mock value for volume
                     else -> 14
                 },
-                onPeriodChange = { 
+                onPeriodChange = {
                     when(indicatorId) {
                         "RSI" -> rsiPeriod = it
                         "EMA10" -> ema10Period = it
@@ -584,7 +592,7 @@ fun TradingApp() {
             TimeZoneSelectionModal(
                 timeZones = timeZones,
                 selectedTimeZone = selectedTz,
-                onTimeZoneSelect = { 
+                onTimeZoneSelect = {
                     selectedTz = it
                     showTimeZoneModal = false
                 },

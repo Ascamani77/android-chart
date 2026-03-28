@@ -242,7 +242,7 @@ fun ScalesAndLinesSettingsModal(
                     SettingsLabelDropdownRow(
                         label = "Bid and ask",
                         value = tempSettings.bidAskMode,
-                        options = listOf("Value, line", "Value", "Line"),
+                        options = listOf("None", "Value, line", "Value", "Line"),
                         onValueChange = { tempSettings = tempSettings.copy(bidAskMode = it) }
                     )
                     Row(

@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.trading.app.models.ChartSettings
 
 @Composable
 fun Header(
@@ -46,11 +47,15 @@ fun Header(
     onDownloadChart: () -> Unit = {},
     isCrosshairActive: Boolean = false,
     onCrosshairToggle: () -> Unit = {},
-    backgroundColor: Color = Color(0xFF08090C)
+    backgroundColor: Color = Color(0xFF08090C),
+    settings: ChartSettings = ChartSettings()
 ) {
     val scrollState = rememberScrollState()
     var showStyleMenu by remember { mutableStateOf(false) }
     var showTimeframeMenu by remember { mutableStateOf(false) }
+    
+    val fontSize = settings.canvas.headerFontSize.sp
+    val fontWeight = if (settings.canvas.headerFontBold) FontWeight.Bold else FontWeight.Medium
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -90,7 +95,7 @@ fun Header(
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = fontSize)
                     Spacer(modifier = Modifier.width(6.dp))
                     Icon(Icons.Default.Diamond, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -147,8 +152,8 @@ fun Header(
                             .clip(RoundedCornerShape(4.dp))
                             .clickable { onTimeframeClick(id) }
                             .padding(horizontal = 10.dp, vertical = 6.dp),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
+                        fontSize = fontSize,
+                        fontWeight = fontWeight
                     )
                 }
 
@@ -219,6 +224,8 @@ fun Header(
                         TimeframeItem("3 months", "3M", timeframe, onTimeframeClick) { showTimeframeMenu = false }
                         TimeframeItem("6 months", "6M", timeframe, onTimeframeClick) { showTimeframeMenu = false }
                         TimeframeItem("12 months", "12M", timeframe, onTimeframeClick) { showTimeframeMenu = false }
+                        TimeframeItem("Year to date", "YTD", timeframe, onTimeframeClick) { showTimeframeMenu = false }
+                        TimeframeItem("5 years", "5Y", timeframe, onTimeframeClick) { showTimeframeMenu = false }
 
                         Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
 
@@ -297,7 +304,7 @@ fun Header(
                 ) {
                     Icon(Icons.Default.WaterfallChart, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Indicators", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("Indicators", color = Color.White, fontSize = fontSize, fontWeight = fontWeight)
                 }
                 
                 // Layout icon next to indicators
@@ -317,7 +324,7 @@ fun Header(
                 ) {
                     Icon(Icons.Outlined.NotificationsNone, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Alert", color = Color.White, fontSize = 14.sp)
+                    Text("Alert", color = Color.White, fontSize = fontSize, fontWeight = fontWeight)
                 }
 
                 // Replay
@@ -330,7 +337,7 @@ fun Header(
                 ) {
                     Icon(Icons.Default.Replay, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Replay", color = Color.White, fontSize = 14.sp)
+                    Text("Replay", color = Color.White, fontSize = fontSize, fontWeight = fontWeight)
                 }
 
                 HeaderDivider()
@@ -358,7 +365,7 @@ fun Header(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Save", color = Color(0xFF2962FF), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("Save", color = Color(0xFF2962FF), fontSize = fontSize, fontWeight = FontWeight.Bold)
                     Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF2962FF), modifier = Modifier.size(22.dp))
                 }
 
@@ -394,15 +401,15 @@ fun Header(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Publish Button (White)
+                // Chat Button (White)
                 Button(
-                    onClick = { /* Publish */ },
+                    onClick = { /* Chat */ },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     modifier = Modifier.height(32.4.dp),
                     shape = RoundedCornerShape(18.dp)
                 ) {
-                    Text("Publish", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Chat", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -507,23 +514,4 @@ fun StyleMenuItem(
         },
         modifier = Modifier.background(if (isSelected) Color(0xFF2A2E39) else Color.Transparent)
     )
-}
-
-fun getStyleIcon(style: String): ImageVector {
-    return when (style) {
-        "bars" -> Icons.Default.Reorder
-        "candles", "hollow_candles", "volume_candles", "heikin_ashi" -> Icons.Default.BarChart
-        "line", "line_markers", "kagi" -> Icons.Default.ShowChart
-        "area", "hlc_area" -> Icons.Default.AreaChart
-        "step_line" -> Icons.Default.StackedLineChart
-        "baseline" -> Icons.Default.HorizontalRule
-        "columns" -> Icons.Default.BarChart
-        "high_low" -> Icons.Default.VerticalAlignBottom
-        "renko", "tpo" -> Icons.Default.GridView
-        "line_break", "volume_footprint" -> Icons.Default.FormatAlignLeft
-        "point_figure" -> Icons.Default.Close
-        "range" -> Icons.Default.Height
-        "svp" -> Icons.Default.AlignHorizontalLeft
-        else -> Icons.Default.BarChart
-    }
 }

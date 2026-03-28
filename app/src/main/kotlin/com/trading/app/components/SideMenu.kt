@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.trading.app.models.ChartSettings
 
 @Composable
 fun SideMenu(
@@ -37,7 +38,7 @@ fun SideMenu(
     onBarReplayClick: () -> Unit,
     onSymbolSearchClick: () -> Unit,
     onCompareClick: () -> Unit,
-    onStyleChangeClick: () -> Unit,
+    onStyleChangeClick: (String) -> Unit,
     onTimeframeClick: () -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
@@ -45,10 +46,16 @@ fun SideMenu(
     canRedo: Boolean,
     onFullscreenClick: () -> Unit,
     onDownloadChartClick: () -> Unit,
-    onNavigate: (String) -> Unit = {}
+    onNavigate: (String) -> Unit = {},
+    settings: ChartSettings = ChartSettings()
 ) {
     var expandedDrawings by remember { mutableStateOf(false) }
+    var showChartTypeMenu by remember { mutableStateOf(false) }
     
+    val fontSize = settings.canvas.sidebarFontSize.sp
+    val fontWeight = if (settings.canvas.sidebarFontBold) FontWeight.Bold else FontWeight.Medium
+    val iconSize = settings.canvas.sidebarIconSize.dp
+
     Dialog(
         onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -95,7 +102,10 @@ fun SideMenu(
                         icon = Icons.Outlined.Draw,
                         label = "Drawings",
                         isExpanded = expandedDrawings,
-                        onToggle = { expandedDrawings = it }
+                        onToggle = { expandedDrawings = it },
+                        fontSize = fontSize,
+                        fontWeight = fontWeight,
+                        iconSize = iconSize
                     )
                     
                     // Drawings Sub-items
@@ -105,52 +115,104 @@ fun SideMenu(
                         exit = shrinkVertically()
                     ) {
                         Column {
-                            MT5SubMenuItem("Tools") { onNavigate("Drawings/Tools"); onClose() }
-                            MT5SubMenuItem("Trend lines") { onNavigate("Drawings/TrendLines"); onClose() }
-                            MT5SubMenuItem("Gann and Fibonacci") { onNavigate("Drawings/GannFibonacci"); onClose() }
-                            MT5SubMenuItem("Patterns") { onNavigate("Drawings/Patterns"); onClose() }
-                            MT5SubMenuItem("Forecasting and measurement") { onNavigate("Drawings/Forecasting"); onClose() }
-                            MT5SubMenuItem("Geometric shapes") { onNavigate("Drawings/Shapes"); onClose() }
-                            MT5SubMenuItem("Annotation") { onNavigate("Drawings/Annotation"); onClose() }
-                            MT5SubMenuItem("Visual") { onNavigate("Drawings/Visual"); onClose() }
+                            MT5SubMenuItem("Tools", fontSize = fontSize) { onNavigate("Drawings/Tools"); onClose() }
+                            MT5SubMenuItem("Trend lines", fontSize = fontSize) { onNavigate("Drawings/TrendLines"); onClose() }
+                            MT5SubMenuItem("Gann and Fibonacci", fontSize = fontSize) { onNavigate("Drawings/GannFibonacci"); onClose() }
+                            MT5SubMenuItem("Patterns", fontSize = fontSize) { onNavigate("Drawings/Patterns"); onClose() }
+                            MT5SubMenuItem("Forecasting and measurement", fontSize = fontSize) { onNavigate("Drawings/Forecasting"); onClose() }
+                            MT5SubMenuItem("Geometric shapes", fontSize = fontSize) { onNavigate("Drawings/Shapes"); onClose() }
+                            MT5SubMenuItem("Annotation", fontSize = fontSize) { onNavigate("Drawings/Annotation"); onClose() }
+                            MT5SubMenuItem("Visual", fontSize = fontSize) { onNavigate("Drawings/Visual"); onClose() }
                         }
                     }
                     
                     
                     // Analysis hub items
-                    MT5MenuItem(Icons.Outlined.Dashboard, "Layout setup") { onNavigate("Analysis/LayoutSetup"); onClose() }
-                    MT5MenuItem(Icons.Outlined.Edit, "Manage Unnamed") { onNavigate("Analysis/ManageUnnamed"); onClose() }
-                    MT5MenuItem(Icons.Outlined.Add, "New") { onNavigate("Analysis/New"); onClose() }
-                    MT5MenuItem(Icons.Outlined.CloudUpload, "Save") { onNavigate("Analysis/Save"); onClose() }
-                    MT5MenuItem(Icons.Outlined.FolderOpen, "Open") { onNavigate("Analysis/Open"); onClose() }
+                    MT5MenuItem(Icons.Outlined.Dashboard, "Layout setup", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onNavigate("Analysis/LayoutSetup"); onClose() }
+                    MT5MenuItem(Icons.Outlined.Edit, "Manage Unnamed", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onNavigate("Analysis/ManageUnnamed"); onClose() }
+                    MT5MenuItem(Icons.Outlined.Add, "New", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onNavigate("Analysis/New"); onClose() }
+                    MT5MenuItem(Icons.Outlined.CloudUpload, "Save", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onNavigate("Analysis/Save"); onClose() }
+                    MT5MenuItem(Icons.Outlined.FolderOpen, "Open", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onNavigate("Analysis/Open"); onClose() }
                     
                     Divider(color = Color(0xFF1E222D), modifier = Modifier.padding(vertical = 8.dp))
                     
                     // Tools Section - Synchronized with Header
-                    MT5MenuItem(Icons.Default.Search, "Symbol search", trailingText = symbol) { onSymbolSearchClick(); onClose() }
-                    MT5MenuItem(Icons.Default.Schedule, "Interval", trailingText = timeframe) { onTimeframeClick(); onClose() }
-                    MT5MenuItem(Icons.Default.WaterfallChart, "Indicators", trailingText = activeIndicators.ifBlank { null }) { onIndicatorClick(); onClose() }
-                    MT5MenuItem(Icons.Outlined.CompareArrows, "Compare") { onCompareClick(); onClose() }
-                    MT5MenuItem(Icons.Outlined.NotificationsNone, "Alerts") { onAlertClick(); onClose() }
-                    MT5MenuItem(Icons.Default.Replay, "Bar Replay") { onBarReplayClick(); onClose() }
-                    MT5MenuItem(Icons.Outlined.ViewModule, "Indicator templates") { onNavigate("Tools/IndicatorTemplates"); onClose() }
-                    MT5MenuItem(getStyleIcon(chartStyle), "Chart type", trailingText = chartStyle.replace("_", " ").capitalize()) { onStyleChangeClick(); onClose() }
-                    MT5MenuItem(Icons.Outlined.AccountTree, "Object Tree") { onNavigate("Tools/ObjectTree"); onClose() }
+                    MT5MenuItem(Icons.Default.Search, "Symbol search", trailingText = symbol, fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onSymbolSearchClick(); onClose() }
+                    MT5MenuItem(Icons.Default.Schedule, "Interval", trailingText = timeframe, fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onTimeframeClick(); onClose() }
+                    MT5MenuItem(Icons.Default.WaterfallChart, "Indicators", trailingText = activeIndicators.ifBlank { null }, fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onIndicatorClick(); onClose() }
+                    MT5MenuItem(Icons.Outlined.CompareArrows, "Compare", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onCompareClick(); onClose() }
+                    MT5MenuItem(Icons.Outlined.NotificationsNone, "Alerts", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onAlertClick(); onClose() }
+                    MT5MenuItem(Icons.Default.Replay, "Bar Replay", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onBarReplayClick(); onClose() }
+                    MT5MenuItem(Icons.Outlined.ViewModule, "Indicator templates", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onNavigate("Tools/IndicatorTemplates"); onClose() }
+                    
+                    // Chart Type with Dropdown
+                    Box {
+                        MT5MenuItem(getStyleIcon(chartStyle), "Chart type", trailingText = chartStyle.replace("_", " ").capitalize(), fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { showChartTypeMenu = true }
+                        
+                        DropdownMenu(
+                            expanded = showChartTypeMenu,
+                            onDismissRequest = { showChartTypeMenu = false },
+                            modifier = Modifier.background(Color(0xFF1E222D)).width(240.dp)
+                        ) {
+                            // Group 1: Candle Types
+                            StyleMenuItem("Bars", "bars", Icons.Default.Reorder, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Candles", "candles", Icons.Default.BarChart, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Hollow candles", "hollow_candles", Icons.Default.BarChart, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Volume candles", "volume_candles", Icons.Default.BarChart, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            
+                            Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
+                            
+                            // Group 2: Line Types
+                            StyleMenuItem("Line", "line", Icons.Default.ShowChart, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Line with markers", "line_markers", Icons.Default.ShowChart, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Step line", "step_line", Icons.Default.StackedLineChart, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            
+                            Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
+
+                            // Group 3: Area Types
+                            StyleMenuItem("Area", "area", Icons.Default.AreaChart, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("HLC area", "hlc_area", Icons.Default.AreaChart, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Baseline", "baseline", Icons.Default.HorizontalRule, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            
+                            Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
+
+                            // Group 4: Others
+                            StyleMenuItem("Columns", "columns", Icons.Default.BarChart, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("High-low", "high_low", Icons.Default.VerticalAlignBottom, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            
+                            Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
+
+                            StyleMenuItem("Volume footprint", "volume_footprint", Icons.Default.FormatAlignLeft, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Time price opportunity", "tpo", Icons.Default.GridView, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Session volume profile", "svp", Icons.Default.AlignHorizontalLeft, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            
+                            Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
+
+                            StyleMenuItem("Heikin Ashi", "heikin_ashi", Icons.Default.BarChart, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Renko", "renko", Icons.Default.GridView, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Line break", "line_break", Icons.Default.FormatAlignLeft, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Kagi", "kagi", Icons.Default.ShowChart, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Point & figure", "point_figure", Icons.Default.Close, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                            StyleMenuItem("Range", "range", Icons.Default.Height, chartStyle, { onStyleChangeClick(it) }) { showChartTypeMenu = false }
+                        }
+                    }
+                    
+                    MT5MenuItem(Icons.Outlined.AccountTree, "Object Tree", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onNavigate("Tools/ObjectTree"); onClose() }
                     
                     Divider(color = Color(0xFF1E222D), modifier = Modifier.padding(vertical = 8.dp))
 
-                    MT5MenuItem(Icons.Default.Fullscreen, "Fullscreen") { onFullscreenClick(); onClose() }
-                    MT5MenuItem(Icons.Default.CameraAlt, "Take a snapshot") { onDownloadChartClick(); onClose() }
+                    MT5MenuItem(Icons.Default.Fullscreen, "Fullscreen", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onFullscreenClick(); onClose() }
+                    MT5MenuItem(Icons.Default.CameraAlt, "Take a snapshot", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onDownloadChartClick(); onClose() }
 
                     Divider(color = Color(0xFF1E222D), modifier = Modifier.padding(vertical = 8.dp))
                     
                     // Undo/Redo shortcuts
-                    MT5MenuItem(Icons.Default.Undo, "Undo", enabled = canUndo) { if(canUndo) onUndo(); onClose() }
-                    MT5MenuItem(Icons.Default.Redo, "Redo", enabled = canRedo) { if(canRedo) onRedo(); onClose() }
+                    MT5MenuItem(Icons.Default.Undo, "Undo", enabled = canUndo, fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { if(canUndo) onUndo(); onClose() }
+                    MT5MenuItem(Icons.Default.Redo, "Redo", enabled = canRedo, fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { if(canRedo) onRedo(); onClose() }
                     
                     Divider(color = Color(0xFF1E222D), modifier = Modifier.padding(vertical = 8.dp))
                     
-                    MT5MenuItem(Icons.Default.Settings, "Settings") { onSettingsClick(); onClose() }
+                    MT5MenuItem(Icons.Default.Settings, "Settings", fontSize = fontSize, fontWeight = fontWeight, iconSize = iconSize) { onSettingsClick(); onClose() }
                 }
             }
         }
@@ -165,6 +227,9 @@ fun MT5MenuItem(
     badge: String? = null,
     hasAds: Boolean = false,
     enabled: Boolean = true,
+    fontSize: androidx.compose.ui.unit.TextUnit = 15.sp,
+    fontWeight: FontWeight = FontWeight.Medium,
+    iconSize: androidx.compose.ui.unit.Dp = 24.dp,
     onClick: () -> Unit = {}
 ) {
     Row(
@@ -178,14 +243,14 @@ fun MT5MenuItem(
             icon,
             null,
             tint = if(enabled) Color(0xFFD1D4DC) else Color(0xFF434651),
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(iconSize)
         )
         Spacer(modifier = Modifier.width(20.dp))
         Text(
             label,
             color = if(enabled) Color.White else Color(0xFF434651),
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
+            fontSize = fontSize,
+            fontWeight = fontWeight,
             modifier = Modifier.weight(1f)
         )
 
@@ -193,7 +258,7 @@ fun MT5MenuItem(
             Text(
                 trailingText,
                 color = Color(0xFF787B86),
-                fontSize = 14.sp,
+                fontSize = fontSize * 0.9f,
                 modifier = Modifier.padding(horizontal = 8.dp),
                 maxLines = 1
             )
@@ -229,7 +294,10 @@ fun ExpandableMenuItem(
     icon: ImageVector,
     label: String,
     isExpanded: Boolean,
-    onToggle: (Boolean) -> Unit
+    onToggle: (Boolean) -> Unit,
+    fontSize: androidx.compose.ui.unit.TextUnit = 15.sp,
+    fontWeight: FontWeight = FontWeight.Medium,
+    iconSize: androidx.compose.ui.unit.Dp = 24.dp
 ) {
     Row(
         modifier = Modifier
@@ -242,14 +310,14 @@ fun ExpandableMenuItem(
             icon,
             null,
             tint = Color(0xFFD1D4DC),
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(iconSize)
         )
         Spacer(modifier = Modifier.width(20.dp))
         Text(
             label,
             color = Color.White,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
+            fontSize = fontSize,
+            fontWeight = fontWeight,
             modifier = Modifier.weight(1f)
         )
         Icon(
@@ -264,6 +332,7 @@ fun ExpandableMenuItem(
 @Composable
 fun MT5SubMenuItem(
     label: String,
+    fontSize: androidx.compose.ui.unit.TextUnit = 14.sp,
     onClick: () -> Unit = {}
 ) {
     Row(
@@ -276,7 +345,7 @@ fun MT5SubMenuItem(
         Text(
             label,
             color = Color(0xFFB0B0B0),
-            fontSize = 14.sp,
+            fontSize = fontSize,
             fontWeight = FontWeight.Normal
         )
     }

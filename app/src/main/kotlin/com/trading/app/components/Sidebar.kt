@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.trading.app.models.ChartSettings
 
 @Composable
 fun Sidebar(
@@ -31,9 +32,11 @@ fun Sidebar(
     isVisible: Boolean,
     onVisibilityToggle: () -> Unit,
     onClearDrawings: () -> Unit,
-    backgroundColor: Color = Color(0xFF08090C)
+    backgroundColor: Color = Color(0xFF08090C),
+    settings: ChartSettings = ChartSettings()
 ) {
     val scrollState = rememberScrollState()
+    val iconSize = settings.canvas.sidebarIconSize.dp
 
     Box(
         modifier = Modifier
@@ -65,37 +68,38 @@ fun Sidebar(
                 isActive = activeTool == "cursor",
                 onClick = { onToolClick("cursor") },
                 isSquare = true,
-                hasSubMenu = false
+                hasSubMenu = false,
+                iconSize = iconSize
             )
             
             // 2. Trend Line
-            SidebarToolIconItem(icon = Icons.Outlined.Timeline, toolId = "trendline", isActive = activeTool == "trendline", onClick = onToolClick)
+            SidebarToolIconItem(icon = Icons.Outlined.Timeline, toolId = "trendline", isActive = activeTool == "trendline", onClick = onToolClick, iconSize = iconSize)
             
             // 3. Gann and Fibonacci
-            SidebarToolIconItem(icon = Icons.Outlined.Notes, toolId = "fib", isActive = activeTool == "fib", onClick = onToolClick)
+            SidebarToolIconItem(icon = Icons.Outlined.Notes, toolId = "fib", isActive = activeTool == "fib", onClick = onToolClick, iconSize = iconSize)
             
             // 4. Geometric Shapes
-            SidebarToolIconItem(icon = Icons.Outlined.Polyline, toolId = "shapes", isActive = activeTool == "shapes", onClick = onToolClick)
+            SidebarToolIconItem(icon = Icons.Outlined.Polyline, toolId = "shapes", isActive = activeTool == "shapes", onClick = onToolClick, iconSize = iconSize)
             
             // 5. Prediction/Measurement
-            SidebarToolIconItem(icon = Icons.Outlined.AutoGraph, toolId = "prediction", isActive = activeTool == "prediction", onClick = onToolClick)
+            SidebarToolIconItem(icon = Icons.Outlined.AutoGraph, toolId = "prediction", isActive = activeTool == "prediction", onClick = onToolClick, iconSize = iconSize)
             
             // 6. Brush
-            SidebarToolIconItem(icon = Icons.Outlined.Brush, toolId = "brush", isActive = activeTool == "brush", onClick = onToolClick)
+            SidebarToolIconItem(icon = Icons.Outlined.Brush, toolId = "brush", isActive = activeTool == "brush", onClick = onToolClick, iconSize = iconSize)
             
             // 7. Text
-            SidebarToolIconItem(icon = Icons.Outlined.Title, toolId = "text", isActive = activeTool == "text", onClick = onToolClick)
+            SidebarToolIconItem(icon = Icons.Outlined.Title, toolId = "text", isActive = activeTool == "text", onClick = onToolClick, iconSize = iconSize)
             
             // 8. Icons (Smiley)
-            SidebarToolIconItem(icon = Icons.Outlined.SentimentSatisfied, toolId = "icons", isActive = activeTool == "icons", onClick = onToolClick)
+            SidebarToolIconItem(icon = Icons.Outlined.SentimentSatisfied, toolId = "icons", isActive = activeTool == "icons", onClick = onToolClick, iconSize = iconSize)
 
             SidebarDivider()
 
             // 9. Measure (Ruler)
-            SidebarToolIconItem(icon = Icons.Outlined.Straighten, toolId = "measure", isActive = activeTool == "measure", onClick = onToolClick, hasSubMenu = false)
+            SidebarToolIconItem(icon = Icons.Outlined.Straighten, toolId = "measure", isActive = activeTool == "measure", onClick = onToolClick, hasSubMenu = false, iconSize = iconSize)
             
             // 10. Zoom
-            SidebarToolIconItem(icon = Icons.Outlined.ZoomIn, toolId = "zoom", isActive = activeTool == "zoom", onClick = onToolClick, hasSubMenu = false)
+            SidebarToolIconItem(icon = Icons.Outlined.ZoomIn, toolId = "zoom", isActive = activeTool == "zoom", onClick = onToolClick, hasSubMenu = false, iconSize = iconSize)
             
             SidebarDivider()
 
@@ -105,7 +109,8 @@ fun Sidebar(
                 toolId = "magnet",
                 isActive = isMagnetEnabled,
                 onClick = { onMagnetToggle() },
-                hasSubMenu = false
+                hasSubMenu = false,
+                iconSize = iconSize
             )
             
             // 12. Stay in Drawing Mode (Pencil with lock)
@@ -114,7 +119,8 @@ fun Sidebar(
                 toolId = "stay",
                 isActive = stayInDrawingMode,
                 onClick = { onStayInModeToggle() },
-                hasSubMenu = false
+                hasSubMenu = false,
+                iconSize = iconSize
             )
             
             // 13. Lock (Padlock)
@@ -123,7 +129,8 @@ fun Sidebar(
                 toolId = "lock",
                 isActive = isLocked,
                 onClick = { onLockToggle() },
-                hasSubMenu = false
+                hasSubMenu = false,
+                iconSize = iconSize
             )
             
             // 14. Hide (Eye with Brush)
@@ -132,7 +139,8 @@ fun Sidebar(
                 toolId = "hide",
                 isActive = !isVisible,
                 onClick = { onVisibilityToggle() },
-                hasSubMenu = false
+                hasSubMenu = false,
+                iconSize = iconSize
             )
             
             SidebarDivider()
@@ -143,7 +151,8 @@ fun Sidebar(
                 toolId = "remove",
                 isActive = false,
                 onClick = { onClearDrawings() },
-                hasSubMenu = false
+                hasSubMenu = false,
+                iconSize = iconSize
             )
 
             Spacer(modifier = Modifier.weight(1f))
@@ -169,7 +178,8 @@ fun SidebarToolIconItem(
     isActive: Boolean,
     onClick: (String) -> Unit,
     hasSubMenu: Boolean = true,
-    isSquare: Boolean = false
+    isSquare: Boolean = false,
+    iconSize: androidx.compose.ui.unit.Dp = 24.dp
 ) {
     Box(
         modifier = Modifier
@@ -184,7 +194,7 @@ fun SidebarToolIconItem(
             imageVector = icon,
             contentDescription = toolId,
             tint = if (isActive) Color.White else Color(0xFFD1D4DC),
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(iconSize)
         )
         
         if (hasSubMenu && !isActive) {

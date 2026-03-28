@@ -1,10 +1,12 @@
 -- Merging decision tree log ---
 manifest
-ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:2:1-25:12
-INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:2:1-25:12
-INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:2:1-25:12
-INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:2:1-25:12
+ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:2:1-25:12
+INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:2:1-25:12
+INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:2:1-25:12
+INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:2:1-25:12
 MERGED from [com.google.ai.client.generativeai:generativeai:0.7.0] C:\Users\HP\.gradle\caches\8.13\transforms\194c9ecca51f55a797b2318d8cd401a6\transformed\jetified-generativeai-0.7.0\AndroidManifest.xml:17:1-24:12
+MERGED from [com.tradingview:lightweightcharts:4.0.0] C:\Users\HP\.gradle\caches\8.13\transforms\b6a120e19db9e0ffd2f20c52c5165aa7\transformed\jetified-lightweightcharts-4.0.0\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.webkit:webkit:1.6.0] C:\Users\HP\.gradle\caches\8.13\transforms\d966cab0ff7f6cfba6d311db95811a71\transformed\webkit-1.6.0\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.compose.material3:material3:1.1.1] C:\Users\HP\.gradle\caches\8.13\transforms\7c5bfd48d74826a8adbaa392d9784f21\transformed\jetified-material3-1.1.1\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.activity:activity:1.8.2] C:\Users\HP\.gradle\caches\8.13\transforms\8118651a7b8b62d80edfe1bc9eebac66\transformed\jetified-activity-1.8.2\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.activity:activity-ktx:1.8.2] C:\Users\HP\.gradle\caches\8.13\transforms\c53ddefe2b4b0272a42324a9f83bd2ab\transformed\jetified-activity-ktx-1.8.2\AndroidManifest.xml:2:1-7:12
@@ -53,25 +55,25 @@ MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\HP\.gradle\caches\8
 MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\HP\.gradle\caches\8.13\transforms\f09f93cdf495493e2758a148bcbe4a5f\transformed\jetified-startup-runtime-1.1.1\AndroidManifest.xml:17:1-33:12
 MERGED from [androidx.tracing:tracing:1.0.0] C:\Users\HP\.gradle\caches\8.13\transforms\2e93026708c9a4ce9fb11eb8ec8aeb53\transformed\jetified-tracing-1.0.0\AndroidManifest.xml:17:1-24:12
 	package
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:3:5-30
-		INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:3:5-30
+		INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml
 	android:versionName
-		INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml
 	android:versionCode
-		INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml
 	xmlns:android
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:2:11-69
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:2:11-69
 uses-permission#android.permission.INTERNET
-ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:5:5-67
+ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:5:5-67
 MERGED from [com.google.ai.client.generativeai:generativeai:0.7.0] C:\Users\HP\.gradle\caches\8.13\transforms\194c9ecca51f55a797b2318d8cd401a6\transformed\jetified-generativeai-0.7.0\AndroidManifest.xml:22:5-67
 MERGED from [com.google.ai.client.generativeai:generativeai:0.7.0] C:\Users\HP\.gradle\caches\8.13\transforms\194c9ecca51f55a797b2318d8cd401a6\transformed\jetified-generativeai-0.7.0\AndroidManifest.xml:22:5-67
 MERGED from [com.google.ai.client.generativeai:common:0.6.0] C:\Users\HP\.gradle\caches\8.13\transforms\f2745c286c329b891f20d8530461458e\transformed\jetified-common-0.6.0\AndroidManifest.xml:22:5-67
 MERGED from [com.google.ai.client.generativeai:common:0.6.0] C:\Users\HP\.gradle\caches\8.13\transforms\f2745c286c329b891f20d8530461458e\transformed\jetified-common-0.6.0\AndroidManifest.xml:22:5-67
 	android:name
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:5:22-64
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:5:22-64
 application
-ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:7:5-23:19
-INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:7:5-23:19
+ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:7:5-23:19
+INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:7:5-23:19
 MERGED from [androidx.compose.ui:ui-test-manifest:1.5.0] C:\Users\HP\.gradle\caches\8.13\transforms\886e17675a7b9b6178869b22df9d3bd7\transformed\jetified-ui-test-manifest-1.5.0\AndroidManifest.xml:22:5-26:19
 MERGED from [androidx.compose.ui:ui-test-manifest:1.5.0] C:\Users\HP\.gradle\caches\8.13\transforms\886e17675a7b9b6178869b22df9d3bd7\transformed\jetified-ui-test-manifest-1.5.0\AndroidManifest.xml:22:5-26:19
 MERGED from [androidx.compose.ui:ui-tooling-android:1.5.0] C:\Users\HP\.gradle\caches\8.13\transforms\b5bb99c96ddedc179d1e44413d2e10fe\transformed\jetified-ui-tooling-release\AndroidManifest.xml:22:5-26:19
@@ -89,45 +91,49 @@ MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\HP
 MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\HP\.gradle\caches\8.13\transforms\f09f93cdf495493e2758a148bcbe4a5f\transformed\jetified-startup-runtime-1.1.1\AndroidManifest.xml:25:5-31:19
 MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\HP\.gradle\caches\8.13\transforms\f09f93cdf495493e2758a148bcbe4a5f\transformed\jetified-startup-runtime-1.1.1\AndroidManifest.xml:25:5-31:19
 	android:extractNativeLibs
-		INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.12.0] C:\Users\HP\.gradle\caches\8.13\transforms\b4a32bc488cb5ac8c2fa4a4d2d7b4bd8\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:12:9-35
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:12:9-35
 	android:label
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:10:9-41
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:10:9-41
 	android:roundIcon
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:11:9-54
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:11:9-54
 	android:icon
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:9:9-43
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:9:9-43
 	android:allowBackup
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:8:9-35
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:8:9-35
 	android:theme
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:13:9-48
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:13:9-48
 activity#com.trading.app.MainActivity
-ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:14:9-22:20
+ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:14:9-22:20
 	android:exported
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:16:13-36
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:16:13-36
 	android:theme
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:17:13-64
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:17:13-64
 	android:name
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:15:13-41
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:15:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:18:13-21:29
+ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:18:13-21:29
 action#android.intent.action.MAIN
-ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:19:17-69
+ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:19:17-69
 	android:name
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:19:25-66
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:19:25-66
 category#android.intent.category.LAUNCHER
-ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:20:17-77
+ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:20:17-77
 	android:name
-		ADDED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml:20:27-74
+		ADDED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml:20:27-74
 uses-sdk
-INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
-INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml
-INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml
+INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml
+INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml
 MERGED from [com.google.ai.client.generativeai:generativeai:0.7.0] C:\Users\HP\.gradle\caches\8.13\transforms\194c9ecca51f55a797b2318d8cd401a6\transformed\jetified-generativeai-0.7.0\AndroidManifest.xml:20:5-44
 MERGED from [com.google.ai.client.generativeai:generativeai:0.7.0] C:\Users\HP\.gradle\caches\8.13\transforms\194c9ecca51f55a797b2318d8cd401a6\transformed\jetified-generativeai-0.7.0\AndroidManifest.xml:20:5-44
+MERGED from [com.tradingview:lightweightcharts:4.0.0] C:\Users\HP\.gradle\caches\8.13\transforms\b6a120e19db9e0ffd2f20c52c5165aa7\transformed\jetified-lightweightcharts-4.0.0\AndroidManifest.xml:5:5-44
+MERGED from [com.tradingview:lightweightcharts:4.0.0] C:\Users\HP\.gradle\caches\8.13\transforms\b6a120e19db9e0ffd2f20c52c5165aa7\transformed\jetified-lightweightcharts-4.0.0\AndroidManifest.xml:5:5-44
+MERGED from [androidx.webkit:webkit:1.6.0] C:\Users\HP\.gradle\caches\8.13\transforms\d966cab0ff7f6cfba6d311db95811a71\transformed\webkit-1.6.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.webkit:webkit:1.6.0] C:\Users\HP\.gradle\caches\8.13\transforms\d966cab0ff7f6cfba6d311db95811a71\transformed\webkit-1.6.0\AndroidManifest.xml:20:5-44
 MERGED from [androidx.compose.material3:material3:1.1.1] C:\Users\HP\.gradle\caches\8.13\transforms\7c5bfd48d74826a8adbaa392d9784f21\transformed\jetified-material3-1.1.1\AndroidManifest.xml:20:5-44
 MERGED from [androidx.compose.material3:material3:1.1.1] C:\Users\HP\.gradle\caches\8.13\transforms\7c5bfd48d74826a8adbaa392d9784f21\transformed\jetified-material3-1.1.1\AndroidManifest.xml:20:5-44
 MERGED from [androidx.activity:activity:1.8.2] C:\Users\HP\.gradle\caches\8.13\transforms\8118651a7b8b62d80edfe1bc9eebac66\transformed\jetified-activity-1.8.2\AndroidManifest.xml:20:5-44
@@ -223,9 +229,9 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\HP\.gradle\caches\
 MERGED from [androidx.tracing:tracing:1.0.0] C:\Users\HP\.gradle\caches\8.13\transforms\2e93026708c9a4ce9fb11eb8ec8aeb53\transformed\jetified-tracing-1.0.0\AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.tracing:tracing:1.0.0] C:\Users\HP\.gradle\caches\8.13\transforms\2e93026708c9a4ce9fb11eb8ec8aeb53\transformed\jetified-tracing-1.0.0\AndroidManifest.xml:20:5-22:41
 	android:targetSdkVersion
-		INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml
 	android:minSdkVersion
-		INJECTED from C:\Users\HP\Downloads\kotlin 2\app\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\HP\AndroidStudioProjects\kotlin 2\app\src\main\AndroidManifest.xml
 activity#androidx.activity.ComponentActivity
 ADDED from [androidx.compose.ui:ui-test-manifest:1.5.0] C:\Users\HP\.gradle\caches\8.13\transforms\886e17675a7b9b6178869b22df9d3bd7\transformed\jetified-ui-test-manifest-1.5.0\AndroidManifest.xml:23:9-25:39
 	android:exported

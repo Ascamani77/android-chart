@@ -39,6 +39,7 @@ fun CanvasSettingsModal(
 ) {
     var tempSettings by remember { mutableStateOf(settings.canvas) }
     var colorPickerTarget by remember { mutableStateOf<ColorPickerState?>(null) }
+    val sizeOptions = remember { (1..40).map { it.toString() } }
 
     // Apply changes in real-time to the chart
     LaunchedEffect(tempSettings) {
@@ -222,10 +223,20 @@ fun CanvasSettingsModal(
                             }
                             CanvasDropdown(
                                 value = "${tempSettings.scaleFontSize}",
-                                options = listOf("8", "10", "11", "12", "14", "16", "20"),
+                                options = sizeOptions,
                                 onValueChange = { tempSettings = tempSettings.copy(scaleFontSize = it.toIntOrNull() ?: 11) },
                                 modifier = Modifier.width(80.dp)
                             )
+                            IconButton(
+                                onClick = { tempSettings = tempSettings.copy(scaleFontBold = !tempSettings.scaleFontBold) },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.FormatBold,
+                                    null,
+                                    tint = if (tempSettings.scaleFontBold) Color(0xFF2962FF) else Color.White
+                                )
+                            }
                         }
                     }
                     Row(
@@ -240,8 +251,145 @@ fun CanvasSettingsModal(
                         }
                     }
 
+                    // UI ELEMENTS TEXT SETTINGS
+                    CanvasSectionHeader("UI ELEMENTS TEXT & SIZE")
+                    
+                    // Chart Items Font Size
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Chart Items", color = Color.White, fontSize = 14.sp, modifier = Modifier.width(100.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CanvasDropdown(
+                                value = "${tempSettings.chartItemFontSize}",
+                                options = sizeOptions,
+                                onValueChange = { tempSettings = tempSettings.copy(chartItemFontSize = it.toIntOrNull() ?: 12) },
+                                modifier = Modifier.width(80.dp)
+                            )
+                            Text("px", color = Color(0xFF787B86), fontSize = 14.sp)
+                        }
+                    }
+
+                    // Asset Pair Font Size
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Asset Pair", color = Color.White, fontSize = 14.sp, modifier = Modifier.width(100.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CanvasDropdown(
+                                value = "${tempSettings.symbolFontSize}",
+                                options = sizeOptions,
+                                onValueChange = { tempSettings = tempSettings.copy(symbolFontSize = it.toIntOrNull() ?: 14) },
+                                modifier = Modifier.width(80.dp)
+                            )
+                            Text("px", color = Color(0xFF787B86), fontSize = 14.sp)
+                        }
+                    }
+
+                    // Header Settings
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Header", color = Color.White, fontSize = 14.sp, modifier = Modifier.width(100.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CanvasDropdown(
+                                value = tempSettings.headerVisibility,
+                                options = listOf("Always visible", "Auto-hide"),
+                                onValueChange = { tempSettings = tempSettings.copy(headerVisibility = it) },
+                                modifier = Modifier.width(130.dp)
+                            )
+                            CanvasDropdown(
+                                value = "${tempSettings.headerFontSize}",
+                                options = sizeOptions,
+                                onValueChange = { tempSettings = tempSettings.copy(headerFontSize = it.toIntOrNull() ?: 14) },
+                                modifier = Modifier.width(80.dp)
+                            )
+                            IconButton(
+                                onClick = { tempSettings = tempSettings.copy(headerFontBold = !tempSettings.headerFontBold) },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.FormatBold,
+                                    null,
+                                    tint = if (tempSettings.headerFontBold) Color(0xFF2962FF) else Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    // Bottom Bar Settings
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Bottom Bar", color = Color.White, fontSize = 14.sp, modifier = Modifier.width(100.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CanvasDropdown(
+                                value = "${tempSettings.bottomFontSize}",
+                                options = sizeOptions,
+                                onValueChange = { tempSettings = tempSettings.copy(bottomFontSize = it.toIntOrNull() ?: 13) },
+                                modifier = Modifier.width(80.dp)
+                            )
+                            IconButton(
+                                onClick = { tempSettings = tempSettings.copy(bottomFontBold = !tempSettings.bottomFontBold) },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.FormatBold,
+                                    null,
+                                    tint = if (tempSettings.bottomFontBold) Color(0xFF2962FF) else Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    // Sidebar Settings
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Sidebar Icon", color = Color.White, fontSize = 14.sp, modifier = Modifier.width(100.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CanvasDropdown(
+                                value = "${tempSettings.sidebarIconSize}",
+                                options = sizeOptions,
+                                onValueChange = { tempSettings = tempSettings.copy(sidebarIconSize = it.toIntOrNull() ?: 24) },
+                                modifier = Modifier.width(80.dp)
+                            )
+                            Text("px", color = Color(0xFF787B86), fontSize = 14.sp)
+                        }
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Sidebar Font", color = Color.White, fontSize = 14.sp, modifier = Modifier.width(100.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CanvasDropdown(
+                                value = "${tempSettings.sidebarFontSize}",
+                                options = sizeOptions,
+                                onValueChange = { tempSettings = tempSettings.copy(sidebarFontSize = it.toIntOrNull() ?: 15) },
+                                modifier = Modifier.width(80.dp)
+                            )
+                            IconButton(
+                                onClick = { tempSettings = tempSettings.copy(sidebarFontBold = !tempSettings.sidebarFontBold) },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.FormatBold,
+                                    null,
+                                    tint = if (tempSettings.sidebarFontBold) Color(0xFF2962FF) else Color.White
+                                )
+                            }
+                        }
+                    }
+
                     // BUTTONS
-                    CanvasSectionHeader("BUTTONS")
+                    CanvasSectionHeader("BUTTONS VISIBILITY")
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -338,6 +486,8 @@ fun CanvasSettingsModal(
 
 @Composable
 private fun MarginInputRow(label: String, value: Int, onValueChange: (Int) -> Unit) {
+    var displayValue by remember(value) { mutableStateOf("$value") }
+    
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -345,10 +495,14 @@ private fun MarginInputRow(label: String, value: Int, onValueChange: (Int) -> Un
         Text(label, color = Color.White, fontSize = 14.sp, modifier = Modifier.width(100.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             BasicTextField(
-                value = "$value",
-                onValueChange = { 
-                    val newVal = it.filter { char -> char.isDigit() }.toIntOrNull() ?: 0
-                    onValueChange(newVal)
+                value = displayValue,
+                onValueChange = { newInput ->
+                    displayValue = newInput
+                    val filtered = newInput.filter { char -> char.isDigit() }
+                    if (filtered.isNotEmpty()) {
+                        val newVal = filtered.toInt()
+                        onValueChange(newVal)
+                    }
                 },
                 textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
                 modifier = Modifier

@@ -319,55 +319,13 @@ fun SettingsModal(
                     }
                 } else {
                     when (activeSubModal) {
-                        "Symbol" -> {
-                            SymbolSettingsModal(
-                                settings = settings,
-                                onUpdate = onUpdate,
-                                onClose = { activeSubModal = null }
-                            )
-                        }
-                        "Status line" -> {
-                            StatusLineSettingsModal(
-                                settings = settings,
-                                onUpdate = onUpdate,
-                                onClose = { activeSubModal = null }
-                            )
-                        }
-                        "Scales and lines" -> {
-                            ScalesAndLinesSettingsModal(
-                                settings = settings,
-                                onUpdate = onUpdate,
-                                onClose = { activeSubModal = null }
-                            )
-                        }
-                        "Canvas" -> {
-                            CanvasSettingsModal(
-                                settings = settings,
-                                onUpdate = onUpdate,
-                                onClose = { activeSubModal = null }
-                            )
-                        }
-                        "Trading" -> {
-                            TradingSettingsModal(
-                                settings = settings,
-                                onUpdate = onUpdate,
-                                onClose = { activeSubModal = null }
-                            )
-                        }
-                        "Alerts" -> {
-                            AlertsSettingsModal(
-                                settings = settings,
-                                onUpdate = onUpdate,
-                                onClose = { activeSubModal = null }
-                            )
-                        }
-                        "Events" -> {
-                            EventsSettingsModal(
-                                settings = settings,
-                                onUpdate = onUpdate,
-                                onClose = { activeSubModal = null }
-                            )
-                        }
+                        "Symbol" -> SymbolSettingsModal(settings, onUpdate) { activeSubModal = null }
+                        "Status line" -> StatusLineSettingsModal(settings, onUpdate) { activeSubModal = null }
+                        "Scales and lines" -> ScalesAndLinesSettingsModal(settings, onUpdate) { activeSubModal = null }
+                        "Canvas" -> CanvasSettingsModal(settings, onUpdate) { activeSubModal = null }
+                        "Trading" -> TradingSettingsModal(settings, onUpdate) { activeSubModal = null }
+                        "Alerts" -> AlertsSettingsModal(settings, onUpdate) { activeSubModal = null }
+                        "Events" -> EventsSettingsModal(settings, onUpdate) { activeSubModal = null }
                     }
                 }
             }
@@ -377,37 +335,16 @@ fun SettingsModal(
 
 @Composable
 fun SettingsItem(label: String, icon: ImageVector, onClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onClick() }
-                .padding(horizontal = 16.dp, vertical = 20.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                icon,
-                null,
-                tint = Color(0xFFD1D4DC),
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                label,
-                color = Color.White,
-                fontSize = 16.sp,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                Icons.Default.ChevronRight,
-                null,
-                tint = Color(0xFF434651),
-                modifier = Modifier.size(20.dp)
-            )
-        }
-        Divider(
-            color = Color(0xFF1E222D),
-            modifier = Modifier.padding(start = 56.dp)
-        )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(label, color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f))
+        Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
     }
 }

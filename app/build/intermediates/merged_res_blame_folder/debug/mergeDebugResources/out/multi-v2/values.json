@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.trading.app-mergeDebugResources-43:/values/values.xml",
+            "outputFile": "com.trading.app-mergeDebugResources-45:/values/values.xml",
             "map": [
                 {
                     "source": "C:\\Users\\HP\\AndroidStudioProjects\\kotlin 2\\app\\src\\main\\res\\values\\themes.xml",

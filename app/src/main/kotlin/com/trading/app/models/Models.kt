@@ -92,13 +92,24 @@ data class CanvasSettings(
     val watermarkColor: String = "#662A2E39",
     val scaleTextColor: String = "#d1d4dc",
     val scaleFontSize: Int = 11,
+    val scaleFontBold: Boolean = false,
+    val headerFontSize: Int = 14,
+    val headerFontBold: Boolean = false,
+    val bottomFontSize: Int = 13,
+    val bottomFontBold: Boolean = false,
+    val sidebarFontSize: Int = 15,
+    val sidebarFontBold: Boolean = false,
+    val sidebarIconSize: Int = 24,
+    val chartItemFontSize: Int = 12,
+    val symbolFontSize: Int = 14,
     val scaleLineColor: String = "#2a2e39",
     val navigationButtons: String = "Visible on mouse over",
     val paneButtons: String = "Visible on mouse over",
-    val marginTop: Int = 10,
-    val marginBottom: Int = 8,
+    val marginTop: Int = 15,
+    val marginBottom: Int = 1,
     val marginRight: Int = 10,
     val fullChartColor: String = "Default", // Options: "Default", "Pure Black", "Dark Blue", "OLED Black"
+    val headerVisible: Boolean = true,
     val headerVisibility: String = "Always visible" // Options: "Always visible", "Auto-hide"
 )
 
