@@ -2,7 +2,9 @@ package com.trading.app.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -22,6 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -52,7 +57,6 @@ fun QuickActionsButton(
         label = "ButtonFadeAlpha"
     )
 
-    // Reset fade timer on interaction or modal state change
     LaunchedEffect(interactionTrigger, isModalOpen) {
         if (isModalOpen) {
             isFaded = false
@@ -63,14 +67,13 @@ fun QuickActionsButton(
         isFaded = true
     }
 
-    // We use rememberUpdatedState to ensure the drag gesture always uses the latest offset values
     val currentOffset by rememberUpdatedState(offset)
     val currentOnOffsetChange by rememberUpdatedState(onOffsetChange)
 
     Box(
         modifier = modifier
             .offset { currentOffset }
-            .size(70.dp)
+            .size(63.dp) // Reduced from 70.dp (10% reduction)
             .graphicsLayer(alpha = alpha)
             .pointerInput(isLocked) {
                 if (!isLocked) {
@@ -81,7 +84,6 @@ fun QuickActionsButton(
                         },
                         onDrag = { change, dragAmount ->
                             change.consume()
-                            // Apply the movement to the current state
                             currentOnOffsetChange(
                                 IntOffset(
                                     (currentOffset.x + dragAmount.x).roundToInt(),
@@ -98,11 +100,9 @@ fun QuickActionsButton(
                 indication = null,
                 onClick = {
                     if (isFaded) {
-                        // First touch wakes it up
                         isFaded = false
                         interactionTrigger++
                     } else {
-                        // Second touch (or touch while awake) opens modal
                         onClick()
                         interactionTrigger++
                     }
@@ -110,47 +110,70 @@ fun QuickActionsButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        // Main circular button body
+        // Main button body: Rounded Square
         Box(
             modifier = Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF2A2E39))
-                .padding(2.dp)
+                .size(54.dp) // Reduced from 60.dp (10% reduction)
+                .clip(RoundedCornerShape(18.dp)) // Slightly adjusted corner radius
+                .background(Color(0xFF121212))
+                .border(2.dp, Color(0xFF363A45), RoundedCornerShape(18.dp)),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
-                    .background(Color.Black)
-            )
+            // Shortcuts-like Icon (Double Diamond/Square)
+            Canvas(modifier = Modifier.size(25.dp)) { // Reduced from 28.dp
+                val strokeWidth = 2.25.dp.toPx() // Adjusted stroke
+                val iconColor = Color(0xFF787B86)
+                
+                // Top diamond
+                val topPath = Path().apply {
+                    moveTo(size.width / 2, size.height * 0.1f)
+                    lineTo(size.width * 0.9f, size.height * 0.4f)
+                    lineTo(size.width / 2, size.height * 0.7f)
+                    lineTo(size.width * 0.1f, size.height * 0.4f)
+                    close()
+                }
+
+                // Bottom diamond (shifted down)
+                val bottomPath = Path().apply {
+                    moveTo(size.width / 2, size.height * 0.35f)
+                    lineTo(size.width * 0.9f, size.height * 0.65f)
+                    lineTo(size.width / 2, size.height * 0.95f)
+                    lineTo(size.width * 0.1f, size.height * 0.65f)
+                    close()
+                }
+
+                // Draw bottom first, then top
+                drawPath(
+                    path = bottomPath,
+                    color = iconColor,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                )
+                
+                drawPath(
+                    path = topPath,
+                    color = iconColor,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                )
+            }
         }
-        
-        // Gear Icon
-        Icon(
-            imageVector = Icons.Default.Settings,
-            contentDescription = "Quick Actions",
-            tint = Color.White,
-            modifier = Modifier.size(30.dp)
-        )
 
         // Lock Indicator
         if (isLocked) {
             Box(
                 modifier = Modifier
-                    .size(20.dp)
+                    .size(18.dp) // Slightly reduced
                     .align(Alignment.TopEnd)
-                    .offset(x = (-8).dp, y = 8.dp)
+                    .offset(x = (-3.6).dp, y = 3.6.dp)
                     .clip(CircleShape)
                     .background(Color(0xFF2962FF))
-                    .padding(4.dp),
+                    .padding(3.6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Lock,
                     contentDescription = "Locked",
                     tint = Color.White,
-                    modifier = Modifier.size(12.dp)
+                    modifier = Modifier.size(10.8.dp)
                 )
             }
         }
