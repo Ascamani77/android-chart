@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -20,7 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trading.app.models.ChartSettings
-import java.util.*
+import com.trading.app.models.SymbolInfo
 
 @Composable
 fun BottomBar(
@@ -49,14 +48,14 @@ fun BottomBar(
     ) {
         Divider(modifier = Modifier.fillMaxWidth().height(0.5.dp), color = Color(0xFF1E222D))
 
-        // Last Viewed Pane (Recent Pairs)
+        // Last Viewed Pane (Recent Pairs) - Marked Yellow in Screenshot
         if (recentPairs.isNotEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(37.dp)
+                    .height(40.dp)
                     .horizontalScroll(pairsScrollState)
-                    .padding(horizontal = 1.dp),
+                    .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 recentPairs.forEach { (symbol, timeframe) ->
@@ -69,55 +68,44 @@ fun BottomBar(
                         else -> "+0.5%" to true
                     }
 
+                    // Determine symbol info for correct flag/logo
+                    val symbolInfo = remember(symbol) {
+                        val type = when {
+                            symbol.startsWith("BTC") || symbol.startsWith("ETH") || symbol.startsWith("SOL") -> "Crypto"
+                            symbol.length == 6 && (symbol.contains("USD") || symbol.contains("EUR") || symbol.contains("JPY")) -> "Forex"
+                            else -> "Stock"
+                        }
+                        SymbolInfo(ticker = symbol, name = "", type = type)
+                    }
+
                     Box(
                         modifier = Modifier
                             .padding(horizontal = 4.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isActive) Color(0xFF1E222D) else Color.Transparent)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isActive) Color(0xFF1E222D) else Color(0xFF131722))
                             .border(
-                                width = if (isActive) 1.dp else 0.dp,
-                                color = if (isActive) Color(0xFF363A45) else Color.Transparent,
-                                shape = RoundedCornerShape(8.dp)
+                                width = 1.dp,
+                                color = if (isActive) Color(0xFF363A45) else Color(0xFF1E222D),
+                                shape = RoundedCornerShape(6.dp)
                             )
                             .clickable { onPairSelect(symbol, timeframe) }
-                            .padding(horizontal = 6.dp, vertical = 6.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.wrapContentWidth()) {
-                            Box(modifier = Modifier.width(32.dp).height(20.dp), contentAlignment = Alignment.CenterStart) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .clip(CircleShape)
-                                        .background(getSymbolFlagColor(symbol))
-                                        .border(1.dp, Color.Black, CircleShape)
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .padding(start = 12.dp)
-                                        .size(18.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF2A2E39))
-                                        .border(1.dp, Color.Black, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(modifier = Modifier.fillMaxSize()) {
-                                        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF002868)))
-                                        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFFBF0A30)))
-                                    }
-                                }
-                            }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Use the shared AssetIcon component
+                            AssetIcon(symbolInfo, size = 20)
                             
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             
                             Text(
                                 text = "$symbol,$timeframe",
-                                color = if (isActive) Color.White else Color(0xFF787B86),
-                                fontSize = fontSize,
-                                fontWeight = if (isActive) FontWeight.Bold else fontWeight,
+                                color = if (isActive) Color.White else Color(0xFFD1D4DC),
+                                fontSize = 12.sp,
+                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
                                 maxLines = 1
                             )
                             
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             
                             Icon(
                                 imageVector = if (isUp) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
@@ -131,8 +119,8 @@ fun BottomBar(
                             Text(
                                 text = changeText,
                                 color = if (isUp) Color(0xFF089981) else Color(0xFFF23645),
-                                fontSize = fontSize,
-                                fontWeight = fontWeight,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 maxLines = 1
                             )
                         }
@@ -140,21 +128,7 @@ fun BottomBar(
                 }
             }
 
-            Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF1E222D))
+            Divider(modifier = Modifier.fillMaxWidth().height(0.5.dp), color = Color(0xFF1E222D))
         }
-    }
-}
-
-fun getSymbolFlagColor(symbol: String): Color {
-    return when {
-        symbol.contains("BTC") -> Color(0xFFF7931A)
-        symbol.contains("ETH") -> Color(0xFF627EEA)
-        symbol.contains("USD") -> Color(0xFF008500)
-        symbol.contains("EUR") -> Color(0xFF003399)
-        symbol.contains("AAPL") -> Color(0xFF555555)
-        symbol.contains("TSLA") -> Color(0xFFE81123)
-        symbol.contains("GOLD") -> Color(0xFFFFD700)
-        symbol.contains("SOL") -> Color(0xFF00FFA3)
-        else -> Color(0xFF2962FF)
     }
 }

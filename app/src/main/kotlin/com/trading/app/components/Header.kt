@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trading.app.models.ChartSettings
+import com.trading.app.models.SymbolInfo
 
 @Composable
 fun Header(
@@ -58,6 +59,17 @@ fun Header(
     val fontSize = settings.canvas.headerFontSize.sp
     val fontWeight = if (settings.canvas.headerFontBold) FontWeight.Bold else FontWeight.Medium
 
+    // Helper to determine asset info for icons
+    val currentSymbolInfo = remember(symbol) {
+        val type = when {
+            symbol.startsWith("BTC") || symbol.startsWith("ETH") || symbol.startsWith("SOL") -> "Crypto"
+            symbol.length == 6 && (symbol.contains("USD") || symbol.contains("EUR") || symbol.contains("JPY") || symbol.contains("GBP")) -> "Forex"
+            symbol == "SPX" || symbol == "DJI" || symbol == "IXIC" || symbol == "NIFTY" -> "Index"
+            else -> "Stock"
+        }
+        SymbolInfo(ticker = symbol, name = "", type = type)
+    }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         if (isAtBottom) {
             Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF2A2E39))
@@ -70,23 +82,24 @@ fun Header(
                 .padding(start = 1.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. STATIC LEFT: Asset Pair Button
+            // 1. STATIC LEFT: Asset Pair Button with Flag
             Row(
                 modifier = Modifier.padding(end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
                     modifier = Modifier
-                        .height(32.4.dp)
+                        .height(36.dp)
                         .clip(RoundedCornerShape(18.dp))
-                        .background(Color(0xFF2A2E39))
+                        .background(Color(0xFF1E222D))
+                        .border(1.dp, Color(0xFF363A45), RoundedCornerShape(18.dp))
                         .clickable { onSymbolClick() }
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    AssetIcon(currentSymbolInfo, size = 28)
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = fontSize)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(Icons.Default.Diamond, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
                 }

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -37,58 +36,62 @@ fun SymbolSearchModal(
 
     val allSymbols = remember {
         listOf(
-            // Forex - Top 5 Major
-            SymbolInfo("EURUSD", "Euro / US Dollar", "FXCM", "Forex"),
-            SymbolInfo("USDJPY", "US Dollar / Japanese Yen", "OANDA", "Forex"),
-            SymbolInfo("GBPUSD", "British Pound / US Dollar", "FXCM", "Forex"),
-            SymbolInfo("AUDUSD", "Australian Dollar / US Dollar", "OANDA", "Forex"),
-            SymbolInfo("USDCAD", "US Dollar / Canadian Dollar", "FXCM", "Forex"),
+            // Forex - Multiple sources as requested
+            SymbolInfo("EURUSD", "Euro / U.S. dollar", "FXCM", "forex"),
+            SymbolInfo("EURUSD", "Euro / U.S. dollar", "OANDA", "forex"),
+            SymbolInfo("GBPUSD", "British Pound / U.S. dollar", "FXCM", "forex"),
+            SymbolInfo("GBPUSD", "British Pound / U.S. dollar", "OANDA", "forex"),
+            SymbolInfo("USDJPY", "US Dollar / Japanese Yen", "FXCM", "forex"),
+            SymbolInfo("USDJPY", "US Dollar / Japanese Yen", "OANDA", "forex"),
+            SymbolInfo("USDINR", "U.S. DOLLAR / INDIAN RUPEE", "ICE", "forex"),
+            SymbolInfo("AUDUSD", "Australian Dollar / US Dollar", "OANDA", "forex"),
+            SymbolInfo("USDCAD", "US Dollar / Canadian Dollar", "FXCM", "forex"),
             
             // Crypto - Requested Specific
-            SymbolInfo("BTCUSD", "Bitcoin / US Dollar", "BITSTAMP", "Crypto"),
-            SymbolInfo("BTCUSDT", "Bitcoin / TetherUS", "BINANCE", "Crypto"),
-            SymbolInfo("ETHUSD", "Ethereum / US Dollar", "BITSTAMP", "Crypto"),
-            SymbolInfo("ETHUSDT", "Ethereum / TetherUS", "BINANCE", "Crypto"),
+            SymbolInfo("BTCUSD", "Bitcoin / U.S. dollar", "Bitstamp", "spot crypto"),
+            SymbolInfo("BTCUSD", "Bitcoin", "CRYPTO", "spot crypto"),
+            SymbolInfo("BTCUSDT", "Bitcoin / TetherUS", "Binance", "spot crypto"),
+            SymbolInfo("BTCUSDT.P", "Bitcoin / TetherUS PERP", "Binance", "swap crypto"),
+            SymbolInfo("ETHUSD", "Ethereum", "CRYPTO", "spot crypto"),
+            SymbolInfo("ETHUSD", "Ethereum / U.S. dollar", "Bitstamp", "spot crypto"),
+            SymbolInfo("ETHUSDT", "Ethereum / TetherUS", "Binance", "spot crypto"),
             
             // Stocks - Top 10 Major
-            SymbolInfo("AAPL", "Apple Inc.", "NASDAQ", "Stock"),
-            SymbolInfo("MSFT", "Microsoft Corporation", "NASDAQ", "Stock"),
-            SymbolInfo("GOOGL", "Alphabet Inc.", "NASDAQ", "Stock"),
-            SymbolInfo("AMZN", "Amazon.com, Inc.", "NASDAQ", "Stock"),
-            SymbolInfo("NVDA", "NVIDIA Corporation", "NASDAQ", "Stock"),
-            SymbolInfo("TSLA", "Tesla, Inc.", "NASDAQ", "Stock"),
-            SymbolInfo("META", "Meta Platforms, Inc.", "NASDAQ", "Stock"),
-            SymbolInfo("V", "Visa Inc.", "NYSE", "Stock"),
-            SymbolInfo("UNH", "UnitedHealth Group Inc.", "NYSE", "Stock"),
-            SymbolInfo("JPM", "JPMorgan Chase & Co.", "NYSE", "Stock"),
+            SymbolInfo("AAPL", "Apple Inc.", "NASDAQ", "stock"),
+            SymbolInfo("MSFT", "Microsoft Corporation", "NASDAQ", "stock"),
+            SymbolInfo("GOOGL", "Alphabet Inc.", "NASDAQ", "stock"),
+            SymbolInfo("AMZN", "Amazon.com, Inc.", "NASDAQ", "stock"),
+            SymbolInfo("NVDA", "NVIDIA Corporation", "NASDAQ", "stock"),
+            SymbolInfo("TSLA", "Tesla, Inc.", "NASDAQ", "stock"),
+            SymbolInfo("META", "Meta Platforms, Inc.", "NASDAQ", "stock"),
+            SymbolInfo("V", "Visa Inc.", "NYSE", "stock"),
+            SymbolInfo("UNH", "UnitedHealth Group Inc.", "NYSE", "stock"),
+            SymbolInfo("JPM", "JPMorgan Chase & Co.", "NYSE", "stock"),
 
             // Bonds
-            SymbolInfo("US10Y", "United States 10Y Gov Bond", "TVC", "Bond"),
-            SymbolInfo("US02Y", "United States 2Y Gov Bond", "TVC", "Bond"),
-            SymbolInfo("IN10Y", "India 10Y Gov Bond", "TVC", "Bond"),
-            SymbolInfo("GB02Y", "United Kingdom 2Y Gov Bond", "TVC", "Bond"),
-            SymbolInfo("DE10", "Germany 10Y Gov Bond", "TVC", "Bond"),
+            SymbolInfo("US10Y", "United States 10Y Gov Bond", "TVC", "bond"),
+            SymbolInfo("IN10Y", "India 10Y Gov Bond", "TVC", "bond"),
+            SymbolInfo("US02Y", "United States 2Y Gov Bond", "TVC", "bond"),
+            SymbolInfo("GB02Y", "United Kingdom 2Y Gov Bond", "TVC", "bond"),
             
             // Futures
-            SymbolInfo("ES1!", "S&P 500 E-mini Futures", "CME", "Futures"),
-            SymbolInfo("NQ1!", "Nasdaq 100 E-mini Futures", "CME", "Futures"),
-            SymbolInfo("GC1!", "Gold Futures", "COMEX", "Futures"),
-            SymbolInfo("CL1!", "Crude Oil Futures", "NYMEX", "Futures"),
+            SymbolInfo("ES1!", "S&P 500 E-mini Futures", "CME", "futures"),
+            SymbolInfo("NQ1!", "Nasdaq 100 E-mini Futures", "CME", "futures"),
+            SymbolInfo("GC1!", "Gold Futures", "COMEX", "futures"),
+            SymbolInfo("NIFTY", "GIFT NIFTY 50 INDEX FUTURES", "NSEIX", "futures"),
 
             // Funds
-            SymbolInfo("SPY", "SPDR S&P 500 ETF Trust", "AMEX", "Fund"),
-            SymbolInfo("QQQ", "Invesco QQQ Trust", "NASDAQ", "Fund"),
-            SymbolInfo("IVV", "iShares Core S&P 500 ETF", "NYSE", "Fund"),
+            SymbolInfo("SPY", "SPDR S&P 500 ETF Trust", "AMEX", "fund"),
+            SymbolInfo("QQQ", "Invesco QQQ Trust", "NASDAQ", "fund"),
 
             // Indices
-            SymbolInfo("SPX", "S&P 500 Index", "S&P", "Index"),
-            SymbolInfo("NIFTY", "Nifty 50 Index", "NSE", "Index"),
-            SymbolInfo("BANKNIFTY", "Nifty Bank Index", "NSE", "Index"),
-            SymbolInfo("DJI", "Dow Jones Industrial Average", "DJI", "Index"),
+            SymbolInfo("SPX", "S&P 500 Index", "S&P", "index"),
+            SymbolInfo("NIFTY", "Nifty 50 Index", "NSE", "index"),
+            SymbolInfo("BANKNIFTY", "Nifty Bank Index", "NSE", "index"),
             
-            // Metals (Often in Futures or All)
-            SymbolInfo("XAUUSD", "Gold / US Dollar", "OANDA", "Commodity CFD"),
-            SymbolInfo("XAGUSD", "Silver / US Dollar", "OANDA", "Commodity CFD")
+            // Metals
+            SymbolInfo("XAUUSD", "Gold / US Dollar", "OANDA", "commodity cfd"),
+            SymbolInfo("XAUUSD", "Gold vs US Dollar", "Pepperstone", "commodity cfd")
         )
     }
 
@@ -98,13 +101,13 @@ fun SymbolSearchModal(
                               symbol.name.contains(searchQuery, ignoreCase = true)
             val matchesCategory = when (selectedCategory) {
                 "All" -> true
-                "Stocks" -> symbol.type == "Stock"
-                "Forex" -> symbol.type == "Forex"
-                "Crypto" -> symbol.type == "Crypto"
-                "Bonds" -> symbol.type == "Bond"
-                "Futures" -> symbol.type == "Futures"
-                "Funds" -> symbol.type == "Fund"
-                "Indices" -> symbol.type == "Index"
+                "Stocks" -> symbol.type.contains("stock", ignoreCase = true)
+                "Forex" -> symbol.type.contains("forex", ignoreCase = true)
+                "Crypto" -> symbol.type.contains("crypto", ignoreCase = true)
+                "Bonds" -> symbol.type.contains("bond", ignoreCase = true)
+                "Futures" -> symbol.type.contains("futures", ignoreCase = true)
+                "Funds" -> symbol.type.contains("fund", ignoreCase = true)
+                "Indices" -> symbol.type.contains("index", ignoreCase = true)
                 else -> true
             }
             matchesSearch && matchesCategory
@@ -120,7 +123,7 @@ fun SymbolSearchModal(
             color = Color(0xFF000000)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Header with Back and Search
+                // Header
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -208,22 +211,10 @@ fun SymbolListItem(symbol: SymbolInfo, onSelect: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Icon / Circle
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .background(getSymbolBackgroundColor(symbol.type), shape = CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                symbol.ticker.take(1), 
-                color = Color.White, 
-                fontSize = 14.sp, 
-                fontWeight = FontWeight.Bold
-            )
-        }
+        // Asset Icon with Flags (from AssetIcons.kt)
+        AssetIcon(symbol)
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(16.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -241,12 +232,18 @@ fun SymbolListItem(symbol: SymbolInfo, onSelect: () -> Unit) {
         }
 
         Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = symbol.exchange,
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = symbol.exchange,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                if (symbol.exchange.lowercase() in listOf("binance", "bitstamp", "oanda", "fxcm", "pepperstone")) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    ExchangeIcon(symbol.exchange)
+                }
+            }
             Text(
                 text = symbol.type.lowercase(),
                 color = Color(0xFF787B86),
@@ -256,8 +253,7 @@ fun SymbolListItem(symbol: SymbolInfo, onSelect: () -> Unit) {
         
         Spacer(modifier = Modifier.width(16.dp))
         
-        // Match the checkmark/plus logic from screenshots
-        val isAdded = symbol.ticker in listOf("BTCUSD", "EURUSD", "AAPL", "US10Y")
+        val isAdded = symbol.ticker in listOf("BTCUSD", "EURUSD", "AAPL", "US10Y", "XAUUSD")
         
         Icon(
             imageVector = if (isAdded) Icons.Default.Check else Icons.Default.Add,
@@ -265,19 +261,5 @@ fun SymbolListItem(symbol: SymbolInfo, onSelect: () -> Unit) {
             tint = if (isAdded) Color(0xFF2962FF) else Color(0xFF787B86),
             modifier = Modifier.size(22.dp)
         )
-    }
-}
-
-fun getSymbolBackgroundColor(type: String): Color {
-    return when (type) {
-        "Stock" -> Color(0xFF1E88E5)
-        "Forex" -> Color(0xFF43A047)
-        "Crypto" -> Color(0xFFF4511E)
-        "Bond" -> Color(0xFF8E24AA)
-        "Futures" -> Color(0xFFE53935)
-        "Fund" -> Color(0xFF00ACC1)
-        "Index" -> Color(0xFF3949AB)
-        "Commodity CFD" -> Color(0xFFFFB300)
-        else -> Color(0xFF455A64)
     }
 }

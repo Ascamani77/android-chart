@@ -23,6 +23,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.trading.app.data.Mt5Service
 import com.trading.app.models.ChartSettings
 import com.trading.app.models.Drawing
+import com.trading.app.models.SymbolInfo
 import com.tradingview.lightweightcharts.api.interfaces.SeriesApi
 import com.tradingview.lightweightcharts.api.options.models.*
 import com.tradingview.lightweightcharts.api.series.models.*
@@ -59,34 +60,11 @@ private fun getFullSymbolName(symbol: String): String {
         "EURUSD" -> "Euro / U.S. Dollar"
         "USDJPY" -> "U.S. Dollar / Japanese Yen"
         "GBPUSD" -> "British Pound / U.S. Dollar"
-        "AUDUSD" -> "Australian Dollar / U.S. Dollar"
+        "AUDUSD" -> "Australian Dollar / US Dollar"
         "USDCAD" -> "U.S. Dollar / Canadian Dollar"
         "USDCHF" -> "U.S. Dollar / Swiss Franc"
         "NZDUSD" -> "New Zealand Dollar / U.S. Dollar"
         else -> symbol
-    }
-}
-
-private fun getSymbolLogo(symbol: String): String {
-    val s = symbol.uppercase()
-    return when {
-        s.contains("BTC") -> "₿"
-        s.contains("ETH") -> "Ξ"
-        s.contains("EUR") -> "€"
-        s.contains("GBP") -> "£"
-        s.contains("JPY") -> "¥"
-        else -> s.take(1)
-    }
-}
-
-private fun getSymbolLogoColor(symbol: String): ComposeColor {
-    val s = symbol.uppercase()
-    return when {
-        s.contains("BTC") -> ComposeColor(0xFFF7931A)
-        s.contains("ETH") -> ComposeColor(0xFF627EEA)
-        s.contains("EUR") -> ComposeColor(0xFF003399)
-        s.contains("GBP") -> ComposeColor(0xFF00247D)
-        else -> ComposeColor(0xFF2A2E39)
     }
 }
 
@@ -478,20 +456,16 @@ fun TradingChart(
             if (chartSettings.statusLine.symbol) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (chartSettings.statusLine.logo) {
-                        Box(
-                            modifier = Modifier
-                                .size(22.dp)
-                                .clip(CircleShape)
-                                .background(getSymbolLogoColor(symbol)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = getSymbolLogo(symbol),
-                                color = ComposeColor.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                        val symbolInfo = remember(symbol) {
+                            val type = when {
+                                symbol.startsWith("BTC") || symbol.startsWith("ETH") || symbol.startsWith("SOL") -> "Crypto"
+                                symbol.length == 6 && (symbol.contains("USD") || symbol.contains("EUR") || symbol.contains("JPY") || symbol.contains("GBP")) -> "Forex"
+                                symbol == "SPX" || symbol == "DJI" || symbol == "IXIC" || symbol == "NIFTY" -> "Index"
+                                else -> "Stock"
+                            }
+                            SymbolInfo(ticker = symbol, name = "", type = type)
                         }
+                        AssetIcon(symbolInfo, size = 24)
                         Spacer(modifier = Modifier.width(8.dp))
                     }
                     Text(
