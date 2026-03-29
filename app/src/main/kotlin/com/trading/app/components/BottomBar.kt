@@ -43,22 +43,22 @@ fun BottomBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.Black)
+            .background(backgroundColor)
             .navigationBarsPadding()
     ) {
-        Divider(modifier = Modifier.fillMaxWidth().height(0.5.dp), color = Color(0xFF1E222D))
+        Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF2A2E39))
 
         // Last Viewed Pane (Recent Pairs) - Marked Yellow in Screenshot
         if (recentPairs.isNotEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(40.dp)
+                    .height(50.4.dp)
                     .horizontalScroll(pairsScrollState)
-                    .padding(horizontal = 4.dp),
+                    .padding(start = 1.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                recentPairs.forEach { (symbol, timeframe) ->
+                recentPairs.forEachIndexed { index, (symbol, timeframe) ->
                     val isActive = symbol == currentSymbol && timeframe == currentTimeframe
                     
                     val (changeText, isUp) = when {
@@ -80,27 +80,27 @@ fun BottomBar(
 
                     Box(
                         modifier = Modifier
-                            .padding(horizontal = 4.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (isActive) Color(0xFF1E222D) else Color(0xFF131722))
+                            .padding(start = if (index == 0) 0.dp else 4.dp, end = 4.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(if (isActive) Color(0xFF1E222D) else Color.Transparent)
                             .border(
                                 width = 1.dp,
-                                color = if (isActive) Color(0xFF363A45) else Color(0xFF1E222D),
-                                shape = RoundedCornerShape(6.dp)
+                                color = if (isActive) Color(0xFF363A45) else Color(0xFF2A2E39),
+                                shape = RoundedCornerShape(18.dp)
                             )
                             .clickable { onPairSelect(symbol, timeframe) }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             // Use the shared AssetIcon component
-                            AssetIcon(symbolInfo, size = 20)
+                            AssetIcon(symbolInfo, size = 24)
                             
                             Spacer(modifier = Modifier.width(8.dp))
                             
                             Text(
                                 text = "$symbol,$timeframe",
                                 color = if (isActive) Color.White else Color(0xFFD1D4DC),
-                                fontSize = 12.sp,
+                                fontSize = 13.sp,
                                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
                                 maxLines = 1
                             )
@@ -128,7 +128,7 @@ fun BottomBar(
                 }
             }
 
-            Divider(modifier = Modifier.fillMaxWidth().height(0.5.dp), color = Color(0xFF1E222D))
+            Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF2A2E39))
         }
     }
 }

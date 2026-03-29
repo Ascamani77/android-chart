@@ -91,8 +91,7 @@ fun Header(
                     modifier = Modifier
                         .height(36.dp)
                         .clip(RoundedCornerShape(18.dp))
-                        .background(Color(0xFF1E222D))
-                        .border(1.dp, Color(0xFF363A45), RoundedCornerShape(18.dp))
+                        .border(1.dp, Color(0xFF363A45).copy(alpha = 0.3f), RoundedCornerShape(18.dp))
                         .clickable { onSymbolClick() }
                         .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
