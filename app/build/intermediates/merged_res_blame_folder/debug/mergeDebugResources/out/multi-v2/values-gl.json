@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.trading.app-mergeDebugResources-45:/values-gl/values-gl.xml",
+            "outputFile": "com.trading.app-mergeDebugResources-47:/values-gl/values-gl.xml",
             "map": [
                 {
                     "source": "C:\\Users\\HP\\.gradle\\caches\\8.13\\transforms\\b4a32bc488cb5ac8c2fa4a4d2d7b4bd8\\transformed\\core-1.12.0\\res\\values-gl\\values-gl.xml",
@@ -38,7 +38,7 @@
                     }
                 },
                 {
-                    "source": "C:\\Users\\HP\\.gradle\\caches\\8.13\\transforms\\3ee8dedcdbd758de519a99a15b5549bb\\transformed\\jetified-ui-release\\res\\values-gl\\values-gl.xml",
+                    "source": "C:\\Users\\HP\\.gradle\\caches\\8.13\\transforms\\561c9ddcaeaab388b6970f5df1407acc\\transformed\\jetified-ui-release\\res\\values-gl\\values-gl.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",

@@ -1,26 +1,26 @@
 [
     {
-        "merged": "com.trading.app-debug-47:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "com.trading.app-main-49:/mipmap-anydpi-v26/ic_launcher_round.xml"
+        "merged": "com.trading.app-debug-49:/mipmap_ic_launcher_round.xml.flat",
+        "source": "com.trading.app-main-51:/mipmap/ic_launcher_round.xml"
     },
     {
-        "merged": "com.trading.app-debug-47:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "com.trading.app-main-49:/drawable/ic_launcher_foreground.xml"
+        "merged": "com.trading.app-debug-49:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.trading.app-main-51:/drawable/ic_launcher_foreground.xml"
     },
     {
-        "merged": "com.trading.app-debug-47:/mipmap_ic_launcher_round.xml.flat",
-        "source": "com.trading.app-main-49:/mipmap/ic_launcher_round.xml"
+        "merged": "com.trading.app-debug-49:/mipmap_ic_launcher.xml.flat",
+        "source": "com.trading.app-main-51:/mipmap/ic_launcher.xml"
     },
     {
-        "merged": "com.trading.app-debug-47:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "com.trading.app-main-49:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "com.trading.app-debug-49:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.trading.app-main-51:/drawable/ic_launcher_background.xml"
     },
     {
-        "merged": "com.trading.app-debug-47:/drawable_ic_launcher_background.xml.flat",
-        "source": "com.trading.app-main-49:/drawable/ic_launcher_background.xml"
+        "merged": "com.trading.app-debug-49:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.trading.app-main-51:/mipmap-anydpi-v26/ic_launcher_round.xml"
     },
     {
-        "merged": "com.trading.app-debug-47:/mipmap_ic_launcher.xml.flat",
-        "source": "com.trading.app-main-49:/mipmap/ic_launcher.xml"
+        "merged": "com.trading.app-debug-49:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.trading.app-main-51:/mipmap-anydpi-v26/ic_launcher.xml"
     }
 ]

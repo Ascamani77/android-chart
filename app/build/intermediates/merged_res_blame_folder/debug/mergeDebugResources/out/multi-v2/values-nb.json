@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.trading.app-mergeDebugResources-45:/values-nb/values-nb.xml",
+            "outputFile": "com.trading.app-mergeDebugResources-47:/values-nb/values-nb.xml",
             "map": [
                 {
                     "source": "C:\\Users\\HP\\.gradle\\caches\\8.13\\transforms\\7c5bfd48d74826a8adbaa392d9784f21\\transformed\\jetified-material3-1.1.1\\res\\values-nb\\values-nb.xml",
@@ -21,6 +21,23 @@
                     }
                 },
                 {
+                    "source": "C:\\Users\\HP\\.gradle\\caches\\8.13\\transforms\\561c9ddcaeaab388b6970f5df1407acc\\transformed\\jetified-ui-release\\res\\values-nb\\values-nb.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "105,198,279,376,476,564,640,728,817,899,963,1027,1107,1189,1259,1336,1403",
+                        "endColumns": "92,80,96,99,87,75,87,88,81,63,63,79,81,69,76,66,119",
+                        "endOffsets": "193,274,371,471,559,635,723,812,894,958,1022,1102,1184,1254,1331,1398,1518"
+                    },
+                    "to": {
+                        "startLines": "13,14,47,48,50,52,53,54,55,56,57,58,59,61,65,66,67",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "1267,1360,4983,5080,5256,5417,5493,5581,5670,5752,5816,5880,5960,6122,6480,6557,6624",
+                        "endColumns": "92,80,96,99,87,75,87,88,81,63,63,79,81,69,76,66,119",
+                        "endOffsets": "1355,1436,5075,5175,5339,5488,5576,5665,5747,5811,5875,5955,6037,6187,6552,6619,6739"
+                    }
+                },
+                {
                     "source": "C:\\Users\\HP\\.gradle\\caches\\8.13\\transforms\\b4a32bc488cb5ac8c2fa4a4d2d7b4bd8\\transformed\\core-1.12.0\\res\\values-nb\\values-nb.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9",
@@ -35,23 +52,6 @@
                         "startOffsets": "541,635,737,834,933,1041,1147,6272",
                         "endColumns": "93,101,96,98,107,105,119,100",
                         "endOffsets": "630,732,829,928,1036,1142,1262,6368"
-                    }
-                },
-                {
-                    "source": "C:\\Users\\HP\\.gradle\\caches\\8.13\\transforms\\3ee8dedcdbd758de519a99a15b5549bb\\transformed\\jetified-ui-release\\res\\values-nb\\values-nb.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "105,198,279,376,476,564,640,728,817,899,963,1027,1107,1189,1259,1336,1403",
-                        "endColumns": "92,80,96,99,87,75,87,88,81,63,63,79,81,69,76,66,119",
-                        "endOffsets": "193,274,371,471,559,635,723,812,894,958,1022,1102,1184,1254,1331,1398,1518"
-                    },
-                    "to": {
-                        "startLines": "13,14,47,48,50,52,53,54,55,56,57,58,59,61,65,66,67",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "1267,1360,4983,5080,5256,5417,5493,5581,5670,5752,5816,5880,5960,6122,6480,6557,6624",
-                        "endColumns": "92,80,96,99,87,75,87,88,81,63,63,79,81,69,76,66,119",
-                        "endOffsets": "1355,1436,5075,5175,5339,5488,5576,5665,5747,5811,5875,5955,6037,6187,6552,6619,6739"
                     }
                 }
             ]

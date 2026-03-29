@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.trading.app-mergeDebugResources-45:/values-fi/values-fi.xml",
+            "outputFile": "com.trading.app-mergeDebugResources-47:/values-fi/values-fi.xml",
             "map": [
                 {
                     "source": "C:\\Users\\HP\\.gradle\\caches\\8.13\\transforms\\7c5bfd48d74826a8adbaa392d9784f21\\transformed\\jetified-material3-1.1.1\\res\\values-fi\\values-fi.xml",
@@ -21,6 +21,23 @@
                     }
                 },
                 {
+                    "source": "C:\\Users\\HP\\.gradle\\caches\\8.13\\transforms\\561c9ddcaeaab388b6970f5df1407acc\\transformed\\jetified-ui-release\\res\\values-fi\\values-fi.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "105,199,284,383,484,573,650,743,834,916,982,1050,1131,1213,1285,1362,1434",
+                        "endColumns": "93,84,98,100,88,76,92,90,81,65,67,80,81,71,76,71,121",
+                        "endOffsets": "194,279,378,479,568,645,738,829,911,977,1045,1126,1208,1280,1357,1429,1551"
+                    },
+                    "to": {
+                        "startLines": "13,14,47,48,50,52,53,54,55,56,57,58,59,61,65,66,67",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "1275,1369,5084,5183,5363,5531,5608,5701,5792,5874,5940,6008,6089,6251,6602,6679,6751",
+                        "endColumns": "93,84,98,100,88,76,92,90,81,65,67,80,81,71,76,71,121",
+                        "endOffsets": "1364,1449,5178,5279,5447,5603,5696,5787,5869,5935,6003,6084,6166,6318,6674,6746,6868"
+                    }
+                },
+                {
                     "source": "C:\\Users\\HP\\.gradle\\caches\\8.13\\transforms\\b4a32bc488cb5ac8c2fa4a4d2d7b4bd8\\transformed\\core-1.12.0\\res\\values-fi\\values-fi.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9",
@@ -35,23 +52,6 @@
                         "startOffsets": "541,637,739,837,942,1047,1159,6405",
                         "endColumns": "95,101,97,104,104,111,115,100",
                         "endOffsets": "632,734,832,937,1042,1154,1270,6501"
-                    }
-                },
-                {
-                    "source": "C:\\Users\\HP\\.gradle\\caches\\8.13\\transforms\\3ee8dedcdbd758de519a99a15b5549bb\\transformed\\jetified-ui-release\\res\\values-fi\\values-fi.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "105,199,284,383,484,573,650,743,834,916,982,1050,1131,1213,1285,1362,1434",
-                        "endColumns": "93,84,98,100,88,76,92,90,81,65,67,80,81,71,76,71,121",
-                        "endOffsets": "194,279,378,479,568,645,738,829,911,977,1045,1126,1208,1280,1357,1429,1551"
-                    },
-                    "to": {
-                        "startLines": "13,14,47,48,50,52,53,54,55,56,57,58,59,61,65,66,67",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "1275,1369,5084,5183,5363,5531,5608,5701,5792,5874,5940,6008,6089,6251,6602,6679,6751",
-                        "endColumns": "93,84,98,100,88,76,92,90,81,65,67,80,81,71,76,71,121",
-                        "endOffsets": "1364,1449,5178,5279,5447,5603,5696,5787,5869,5935,6003,6084,6166,6318,6674,6746,6868"
                     }
                 }
             ]
