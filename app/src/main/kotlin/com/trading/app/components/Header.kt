@@ -38,7 +38,6 @@ fun Header(
     canRedo: Boolean,
     onFullscreenClick: () -> Unit,
     onToolSearchClick: () -> Unit,
-    onSideMenuClick: () -> Unit,
     onRightPanelToggle: () -> Unit,
     isRightPanelVisible: Boolean,
     onToggleReplay: () -> Unit = {},
@@ -48,16 +47,20 @@ fun Header(
     isCrosshairActive: Boolean = false,
     onCrosshairToggle: () -> Unit = {},
     backgroundColor: Color = Color(0xFF08090C),
-    settings: ChartSettings = ChartSettings()
+    settings: ChartSettings = ChartSettings(),
+    isAtBottom: Boolean = true
 ) {
     val scrollState = rememberScrollState()
-    var showStyleMenu by remember { mutableStateOf(false) }
     var showTimeframeMenu by remember { mutableStateOf(false) }
+    var showStyleMenu by remember { mutableStateOf(false) }
     
     val fontSize = settings.canvas.headerFontSize.sp
     val fontWeight = if (settings.canvas.headerFontBold) FontWeight.Bold else FontWeight.Medium
 
     Column(modifier = Modifier.fillMaxWidth()) {
+        if (isAtBottom) {
+            Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF2A2E39))
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -66,19 +69,6 @@ fun Header(
                 .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Menu Icon to toggle sidebar
-            IconButton(
-                onClick = onSideMenuClick,
-                modifier = Modifier.size(42.dp)
-            ) {
-                Icon(
-                    Icons.Default.Menu,
-                    contentDescription = "Menu",
-                    tint = Color.White,
-                    modifier = Modifier.size(26.dp)
-                )
-            }
-
             Spacer(modifier = Modifier.width(4.dp))
 
             // 1. STATIC LEFT: Asset Pair Button
@@ -413,7 +403,9 @@ fun Header(
                 }
             }
         }
-        Divider(modifier = Modifier.fillMaxWidth().height(2.dp), color = Color(0xFF2A2E39))
+        if (isAtBottom) {
+            Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF2A2E39))
+        }
     }
 }
 

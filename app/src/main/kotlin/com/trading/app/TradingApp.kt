@@ -14,7 +14,10 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.google.ai.client.generativeai.GenerativeModel
@@ -55,6 +58,10 @@ fun TradingApp() {
     val sharedPrefs = remember { context.getSharedPreferences("trading_prefs", Context.MODE_PRIVATE) }
     val gson = remember { Gson() }
     val scope = rememberCoroutineScope()
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    val safeDrawingInsets = WindowInsets.safeDrawing
 
     // Core State
     var symbol by remember { mutableStateOf("BTCUSD") }
@@ -254,7 +261,6 @@ fun TradingApp() {
     var targetTimestamp by remember { mutableStateOf<Long?>(null) }
     var showSettingsModal by remember { mutableStateOf(false) }
     var showToolSearchModal by remember { mutableStateOf(false) }
-    var showSideMenu by remember { mutableStateOf(false) }
     var showAlertModal by remember { mutableStateOf(false) }
     var showCaptureModal by remember { mutableStateOf(false) }
     var showIndicatorSettingsModal by remember { mutableStateOf<String?>(null) }
@@ -269,6 +275,44 @@ fun TradingApp() {
         mutableStateOf(IntOffset(chartSettings.quickActions.buttonX, chartSettings.quickActions.buttonY)) 
     }
     var isTimezonePaneVisible by remember { mutableStateOf(chartSettings.quickActions.isTimezoneVisible) }
+
+    // Responsive Reposition & Safe Area Awareness: Clamp offsets to screen boundaries and safe drawing insets
+    LaunchedEffect(configuration.screenWidthDp, configuration.screenHeightDp, safeDrawingInsets) {
+        val leftInset = safeDrawingInsets.getLeft(density, layoutDirection)
+        val topInset = safeDrawingInsets.getTop(density)
+        val rightInset = safeDrawingInsets.getRight(density, layoutDirection)
+        val bottomInset = safeDrawingInsets.getBottom(density)
+
+        val screenWidthPx = with(density) { configuration.screenWidthDp.dp.roundToPx() }
+        val screenHeightPx = with(density) { configuration.screenHeightDp.dp.roundToPx() }
+        
+        val buttonSizePx = with(density) { 70.dp.roundToPx() }
+        val modalWidthPx = with(density) { 260.dp.roundToPx() }
+        val modalHeightPx = with(density) { 500.dp.roundToPx() } // Estimated height
+
+        // Safe area limits
+        val minX = leftInset
+        val maxX = (screenWidthPx - rightInset - buttonSizePx).coerceAtLeast(minX)
+        val minY = topInset
+        val maxY = (screenHeightPx - bottomInset - buttonSizePx).coerceAtLeast(minY)
+
+        val clampedButtonX = quickActionsButtonOffset.x.coerceIn(minX, maxX)
+        val clampedButtonY = quickActionsButtonOffset.y.coerceIn(minY, maxY)
+        
+        if (clampedButtonX != quickActionsButtonOffset.x || clampedButtonY != quickActionsButtonOffset.y) {
+            quickActionsButtonOffset = IntOffset(clampedButtonX, clampedButtonY)
+        }
+
+        val modalMaxX = (screenWidthPx - rightInset - modalWidthPx).coerceAtLeast(minX)
+        val modalMaxY = (screenHeightPx - bottomInset - modalHeightPx).coerceAtLeast(minY)
+
+        val clampedModalX = quickActionsModalOffset.x.coerceIn(minX, modalMaxX)
+        val clampedModalY = quickActionsModalOffset.y.coerceIn(minY, modalMaxY)
+
+        if (clampedModalX != quickActionsModalOffset.x || clampedModalY != quickActionsModalOffset.y) {
+            quickActionsModalOffset = IntOffset(clampedModalX, clampedModalY)
+        }
+    }
 
     // Update coordinates in persistent state
     LaunchedEffect(quickActionsButtonOffset, quickActionsModalOffset, isTimezonePaneVisible) {
@@ -372,42 +416,7 @@ fun TradingApp() {
 
     Surface(modifier = Modifier.fillMaxSize(), color = appBackgroundColor) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                if (!isFullscreen) {
-                    val isHeaderHidden = !chartSettings.canvas.headerVisible || (chartSettings.canvas.headerVisibility == "Auto-hide" && !isSidebarVisible)
-                    AnimatedVisibility(
-                        visible = !isHeaderHidden,
-                        enter = expandVertically(),
-                        exit = shrinkVertically()
-                    ) {
-                        Header(
-                            symbol = symbol,
-                            timeframe = timeframe,
-                            chartStyle = chartStyle,
-                            onSymbolClick = { showSymbolSearch = true },
-                            onTimeframeClick = { timeframe = it },
-                            onStyleChange = { chartStyle = it },
-                            onIndicatorClick = { showIndicatorModal = true },
-                            onSettingsClick = { showSettingsModal = true },
-                            onAnalysisClick = { refreshAnalysis() },
-                            onAlertClick = { showAlertModal = true },
-                            onUndo = { /* Undo logic */ },
-                            onRedo = { /* Redo logic */ },
-                            canUndo = history.isNotEmpty(),
-                            canRedo = redoStack.isNotEmpty(),
-                            onFullscreenClick = { isFullscreen = true },
-                            onToolSearchClick = { showToolSearchModal = true },
-                            onSideMenuClick = { showSideMenu = true },
-                            onRightPanelToggle = { },
-                            isRightPanelVisible = false,
-                            onDownloadChart = { showCaptureModal = true },
-                            isCrosshairActive = isCrosshairActive,
-                            onCrosshairToggle = { isCrosshairActive = !isCrosshairActive },
-                            backgroundColor = appBackgroundColor
-                        )
-                    }
-                }
-
+            Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                 Row(modifier = Modifier.weight(1f)) {
                     if (!isFullscreen && isSidebarVisible) {
                         Sidebar(
@@ -492,6 +501,41 @@ fun TradingApp() {
                                 backgroundColor = appBackgroundColor
                             )
                         }
+                    }
+                }
+
+                if (!isFullscreen) {
+                    val isHeaderHidden = !chartSettings.canvas.headerVisible || (chartSettings.canvas.headerVisibility == "Auto-hide" && !isSidebarVisible)
+                    AnimatedVisibility(
+                        visible = !isHeaderHidden,
+                        enter = expandVertically(),
+                        exit = shrinkVertically()
+                    ) {
+                        Header(
+                            symbol = symbol,
+                            timeframe = timeframe,
+                            chartStyle = chartStyle,
+                            onSymbolClick = { showSymbolSearch = true },
+                            onTimeframeClick = { timeframe = it },
+                            onStyleChange = { chartStyle = it },
+                            onIndicatorClick = { showIndicatorModal = true },
+                            onSettingsClick = { showSettingsModal = true },
+                            onAnalysisClick = { refreshAnalysis() },
+                            onAlertClick = { showAlertModal = true },
+                            onUndo = { /* Undo logic */ },
+                            onRedo = { /* Redo logic */ },
+                            canUndo = history.isNotEmpty(),
+                            canRedo = redoStack.isNotEmpty(),
+                            onFullscreenClick = { isFullscreen = true },
+                            onToolSearchClick = { showToolSearchModal = true },
+                            onRightPanelToggle = { },
+                            isRightPanelVisible = false,
+                            onDownloadChart = { showCaptureModal = true },
+                            isCrosshairActive = isCrosshairActive,
+                            onCrosshairToggle = { isCrosshairActive = !isCrosshairActive },
+                            backgroundColor = appBackgroundColor,
+                            isAtBottom = true
+                        )
                     }
                 }
 
@@ -630,37 +674,6 @@ fun TradingApp() {
             ToolSearchModal(
                 onToolSelect = { activeTool = it },
                 onClose = { showToolSearchModal = false }
-            )
-        }
-        if (showSideMenu) {
-            SideMenu(
-                symbol = symbol,
-                timeframe = timeframe,
-                chartStyle = chartStyle,
-                activeIndicators = activeIndicatorsString,
-                onClose = { showSideMenu = false },
-                onIndicatorClick = { showIndicatorModal = true },
-                onAlertClick = { showAlertModal = true },
-                onSettingsClick = { showSettingsModal = true },
-                onBarReplayClick = { /* Toggle replay */ },
-                onSymbolSearchClick = { showSymbolSearch = true },
-                onCompareClick = { /* showCompareModal = true */ },
-                onStyleChangeClick = { /* showStyleModal = true */ },
-                onTimeframeClick = { /* showTimeframeModal = true */ },
-                onUndo = { /* Undo logic */ },
-                onRedo = { /* Redo logic */ },
-                canUndo = history.isNotEmpty(),
-                canRedo = redoStack.isNotEmpty(),
-                onFullscreenClick = { isFullscreen = true },
-                onDownloadChartClick = { showCaptureModal = true },
-                onNavigate = { destination ->
-                    when(destination) {
-                        "Drawings" -> isSidebarVisible = !isSidebarVisible
-                        "Analysis" -> { activeTab = "AI Analysis"; isBottomPanelVisible = true }
-                        "Tools" -> showToolSearchModal = true
-                        "Settings" -> showSettingsModal = true
-                    }
-                }
             )
         }
         if (showAlertModal) {
