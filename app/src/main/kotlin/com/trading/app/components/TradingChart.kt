@@ -423,15 +423,14 @@ fun TradingChart(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .size(width = 60.dp, height = 34.dp)
-                .background(ComposeColor(chartBgColor))
                 .clickable { onSettingsClick() },
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.Settings,
                 contentDescription = "Chart Settings",
-                tint = ComposeColor(0xFFD1D4DC), // Made it brighter
-                modifier = Modifier.size(24.dp) // Increased size to 24.dp
+                tint = ComposeColor(0xFFD1D4DC),
+                modifier = Modifier.size(24.dp)
             )
         }
 

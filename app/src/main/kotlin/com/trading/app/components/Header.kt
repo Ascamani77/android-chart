@@ -32,21 +32,15 @@ fun Header(
     onIndicatorClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onAnalysisClick: () -> Unit,
-    onAlertClick: () -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
     canUndo: Boolean,
     canRedo: Boolean,
-    onFullscreenClick: () -> Unit,
     onToolSearchClick: () -> Unit,
     onRightPanelToggle: () -> Unit,
     isRightPanelVisible: Boolean,
-    onToggleReplay: () -> Unit = {},
-    isReplayActive: Boolean = false,
     isAnalyzing: Boolean = false,
     onDownloadChart: () -> Unit = {},
-    isCrosshairActive: Boolean = false,
-    onCrosshairToggle: () -> Unit = {},
     backgroundColor: Color = Color(0xFF08090C),
     settings: ChartSettings = ChartSettings(),
     isAtBottom: Boolean = true,
@@ -111,21 +105,6 @@ fun Header(
                     .horizontalScroll(scrollState),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Crosshair Toggle Button
-                IconButton(
-                    onClick = onCrosshairToggle,
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Icon(
-                        Icons.Default.FilterCenterFocus,
-                        contentDescription = "Crosshair",
-                        tint = if (isCrosshairActive) Color(0xFF2962FF) else Color(0xFFD1D4DC),
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
-
-                HeaderDivider()
-
                 // GoTo Button (Moved from Bottom)
                 IconButton(onClick = onGoToClick, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Default.DateRange, "GoTo", tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
@@ -322,34 +301,6 @@ fun Header(
 
                 HeaderDivider()
 
-                // Alert
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { onAlertClick() }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Outlined.NotificationsNone, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Alert", color = Color.White, fontSize = fontSize, fontWeight = fontWeight)
-                }
-
-                // Replay
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { onToggleReplay() }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Replay, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Replay", color = Color.White, fontSize = fontSize, fontWeight = fontWeight)
-                }
-
-                HeaderDivider()
-
                 // Undo/Redo
                 IconButton(onClick = onUndo, enabled = canUndo, modifier = Modifier.size(42.dp)) {
                     Icon(Icons.Default.Undo, null, tint = if(canUndo) Color.White else Color(0xFF434651), modifier = Modifier.size(24.dp))
@@ -382,12 +333,6 @@ fun Header(
                 // Utility Icons
                 IconButton(onClick = onToolSearchClick, modifier = Modifier.size(42.dp)) {
                     Icon(Icons.Default.Search, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
-                }
-                IconButton(onClick = onSettingsClick, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Default.Settings, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
-                }
-                IconButton(onClick = onFullscreenClick, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Default.Fullscreen, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                 }
                 IconButton(onClick = onDownloadChart, modifier = Modifier.size(42.dp)) {
                     Icon(Icons.Default.CameraAlt, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))

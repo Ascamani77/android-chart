@@ -87,6 +87,7 @@ fun TradingApp() {
     var isLocked by remember { mutableStateOf(chartSettings.quickActions.isLocked) }
     var areDrawingsVisible by remember { mutableStateOf(true) }
     var isCrosshairActive by remember { mutableStateOf(false) }
+    var isReplayActive by remember { mutableStateOf(false) }
 
     // Currency State
     var selectedCurrency by remember { mutableStateOf("USD") }
@@ -535,18 +536,14 @@ fun TradingApp() {
                             onIndicatorClick = { showIndicatorModal = true },
                             onSettingsClick = { showSettingsModal = true },
                             onAnalysisClick = { refreshAnalysis() },
-                            onAlertClick = { showAlertModal = true },
                             onUndo = { /* Undo logic */ },
                             onRedo = { /* Redo logic */ },
                             canUndo = history.isNotEmpty(),
                             canRedo = redoStack.isNotEmpty(),
-                            onFullscreenClick = { isFullscreen = true },
                             onToolSearchClick = { showToolSearchModal = true },
                             onRightPanelToggle = { },
                             isRightPanelVisible = false,
                             onDownloadChart = { showCaptureModal = true },
-                            isCrosshairActive = isCrosshairActive,
-                            onCrosshairToggle = { isCrosshairActive = !isCrosshairActive },
                             backgroundColor = appBackgroundColor,
                             isAtBottom = true,
                             onGoToClick = { showGoToDateModal = true }
@@ -631,6 +628,11 @@ fun TradingApp() {
                     },
                     isTimezoneVisible = isTimezonePaneVisible,
                     onTimezoneToggle = { isTimezonePaneVisible = !isTimezonePaneVisible },
+                    isCrosshairActive = isCrosshairActive,
+                    onCrosshairToggle = { isCrosshairActive = !isCrosshairActive },
+                    onAlertClick = { showAlertModal = true; showQuickActions = false },
+                    onReplayClick = { isReplayActive = !isReplayActive; showQuickActions = false },
+                    isReplayActive = isReplayActive,
                     isLocked = isLocked,
                     onLockToggle = { isLocked = !isLocked },
                     onClose = { showQuickActions = false },
