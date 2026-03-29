@@ -1,5 +1,6 @@
 package com.trading.app
 
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -13,11 +14,13 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.google.ai.client.generativeai.GenerativeModel
 import com.trading.app.components.*
 import com.trading.app.models.*
+import com.google.gson.Gson
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -48,6 +51,9 @@ private fun parseComposeColor(colorString: String?, defaultColor: Color = Color(
 
 @Composable
 fun TradingApp() {
+    val context = LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("trading_prefs", Context.MODE_PRIVATE) }
+    val gson = remember { Gson() }
     val scope = rememberCoroutineScope()
 
     // Core State
@@ -58,7 +64,17 @@ fun TradingApp() {
     var activeTool by remember { mutableStateOf("cursor") }
     var stayInDrawingMode by remember { mutableStateOf(false) }
     var isMagnetEnabled by remember { mutableStateOf(false) }
-    var isLocked by remember { mutableStateOf(false) }
+    
+    // Loaded from settings
+    var chartSettings by remember { 
+        mutableStateOf(
+            sharedPrefs.getString("chart_settings", null)?.let {
+                try { gson.fromJson(it, ChartSettings::class.java) } catch (e: Exception) { ChartSettings() }
+            } ?: ChartSettings()
+        )
+    }
+
+    var isLocked by remember { mutableStateOf(chartSettings.quickActions.isLocked) }
     var areDrawingsVisible by remember { mutableStateOf(true) }
     var isCrosshairActive by remember { mutableStateOf(false) }
 
@@ -66,8 +82,8 @@ fun TradingApp() {
     var selectedCurrency by remember { mutableStateOf("USD") }
     var showCurrencyModal by remember { mutableStateOf(false) }
 
-    // Sidebar visibility state - Defaulted to false (hidden)
-    var isSidebarVisible by remember { mutableStateOf(false) }
+    // Sidebar visibility state
+    var isSidebarVisible by remember { mutableStateOf(chartSettings.quickActions.isSidebarVisible) }
 
     // Recent pairs state
     val recentPairs = remember { mutableStateListOf<Pair<String, String>>() }
@@ -82,8 +98,18 @@ fun TradingApp() {
         }
     }
 
+    // Persist settings whenever relevant parts change
+    LaunchedEffect(chartSettings, isLocked, isSidebarVisible) {
+        val updatedSettings = chartSettings.copy(
+            quickActions = chartSettings.quickActions.copy(
+                isLocked = isLocked,
+                isSidebarVisible = isSidebarVisible
+            )
+        )
+        sharedPrefs.edit().putString("chart_settings", gson.toJson(updatedSettings)).apply()
+    }
+
     // Settings & Data
-    var chartSettings by remember { mutableStateOf(ChartSettings()) }
     val drawings = remember { mutableStateListOf<Drawing>() }
     val history = remember { mutableStateListOf<ChartSnapshot>() }
     val redoStack = remember { mutableStateListOf<ChartSnapshot>() }
@@ -236,9 +262,26 @@ fun TradingApp() {
 
     // Quick Actions State
     var showQuickActions by remember { mutableStateOf(false) }
-    var quickActionsModalOffset by remember { mutableStateOf(IntOffset(100, 200)) }
-    var quickActionsButtonOffset by remember { mutableStateOf(IntOffset(16, 400)) }
-    var isTimezonePaneVisible by remember { mutableStateOf(true) }
+    var quickActionsModalOffset by remember { 
+        mutableStateOf(IntOffset(chartSettings.quickActions.modalX, chartSettings.quickActions.modalY)) 
+    }
+    var quickActionsButtonOffset by remember { 
+        mutableStateOf(IntOffset(chartSettings.quickActions.buttonX, chartSettings.quickActions.buttonY)) 
+    }
+    var isTimezonePaneVisible by remember { mutableStateOf(chartSettings.quickActions.isTimezoneVisible) }
+
+    // Update coordinates in persistent state
+    LaunchedEffect(quickActionsButtonOffset, quickActionsModalOffset, isTimezonePaneVisible) {
+        chartSettings = chartSettings.copy(
+            quickActions = chartSettings.quickActions.copy(
+                buttonX = quickActionsButtonOffset.x,
+                buttonY = quickActionsButtonOffset.y,
+                modalX = quickActionsModalOffset.x,
+                modalY = quickActionsModalOffset.y,
+                isTimezoneVisible = isTimezonePaneVisible
+            )
+        )
+    }
 
     val generativeModel = remember {
         val apiKey = try { System.getenv("GEMINI_API_KEY") ?: "" } catch (e: Exception) { "" }

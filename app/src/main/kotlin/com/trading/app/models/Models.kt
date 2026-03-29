@@ -158,6 +158,16 @@ data class EventsSettings(
     val newsNotification: Boolean = false
 )
 
+data class QuickActionsSettings(
+    val isLocked: Boolean = false,
+    val buttonX: Int = 16,
+    val buttonY: Int = 400,
+    val modalX: Int = 100,
+    val modalY: Int = 200,
+    val isSidebarVisible: Boolean = false,
+    val isTimezoneVisible: Boolean = true
+)
+
 data class ChartSettings(
     val symbol: SymbolSettings = SymbolSettings(),
     val statusLine: StatusLineSettings = StatusLineSettings(),
@@ -165,7 +175,8 @@ data class ChartSettings(
     val canvas: CanvasSettings = CanvasSettings(),
     val trading: TradingSettings = TradingSettings(),
     val alerts: AlertsSettings = AlertsSettings(),
-    val events: EventsSettings = EventsSettings()
+    val events: EventsSettings = EventsSettings(),
+    val quickActions: QuickActionsSettings = QuickActionsSettings()
 )
 
 data class OHLCData(
