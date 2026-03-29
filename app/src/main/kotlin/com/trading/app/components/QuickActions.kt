@@ -32,11 +32,30 @@ import kotlin.math.roundToInt
 @Composable
 fun QuickActionsButton(
     onClick: () -> Unit,
+    offset: IntOffset,
+    onOffsetChange: (IntOffset) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // We use rememberUpdatedState to ensure the drag gesture always uses the latest offset values
+    val currentOffset by rememberUpdatedState(offset)
+    val currentOnOffsetChange by rememberUpdatedState(onOffsetChange)
+
     Box(
         modifier = modifier
+            .offset { currentOffset }
             .size(70.dp)
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    // Apply the movement to the current state
+                    currentOnOffsetChange(
+                        IntOffset(
+                            (currentOffset.x + dragAmount.x).roundToInt(),
+                            (currentOffset.y + dragAmount.y).roundToInt()
+                        )
+                    )
+                }
+            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -67,25 +86,6 @@ fun QuickActionsButton(
             tint = Color.White,
             modifier = Modifier.size(30.dp)
         )
-        
-        // The side triangle indicator tab
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .offset(x = 10.dp)
-                .size(20.dp, 24.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xFF2A2E39)),
-            contentAlignment = Alignment.Center
-        ) {
-            // Inner triangle
-            Icon(
-                imageVector = Icons.Default.ArrowDropDown,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(16.dp)
-            )
-        }
     }
 }
 
@@ -106,22 +106,22 @@ fun QuickActionsModal(
     offset: IntOffset,
     onOffsetChange: (IntOffset) -> Unit
 ) {
+    val currentOffset by rememberUpdatedState(offset)
+    val currentOnOffsetChange by rememberUpdatedState(onOffsetChange)
+
     Box(
         modifier = Modifier
-            .offset { offset }
-            // pointerInput to handle both dragging and tap consumption
+            .offset { currentOffset }
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        onOffsetChange(
-                            IntOffset(
-                                (offset.x + dragAmount.x).roundToInt(),
-                                (offset.y + dragAmount.y).roundToInt()
-                            )
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    currentOnOffsetChange(
+                        IntOffset(
+                            (currentOffset.x + dragAmount.x).roundToInt(),
+                            (currentOffset.y + dragAmount.y).roundToInt()
                         )
-                    }
-                )
+                    )
+                }
             }
             .pointerInput(Unit) {
                 detectTapGestures { /* Consume taps inside modal to prevent backdrop close */ }

@@ -236,7 +236,8 @@ fun TradingApp() {
 
     // Quick Actions State
     var showQuickActions by remember { mutableStateOf(false) }
-    var quickActionsOffset by remember { mutableStateOf(IntOffset(100, 200)) }
+    var quickActionsModalOffset by remember { mutableStateOf(IntOffset(100, 200)) }
+    var quickActionsButtonOffset by remember { mutableStateOf(IntOffset(16, 400)) }
     var isTimezonePaneVisible by remember { mutableStateOf(true) }
 
     val generativeModel = remember {
@@ -495,9 +496,13 @@ fun TradingApp() {
             // Floating Quick Actions Button
             QuickActionsButton(
                 onClick = { showQuickActions = !showQuickActions },
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 16.dp)
+                offset = quickActionsButtonOffset,
+                onOffsetChange = { 
+                    quickActionsButtonOffset = it
+                    // Update modal offset relative to button if needed, 
+                    // or keep it separate. Currently keeping it separate 
+                    // for more flexibility unless user wants it tied.
+                }
             )
 
             // Quick Actions Modal
@@ -528,8 +533,8 @@ fun TradingApp() {
                     isTimezoneVisible = isTimezonePaneVisible,
                     onTimezoneToggle = { isTimezonePaneVisible = !isTimezonePaneVisible },
                     onClose = { showQuickActions = false },
-                    offset = quickActionsOffset,
-                    onOffsetChange = { quickActionsOffset = it }
+                    offset = quickActionsModalOffset,
+                    onOffsetChange = { quickActionsModalOffset = it }
                 )
             }
         }
