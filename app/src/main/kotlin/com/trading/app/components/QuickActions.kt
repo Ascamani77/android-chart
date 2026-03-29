@@ -1,5 +1,7 @@
 package com.trading.app.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -20,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -27,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 @Composable
@@ -35,8 +39,30 @@ fun QuickActionsButton(
     offset: IntOffset,
     onOffsetChange: (IntOffset) -> Unit,
     isLocked: Boolean = false,
+    isModalOpen: Boolean = false,
+    autoHideDelay: Long = 3000L,
     modifier: Modifier = Modifier
 ) {
+    var isFaded by remember { mutableStateOf(false) }
+    var interactionTrigger by remember { mutableIntStateOf(0) }
+
+    val alpha by animateFloatAsState(
+        targetValue = if (isFaded && !isModalOpen) 0.3f else 1f,
+        animationSpec = tween(durationMillis = 500),
+        label = "ButtonFadeAlpha"
+    )
+
+    // Reset fade timer on interaction or modal state change
+    LaunchedEffect(interactionTrigger, isModalOpen) {
+        if (isModalOpen) {
+            isFaded = false
+            return@LaunchedEffect
+        }
+        isFaded = false
+        delay(autoHideDelay)
+        isFaded = true
+    }
+
     // We use rememberUpdatedState to ensure the drag gesture always uses the latest offset values
     val currentOffset by rememberUpdatedState(offset)
     val currentOnOffsetChange by rememberUpdatedState(onOffsetChange)
@@ -45,24 +71,42 @@ fun QuickActionsButton(
         modifier = modifier
             .offset { currentOffset }
             .size(70.dp)
+            .graphicsLayer(alpha = alpha)
             .pointerInput(isLocked) {
                 if (!isLocked) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        // Apply the movement to the current state
-                        currentOnOffsetChange(
-                            IntOffset(
-                                (currentOffset.x + dragAmount.x).roundToInt(),
-                                (currentOffset.y + dragAmount.y).roundToInt()
+                    detectDragGestures(
+                        onDragStart = {
+                            isFaded = false
+                            interactionTrigger++
+                        },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            // Apply the movement to the current state
+                            currentOnOffsetChange(
+                                IntOffset(
+                                    (currentOffset.x + dragAmount.x).roundToInt(),
+                                    (currentOffset.y + dragAmount.y).roundToInt()
+                                )
                             )
-                        )
-                    }
+                            interactionTrigger++
+                        }
+                    )
                 }
             }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = onClick
+                onClick = {
+                    if (isFaded) {
+                        // First touch wakes it up
+                        isFaded = false
+                        interactionTrigger++
+                    } else {
+                        // Second touch (or touch while awake) opens modal
+                        onClick()
+                        interactionTrigger++
+                    }
+                }
             ),
         contentAlignment = Alignment.Center
     ) {

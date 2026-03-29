@@ -500,7 +500,8 @@ fun TradingApp() {
                 onOffsetChange = { 
                     quickActionsButtonOffset = it
                 },
-                isLocked = isLocked
+                isLocked = isLocked,
+                isModalOpen = showQuickActions
             )
 
             // Quick Actions Modal
