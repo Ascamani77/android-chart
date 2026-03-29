@@ -3,12 +3,18 @@ package com.trading.app
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import com.google.ai.client.generativeai.GenerativeModel
 import com.trading.app.components.*
 import com.trading.app.models.*
@@ -228,6 +234,11 @@ fun TradingApp() {
     var showIndicatorSettingsModal by remember { mutableStateOf<String?>(null) }
     var showTimeZoneModal by remember { mutableStateOf(false) }
 
+    // Quick Actions State
+    var showQuickActions by remember { mutableStateOf(false) }
+    var quickActionsOffset by remember { mutableStateOf(IntOffset(100, 200)) }
+    var isTimezonePaneVisible by remember { mutableStateOf(true) }
+
     val generativeModel = remember {
         val apiKey = try { System.getenv("GEMINI_API_KEY") ?: "" } catch (e: Exception) { "" }
         GenerativeModel(
@@ -316,152 +327,209 @@ fun TradingApp() {
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = appBackgroundColor) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            if (!isFullscreen) {
-                val isHeaderHidden = !chartSettings.canvas.headerVisible || (chartSettings.canvas.headerVisibility == "Auto-hide" && !isSidebarVisible)
-                AnimatedVisibility(
-                    visible = !isHeaderHidden,
-                    enter = expandVertically(),
-                    exit = shrinkVertically()
-                ) {
-                    Header(
-                        symbol = symbol,
-                        timeframe = timeframe,
-                        chartStyle = chartStyle,
-                        onSymbolClick = { showSymbolSearch = true },
-                        onTimeframeClick = { timeframe = it },
-                        onStyleChange = { chartStyle = it },
-                        onIndicatorClick = { showIndicatorModal = true },
-                        onSettingsClick = { showSettingsModal = true },
-                        onAnalysisClick = { refreshAnalysis() },
-                        onAlertClick = { showAlertModal = true },
-                        onUndo = { /* Undo logic */ },
-                        onRedo = { /* Redo logic */ },
-                        canUndo = history.isNotEmpty(),
-                        canRedo = redoStack.isNotEmpty(),
-                        onFullscreenClick = { isFullscreen = true },
-                        onToolSearchClick = { showToolSearchModal = true },
-                        onSideMenuClick = { showSideMenu = true },
-                        onRightPanelToggle = { },
-                        isRightPanelVisible = false,
-                        onDownloadChart = { showCaptureModal = true },
-                        isCrosshairActive = isCrosshairActive,
-                        onCrosshairToggle = { isCrosshairActive = !isCrosshairActive },
-                        backgroundColor = appBackgroundColor
-                    )
-                }
-            }
-
-            Row(modifier = Modifier.weight(1f)) {
-                if (!isFullscreen && isSidebarVisible) {
-                    Sidebar(
-                        activeTool = activeTool,
-                        onToolClick = { activeTool = it },
-                        onToolSearchClick = { showToolSearchModal = true },
-                        stayInDrawingMode = stayInDrawingMode,
-                        onStayInModeToggle = { stayInDrawingMode = !stayInDrawingMode },
-                        isMagnetEnabled = isMagnetEnabled,
-                        onMagnetToggle = { isMagnetEnabled = !isMagnetEnabled },
-                        isLocked = isLocked,
-                        onLockToggle = { isLocked = !isLocked },
-                        isVisible = areDrawingsVisible,
-                        onVisibilityToggle = { areDrawingsVisible = !areDrawingsVisible },
-                        onClearDrawings = { drawings.clear() },
-                        backgroundColor = appBackgroundColor
-                    )
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        TradingChart(
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (!isFullscreen) {
+                    val isHeaderHidden = !chartSettings.canvas.headerVisible || (chartSettings.canvas.headerVisibility == "Auto-hide" && !isSidebarVisible)
+                    AnimatedVisibility(
+                        visible = !isHeaderHidden,
+                        enter = expandVertically(),
+                        exit = shrinkVertically()
+                    ) {
+                        Header(
                             symbol = symbol,
                             timeframe = timeframe,
-                            style = chartStyle,
-                            chartSettings = chartSettings,
-                            drawings = drawings,
-                            onDrawingUpdate = { drawing ->
-                                val index = drawings.indexOfFirst { it.id == drawing.id }
-                                if (index != -1) drawings[index] = drawing else drawings.add(drawing)
-                            },
-                            activeTool = activeTool,
-                            onToolReset = { if (!stayInDrawingMode) activeTool = "cursor" },
-                            showRsi = showRsi,
-                            rsiPeriod = rsiPeriod,
-                            showEma10 = showEma10,
-                            ema10Period = ema10Period,
-                            showEma20 = showEma20,
-                            ema20Period = ema20Period,
-                            showSma1 = showSma1,
-                            sma1Period = sma1Period,
-                            showSma2 = showSma2,
-                            sma2Period = sma2Period,
-                            showVwap = showVwap,
-                            showBb = showBb,
-                            bbPeriod = bbPeriod,
-                            showAtr = showAtr,
-                            atrPeriod = atrPeriod,
-                            showVolume = showVolume,
-                            onVolumeToggle = { showVolume = it },
-                            onIndicatorSettingsClick = { showIndicatorSettingsModal = it },
-                            isMagnetEnabled = isMagnetEnabled,
-                            isLocked = isLocked,
-                            isVisible = areDrawingsVisible,
+                            chartStyle = chartStyle,
+                            onSymbolClick = { showSymbolSearch = true },
+                            onTimeframeClick = { timeframe = it },
+                            onStyleChange = { chartStyle = it },
+                            onIndicatorClick = { showIndicatorModal = true },
+                            onSettingsClick = { showSettingsModal = true },
+                            onAnalysisClick = { refreshAnalysis() },
+                            onAlertClick = { showAlertModal = true },
+                            onUndo = { /* Undo logic */ },
+                            onRedo = { /* Redo logic */ },
+                            canUndo = history.isNotEmpty(),
+                            canRedo = redoStack.isNotEmpty(),
+                            onFullscreenClick = { isFullscreen = true },
+                            onToolSearchClick = { showToolSearchModal = true },
+                            onSideMenuClick = { showSideMenu = true },
+                            onRightPanelToggle = { },
+                            isRightPanelVisible = false,
+                            onDownloadChart = { showCaptureModal = true },
                             isCrosshairActive = isCrosshairActive,
-                            onCrosshairToggle = { isCrosshairActive = it },
-                            selectedCurrency = selectedCurrency,
-                            onCurrencyClick = { showCurrencyModal = true },
-                            isFullscreen = isFullscreen,
-                            onFullscreenExit = { isFullscreen = false },
-                            scrollToTimestamp = targetTimestamp,
-                            onScrollDone = { targetTimestamp = null },
-                            onLongPress = {
-                                showSettingsModal = true
-                                chartSettings = chartSettings.copy(
-                                    canvas = chartSettings.canvas.copy(
-                                        headerVisible = !chartSettings.canvas.headerVisible
-                                    )
-                                )
-                            }
-                        )
-                    }
-
-                    if (!isFullscreen && isBottomPanelVisible) {
-                        TradingPanel(
-                            activeTab = activeTab,
-                            onTabChange = { activeTab = it },
-                            analysisContent = analysisContent,
-                            isAnalyzing = isAnalyzing,
-                            onRefreshAnalysis = { refreshAnalysis() },
-                            onClose = { isBottomPanelVisible = false },
+                            onCrosshairToggle = { isCrosshairActive = !isCrosshairActive },
                             backgroundColor = appBackgroundColor
                         )
                     }
                 }
+
+                Row(modifier = Modifier.weight(1f)) {
+                    if (!isFullscreen && isSidebarVisible) {
+                        Sidebar(
+                            activeTool = activeTool,
+                            onToolClick = { activeTool = it },
+                            onToolSearchClick = { showToolSearchModal = true },
+                            stayInDrawingMode = stayInDrawingMode,
+                            onStayInModeToggle = { stayInDrawingMode = !stayInDrawingMode },
+                            isMagnetEnabled = isMagnetEnabled,
+                            onMagnetToggle = { isMagnetEnabled = !isMagnetEnabled },
+                            isLocked = isLocked,
+                            onLockToggle = { isLocked = !isLocked },
+                            isVisible = areDrawingsVisible,
+                            onVisibilityToggle = { areDrawingsVisible = !areDrawingsVisible },
+                            onClearDrawings = { drawings.clear() },
+                            backgroundColor = appBackgroundColor
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            TradingChart(
+                                symbol = symbol,
+                                timeframe = timeframe,
+                                style = chartStyle,
+                                chartSettings = chartSettings,
+                                drawings = drawings,
+                                onDrawingUpdate = { drawing ->
+                                    val index = drawings.indexOfFirst { it.id == drawing.id }
+                                    if (index != -1) drawings[index] = drawing else drawings.add(drawing)
+                                },
+                                activeTool = activeTool,
+                                onToolReset = { if (!stayInDrawingMode) activeTool = "cursor" },
+                                showRsi = showRsi,
+                                rsiPeriod = rsiPeriod,
+                                showEma10 = showEma10,
+                                ema10Period = ema10Period,
+                                showEma20 = showEma20,
+                                ema20Period = ema20Period,
+                                showSma1 = showSma1,
+                                sma1Period = sma1Period,
+                                showSma2 = showSma2,
+                                sma2Period = sma2Period,
+                                showVwap = showVwap,
+                                showBb = showBb,
+                                bbPeriod = bbPeriod,
+                                showAtr = showAtr,
+                                atrPeriod = atrPeriod,
+                                showVolume = showVolume,
+                                onVolumeToggle = { showVolume = it },
+                                onIndicatorSettingsClick = { showIndicatorSettingsModal = it },
+                                isMagnetEnabled = isMagnetEnabled,
+                                isLocked = isLocked,
+                                isVisible = areDrawingsVisible,
+                                isCrosshairActive = isCrosshairActive,
+                                onCrosshairToggle = { isCrosshairActive = it },
+                                selectedCurrency = selectedCurrency,
+                                onCurrencyClick = { showCurrencyModal = true },
+                                isFullscreen = isFullscreen,
+                                onFullscreenExit = { isFullscreen = false },
+                                scrollToTimestamp = targetTimestamp,
+                                onScrollDone = { targetTimestamp = null },
+                                onLongPress = {
+                                    showSettingsModal = true
+                                    chartSettings = chartSettings.copy(
+                                        canvas = chartSettings.canvas.copy(
+                                            headerVisible = !chartSettings.canvas.headerVisible
+                                        )
+                                    )
+                                }
+                            )
+                        }
+
+                        if (!isFullscreen && isBottomPanelVisible) {
+                            TradingPanel(
+                                activeTab = activeTab,
+                                onTabChange = { activeTab = it },
+                                analysisContent = analysisContent,
+                                isAnalyzing = isAnalyzing,
+                                onRefreshAnalysis = { refreshAnalysis() },
+                                onClose = { isBottomPanelVisible = false },
+                                backgroundColor = appBackgroundColor
+                            )
+                        }
+                    }
+                }
+
+                if (!isFullscreen && isTimezonePaneVisible) {
+                    BottomBar(
+                        onRangeClick = { handleRangeChange(it) },
+                        onGoToClick = { showGoToDateModal = true },
+                        onTimeZoneClick = { showTimeZoneModal = true },
+                        selectedTimeZone = selectedTz.label,
+                        onTabClick = {
+                            if (activeTab == it && isBottomPanelVisible) {
+                                isBottomPanelVisible = false
+                            } else {
+                                activeTab = it
+                                isBottomPanelVisible = true
+                            }
+                        },
+                        activeTab = if (isBottomPanelVisible) activeTab else null,
+                        recentPairs = recentPairs,
+                        currentSymbol = symbol,
+                        currentTimeframe = timeframe,
+                        onPairSelect = { s: String, t: String ->
+                            symbol = s
+                            timeframe = t
+                        },
+                        backgroundColor = appBackgroundColor
+                    )
+                }
             }
 
-            if (!isFullscreen) {
-                BottomBar(
-                    onRangeClick = { handleRangeChange(it) },
-                    onGoToClick = { showGoToDateModal = true },
-                    onTimeZoneClick = { showTimeZoneModal = true },
-                    selectedTimeZone = selectedTz.label,
-                    onTabClick = {
-                        if (activeTab == it && isBottomPanelVisible) {
-                            isBottomPanelVisible = false
-                        } else {
-                            activeTab = it
-                            isBottomPanelVisible = true
+            // Backdrop for Quick Actions
+            if (showQuickActions) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Transparent)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { showQuickActions = false }
+                        )
+                )
+            }
+
+            // Floating Quick Actions Button
+            QuickActionsButton(
+                onClick = { showQuickActions = !showQuickActions },
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 16.dp)
+            )
+
+            // Quick Actions Modal
+            if (showQuickActions) {
+                QuickActionsModal(
+                    isFullscreen = isFullscreen,
+                    onFullscreenToggle = { isFullscreen = !isFullscreen },
+                    isHeaderVisible = chartSettings.canvas.headerVisible,
+                    onHeaderToggle = {
+                        chartSettings = chartSettings.copy(
+                            canvas = chartSettings.canvas.copy(
+                                headerVisible = !chartSettings.canvas.headerVisible
+                            )
+                        )
+                    },
+                    isBottomMenuVisible = isBottomPanelVisible,
+                    onBottomMenuToggle = { isBottomPanelVisible = !isBottomPanelVisible },
+                    onSettingsClick = { showSettingsModal = true; showQuickActions = false },
+                    onDrawingsClick = { isSidebarVisible = !isSidebarVisible; showQuickActions = false },
+                    onChartTypeClick = { /* Show chart type selection or cycle types */ 
+                        chartStyle = when(chartStyle) {
+                            "candles" -> "bars"
+                            "bars" -> "line"
+                            "line" -> "area"
+                            else -> "candles"
                         }
                     },
-                    activeTab = if (isBottomPanelVisible) activeTab else null,
-                    recentPairs = recentPairs,
-                    currentSymbol = symbol,
-                    currentTimeframe = timeframe,
-                    onPairSelect = { s: String, t: String ->
-                        symbol = s
-                        timeframe = t
-                    },
-                    backgroundColor = appBackgroundColor
+                    isTimezoneVisible = isTimezonePaneVisible,
+                    onTimezoneToggle = { isTimezonePaneVisible = !isTimezonePaneVisible },
+                    onClose = { showQuickActions = false },
+                    offset = quickActionsOffset,
+                    onOffsetChange = { quickActionsOffset = it }
                 )
             }
         }
