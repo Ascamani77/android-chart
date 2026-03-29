@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -122,6 +123,7 @@ fun TradingChart(
     scrollToTimestamp: Long? = null,
     onScrollDone: () -> Unit = {},
     onLongPress: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     selectedTimeZone: String = "UTC"
 ) {
     var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
@@ -236,6 +238,8 @@ fun TradingChart(
         )
     }
 
+    val chartBgColor = getFullChartColor(chartSettings.canvas.fullChartColor, chartSettings.canvas.background)
+
     Box(modifier = Modifier.fillMaxSize().background(ComposeColor.Black)) {
         AndroidView(
             factory = { context ->
@@ -247,7 +251,7 @@ fun TradingChart(
 
                     api.applyOptions {
                         layout = LayoutOptions(
-                            background = SolidColor(color = getFullChartColor(chartSettings.canvas.fullChartColor, chartSettings.canvas.background)),
+                            background = SolidColor(color = chartBgColor),
                             textColor = chartSettings.canvas.scaleTextColor.toIntColor(),
                             fontSize = chartSettings.canvas.scaleFontSize
                         )
@@ -345,7 +349,7 @@ fun TradingChart(
 
                 chartsView.api.applyOptions {
                     layout = LayoutOptions(
-                        background = SolidColor(color = getFullChartColor(chartSettings.canvas.fullChartColor, chartSettings.canvas.background)),
+                        background = SolidColor(color = chartBgColor),
                         textColor = chartSettings.canvas.scaleTextColor.toIntColor(),
                         fontSize = chartSettings.canvas.scaleFontSize
                     )
@@ -413,6 +417,23 @@ fun TradingChart(
                 )
             }
         )
+
+        // Intersection Box (Bottom Right) where Settings icon will live
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .size(width = 60.dp, height = 34.dp)
+                .background(ComposeColor(chartBgColor))
+                .clickable { onSettingsClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Chart Settings",
+                tint = ComposeColor(0xFFD1D4DC), // Made it brighter
+                modifier = Modifier.size(24.dp) // Increased size to 24.dp
+            )
+        }
 
         // Top Right Currency Selector (as circled in red in image)
         Box(

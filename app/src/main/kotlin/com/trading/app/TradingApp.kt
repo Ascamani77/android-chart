@@ -24,6 +24,7 @@ import com.google.ai.client.generativeai.GenerativeModel
 import com.trading.app.components.*
 import com.trading.app.models.*
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -65,7 +66,7 @@ fun TradingApp() {
 
     // Core State
     var symbol by remember { mutableStateOf("BTCUSD") }
-    var timeframe by remember { mutableStateOf("D") }
+    var timeframe by remember { mutableStateOf("1h") }
     var activeRange by remember { mutableStateOf("1Y") }
     var chartStyle by remember { mutableStateOf("candles") }
     var activeTool by remember { mutableStateOf("cursor") }
@@ -95,15 +96,29 @@ fun TradingApp() {
     var isSidebarVisible by remember { mutableStateOf(chartSettings.quickActions.isSidebarVisible) }
 
     // Recent pairs state
-    val recentPairs = remember { mutableStateListOf<Pair<String, String>>() }
+    val recentPairs = remember { 
+        val saved = sharedPrefs.getString("recent_pairs", null)
+        val list = if (saved != null) {
+            try {
+                val type = object : TypeToken<List<Pair<String, String>>>() {}.type
+                gson.fromJson<List<Pair<String, String>>>(saved, type)
+            } catch (e: Exception) { emptyList() }
+        } else emptyList()
+        mutableStateListOf<Pair<String, String>>().apply { addAll(list) }
+    }
 
     LaunchedEffect(symbol, timeframe) {
         val newPair = symbol to timeframe
-        if (!recentPairs.contains(newPair)) {
+        val existingIndex = recentPairs.indexOfFirst { it.first == symbol && it.second == timeframe }
+        if (existingIndex != 0) {
+            if (existingIndex != -1) {
+                recentPairs.removeAt(existingIndex)
+            }
             recentPairs.add(0, newPair)
-            if (recentPairs.size > 6) {
+            if (recentPairs.size > 10) {
                 recentPairs.removeAt(recentPairs.size - 1)
             }
+            sharedPrefs.edit().putString("recent_pairs", gson.toJson(recentPairs.toList())).apply()
         }
     }
 
@@ -480,6 +495,9 @@ fun TradingApp() {
                                 scrollToTimestamp = targetTimestamp,
                                 onScrollDone = { targetTimestamp = null },
                                 onLongPress = {
+                                    showSettingsModal = true
+                                },
+                                onSettingsClick = {
                                     showSettingsModal = true
                                 },
                                 selectedTimeZone = selectedTz.label
