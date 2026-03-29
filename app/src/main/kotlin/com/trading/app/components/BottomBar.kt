@@ -20,18 +20,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trading.app.models.ChartSettings
-import java.text.SimpleDateFormat
 import java.util.*
-import kotlinx.coroutines.delay
 
 @Composable
 fun BottomBar(
-    onRangeClick: (String) -> Unit,
-    onGoToClick: () -> Unit,
-    onTimeZoneClick: () -> Unit,
-    selectedTimeZone: String,
-    onTabClick: (String) -> Unit,
-    activeTab: String?,
+    onRangeClick: (String) -> Unit = {},
+    onGoToClick: () -> Unit = {},
+    onTabClick: (String) -> Unit = {},
+    activeTab: String? = null,
     recentPairs: List<Pair<String, String>> = emptyList(),
     currentSymbol: String = "",
     currentTimeframe: String = "",
@@ -39,81 +35,18 @@ fun BottomBar(
     backgroundColor: Color = Color(0xFF08090C),
     settings: ChartSettings = ChartSettings()
 ) {
-    var currentTime by remember { mutableStateOf("") }
-    var marketStatus by remember { mutableStateOf("Market Closed") }
-    var marketStatusColor by remember { mutableStateOf(Color(0xFFF23645)) }
-    var countdownText by remember { mutableStateOf("") }
-
     val bottomScrollState = rememberScrollState()
     val pairsScrollState = rememberScrollState()
     
     val fontSize = settings.canvas.bottomFontSize.sp
     val fontWeight = if (settings.canvas.bottomFontBold) FontWeight.Bold else FontWeight.Medium
 
-    LaunchedEffect(selectedTimeZone) {
-        while (true) {
-            val sdf = SimpleDateFormat("HH:mm:ss", Locale.US)
-            val tzId = if (selectedTimeZone.contains(")")) {
-                selectedTimeZone.substringAfter(") ").trim()
-            } else {
-                selectedTimeZone
-            }
-            val tz = TimeZone.getTimeZone(tzId)
-            sdf.timeZone = tz
-            val now = Calendar.getInstance(tz)
-            currentTime = sdf.format(now.time)
-
-            val hour = now.get(Calendar.HOUR_OF_DAY)
-            val day = now.get(Calendar.DAY_OF_WEEK)
-            val isMarketOpen = day in Calendar.MONDAY..Calendar.FRIDAY && hour in 9..16
-            
-            if (isMarketOpen) {
-                marketStatus = "Market Open"
-                marketStatusColor = Color(0xFF089981)
-                // Calculate time until market closes at 16:00 (4 PM)
-                val closingTime = Calendar.getInstance(tz).apply {
-                    set(Calendar.HOUR_OF_DAY, 16)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                }
-                val timeUntilClose = closingTime.timeInMillis - now.timeInMillis
-                val hoursLeft = (timeUntilClose / (1000 * 60 * 60))
-                val minutesLeft = ((timeUntilClose % (1000 * 60 * 60)) / (1000 * 60))
-                val secondsLeft = ((timeUntilClose % (1000 * 60)) / 1000)
-                countdownText = "Closes in ${hoursLeft}h ${minutesLeft}m ${secondsLeft}s"
-            } else {
-                marketStatus = "Market Closed"
-                marketStatusColor = Color(0xFFF23645)
-                // Calculate time until market opens at 9:00 (9 AM)
-                val nextOpenTime = Calendar.getInstance(tz).apply {
-                    add(Calendar.DAY_OF_YEAR, 1)
-                    set(Calendar.HOUR_OF_DAY, 9)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                }
-                // If it's a weekend or after hours on weekday, check if tomorrow is a weekday
-                if (day == Calendar.FRIDAY && hour >= 16) {
-                    nextOpenTime.add(Calendar.DAY_OF_YEAR, 2) // Skip to Monday
-                } else if (day == Calendar.SATURDAY) {
-                    nextOpenTime.add(Calendar.DAY_OF_YEAR, 1) // Skip to Monday
-                }
-                val timeUntilOpen = nextOpenTime.timeInMillis - now.timeInMillis
-                val hoursLeft = (timeUntilOpen / (1000 * 60 * 60))
-                val minutesLeft = ((timeUntilOpen % (1000 * 60 * 60)) / (1000 * 60))
-                val secondsLeft = ((timeUntilOpen % (1000 * 60)) / 1000)
-                countdownText = "Opens in ${hoursLeft}h ${minutesLeft}m ${secondsLeft}s"
-            }
-            delay(1000)
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.Black) // Matches the pure black background in the image
+            .background(Color.Black)
             .navigationBarsPadding()
     ) {
-        // Subtle top border
         Divider(modifier = Modifier.fillMaxWidth().height(0.5.dp), color = Color(0xFF1E222D))
 
         // Last Viewed Pane (Recent Pairs)
@@ -129,7 +62,6 @@ fun BottomBar(
                 recentPairs.forEach { (symbol, timeframe) ->
                     val isActive = symbol == currentSymbol && timeframe == currentTimeframe
                     
-                    // Mock price change data for UI parity with the request image
                     val (changeText, isUp) = when {
                         symbol.contains("BTC") -> "+2.4%" to true
                         symbol.contains("ETH") -> "-1.8%" to false
@@ -151,9 +83,7 @@ fun BottomBar(
                             .padding(horizontal = 6.dp, vertical = 6.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.wrapContentWidth()) {
-                            // Overlapping Icons
                             Box(modifier = Modifier.width(32.dp).height(20.dp), contentAlignment = Alignment.CenterStart) {
-                                // Base icon (Coin)
                                 Box(
                                     modifier = Modifier
                                         .size(18.dp)
@@ -161,7 +91,6 @@ fun BottomBar(
                                         .background(getSymbolFlagColor(symbol))
                                         .border(1.dp, Color.Black, CircleShape)
                                 )
-                                // Overlapping Flag icon
                                 Box(
                                     modifier = Modifier
                                         .padding(start = 12.dp)
@@ -171,7 +100,6 @@ fun BottomBar(
                                         .border(1.dp, Color.Black, CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    // Mini flag pattern representation
                                     Column(modifier = Modifier.fillMaxSize()) {
                                         Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF002868)))
                                         Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFFBF0A30)))
@@ -212,60 +140,7 @@ fun BottomBar(
                 }
             }
 
-            // Separator between recent pairs and date range
             Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF1E222D))
-        }
-
-        // Date Pane
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(40.dp)
-                .padding(horizontal = 1.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { onGoToClick() }
-            ) {
-                Text("GoTo", color = Color(0xFF787B86), fontSize = fontSize)
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(
-                    Icons.Default.DateRange,
-                    null,
-                    tint = Color(0xFF787B86),
-                    modifier = Modifier.size(21.6.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(currentTime, color = Color.White, fontSize = fontSize)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    selectedTimeZone,
-                    color = Color.White,
-                    fontSize = fontSize,
-                    modifier = Modifier.clickable { onTimeZoneClick() }
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(marketStatusColor)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    countdownText,
-                    color = marketStatusColor,
-                    fontSize = fontSize,
-                    fontWeight = FontWeight.Medium
-                )
-            }
         }
     }
 }

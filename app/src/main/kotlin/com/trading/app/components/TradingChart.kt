@@ -143,10 +143,12 @@ fun TradingChart(
     onFullscreenExit: () -> Unit = {},
     scrollToTimestamp: Long? = null,
     onScrollDone: () -> Unit = {},
-    onLongPress: () -> Unit = {}
+    onLongPress: () -> Unit = {},
+    selectedTimeZone: String = "UTC"
 ) {
     var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
     var volumeData by remember { mutableStateOf<List<HistogramData>>(emptyList()) }
+    var showMarketStatus by remember { mutableStateOf(false) }
 
     var currentQuote by remember { mutableStateOf<SymbolQuote?>(
         SymbolQuote(
@@ -499,30 +501,39 @@ fun TradingChart(
                         fontWeight = FontWeight.Bold
                     )
                     
-                    // Green Dot for Market Open with shadow/glow
+                    // Market Status Dot
                     if (chartSettings.statusLine.openMarketStatus) {
+                        val isCrypto = symbol.uppercase().contains("BTC") || symbol.uppercase().contains("ETH")
+                        val calendar = Calendar.getInstance()
+                        val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+                        val isOpen = isCrypto || (dayOfWeek != Calendar.SATURDAY && dayOfWeek != Calendar.SUNDAY)
+                        val dotColor = if (isOpen) ComposeColor(0xFF089981) else ComposeColor(0xFF787B86)
+
                         Spacer(modifier = Modifier.width(12.dp))
-                        Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.clickable { showMarketStatus = true }
+                        ) {
                             // Outer soft glow
                             Box(
                                 modifier = Modifier
                                     .size(28.dp)
                                     .clip(CircleShape)
-                                    .background(ComposeColor(0xFF089981).copy(alpha = 0.15f))
+                                    .background(dotColor.copy(alpha = 0.15f))
                             )
                             // Inner prominent glow
                             Box(
                                 modifier = Modifier
                                     .size(20.dp)
                                     .clip(CircleShape)
-                                    .background(ComposeColor(0xFF089981).copy(alpha = 0.35f))
+                                    .background(dotColor.copy(alpha = 0.35f))
                             )
                             // Main Dot
                             Box(
                                 modifier = Modifier
                                     .size(11.dp)
                                     .clip(CircleShape)
-                                    .background(ComposeColor(0xFF089981))
+                                    .background(dotColor)
                             )
                         }
                     }
@@ -619,6 +630,14 @@ fun TradingChart(
                     }
                 }
             }
+        }
+
+        if (showMarketStatus) {
+            MarketStatusModal(
+                symbol = symbol,
+                selectedTimeZone = selectedTimeZone,
+                onDismiss = { showMarketStatus = false }
+            )
         }
     }
 }

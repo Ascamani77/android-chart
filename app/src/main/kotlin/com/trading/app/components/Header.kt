@@ -48,7 +48,8 @@ fun Header(
     onCrosshairToggle: () -> Unit = {},
     backgroundColor: Color = Color(0xFF08090C),
     settings: ChartSettings = ChartSettings(),
-    isAtBottom: Boolean = true
+    isAtBottom: Boolean = true,
+    onGoToClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     var showTimeframeMenu by remember { mutableStateOf(false) }
@@ -109,6 +110,13 @@ fun Header(
                         tint = if (isCrosshairActive) Color(0xFF2962FF) else Color(0xFFD1D4DC),
                         modifier = Modifier.size(26.dp)
                     )
+                }
+
+                HeaderDivider()
+
+                // GoTo Button (Moved from Bottom)
+                IconButton(onClick = onGoToClick, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.DateRange, "GoTo", tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                 }
 
                 HeaderDivider()

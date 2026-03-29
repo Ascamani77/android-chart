@@ -80,6 +80,7 @@ private fun colorToHex(color: Color): String {
 fun SymbolSettingsModal(
     settings: ChartSettings,
     onUpdate: (ChartSettings) -> Unit,
+    onTimeZoneClick: () -> Unit,
     onClose: () -> Unit
 ) {
     var tempSettings by remember { mutableStateOf(settings.symbol) }
@@ -183,14 +184,16 @@ fun SymbolSettingsModal(
 
                         SettingsDropdown(
                             label = "Precision",
-                            value = tempSettings.precision
+                            value = tempSettings.precision,
+                            onClick = { /* Open precision dropdown */ }
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
 
                         SettingsDropdown(
                             label = "Timezone",
-                            value = tempSettings.timezone
+                            value = tempSettings.timezone,
+                            onClick = onTimeZoneClick
                         )
                     }
 
@@ -324,7 +327,7 @@ private fun ColorBox(color: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SettingsDropdown(label: String, value: String) {
+private fun SettingsDropdown(label: String, value: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -340,7 +343,7 @@ private fun SettingsDropdown(label: String, value: String) {
         Box(
             modifier = Modifier
                 .border(1.dp, Color(0xFF434651), RoundedCornerShape(8.dp))
-                .clickable { /* open dropdown */ }
+                .clickable { onClick() }
         ) {
             Row(
                 modifier = Modifier

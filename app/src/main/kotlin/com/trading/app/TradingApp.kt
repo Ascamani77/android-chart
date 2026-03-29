@@ -141,7 +141,6 @@ fun TradingApp() {
             TimeZone("(UTC-5) Bogota", "America/Bogota", ""),
             TimeZone("(UTC-5) Chicago", "America/Chicago", ""),
             TimeZone("(UTC-5) Lima", "America/Lima", ""),
-            TimeZone("(UTC-4) Caracas", "America/Caracas", ""),
             TimeZone("(UTC-4) New York", "America/New_York", ""),
             TimeZone("(UTC-4) Toronto", "America/Toronto", ""),
             TimeZone("(UTC-3) Buenos Aires", "America/Argentina/Buenos_Aires", ""),
@@ -482,7 +481,8 @@ fun TradingApp() {
                                 onScrollDone = { targetTimestamp = null },
                                 onLongPress = {
                                     showSettingsModal = true
-                                }
+                                },
+                                selectedTimeZone = selectedTz.label
                             )
                         }
 
@@ -530,7 +530,8 @@ fun TradingApp() {
                             isCrosshairActive = isCrosshairActive,
                             onCrosshairToggle = { isCrosshairActive = !isCrosshairActive },
                             backgroundColor = appBackgroundColor,
-                            isAtBottom = true
+                            isAtBottom = true,
+                            onGoToClick = { showGoToDateModal = true }
                         )
                     }
                 }
@@ -539,8 +540,6 @@ fun TradingApp() {
                     BottomBar(
                         onRangeClick = { handleRangeChange(it) },
                         onGoToClick = { showGoToDateModal = true },
-                        onTimeZoneClick = { showTimeZoneModal = true },
-                        selectedTimeZone = selectedTz.label,
                         onTabClick = {
                             if (activeTab == it && isBottomPanelVisible) {
                                 isBottomPanelVisible = false
@@ -659,10 +658,16 @@ fun TradingApp() {
                 onUpdate = {
                     try {
                         chartSettings = it
+                        // Update selectedTz when chartSettings.symbol.timezone changes
+                        val newTz = timeZones.find { tz -> tz.label == it.symbol.timezone }
+                        if (newTz != null) {
+                            selectedTz = newTz
+                        }
                     } catch (e: Exception) {
                         android.util.Log.e("TradingApp", "Failed applying settings", e)
                     }
                 },
+                onTimeZoneClick = { showTimeZoneModal = true },
                 onClose = { showSettingsModal = false }
             )
         }
@@ -720,6 +725,10 @@ fun TradingApp() {
                 selectedTimeZone = selectedTz,
                 onTimeZoneSelect = {
                     selectedTz = it
+                    // Also update chartSettings.symbol.timezone
+                    chartSettings = chartSettings.copy(
+                        symbol = chartSettings.symbol.copy(timezone = it.label)
+                    )
                     showTimeZoneModal = false
                 },
                 onClose = { showTimeZoneModal = false }

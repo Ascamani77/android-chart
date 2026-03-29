@@ -33,6 +33,7 @@ import com.trading.app.models.ChartSettings
 fun SettingsModal(
     settings: ChartSettings,
     onUpdate: (ChartSettings) -> Unit,
+    onTimeZoneClick: () -> Unit,
     onClose: () -> Unit
 ) {
     var activeSubModal by remember { mutableStateOf<String?>(null) }
@@ -319,7 +320,7 @@ fun SettingsModal(
                     }
                 } else {
                     when (activeSubModal) {
-                        "Symbol" -> SymbolSettingsModal(settings, onUpdate) { activeSubModal = null }
+                        "Symbol" -> SymbolSettingsModal(settings, onUpdate, onTimeZoneClick) { activeSubModal = null }
                         "Status line" -> StatusLineSettingsModal(settings, onUpdate) { activeSubModal = null }
                         "Scales and lines" -> ScalesAndLinesSettingsModal(settings, onUpdate) { activeSubModal = null }
                         "Canvas" -> CanvasSettingsModal(settings, onUpdate) { activeSubModal = null }
