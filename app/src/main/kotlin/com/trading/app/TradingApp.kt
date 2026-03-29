@@ -76,7 +76,9 @@ fun TradingApp() {
     var chartSettings by remember { 
         mutableStateOf(
             sharedPrefs.getString("chart_settings", null)?.let {
-                try { gson.fromJson(it, ChartSettings::class.java) } catch (e: Exception) { ChartSettings() }
+                try { 
+                    gson.fromJson(it, ChartSettings::class.java)
+                } catch (e: Exception) { ChartSettings() }
             } ?: ChartSettings()
         )
     }
@@ -122,7 +124,7 @@ fun TradingApp() {
     val redoStack = remember { mutableStateListOf<ChartSnapshot>() }
     val userAlerts = remember { mutableStateListOf<UserAlert>() }
 
-    // Timezone
+    // Timezone list
     val timeZones = remember {
         listOf(
             TimeZone("UTC", "UTC", ""),
@@ -276,7 +278,7 @@ fun TradingApp() {
     }
     var isTimezonePaneVisible by remember { mutableStateOf(chartSettings.quickActions.isTimezoneVisible) }
 
-    // Responsive Reposition & Safe Area Awareness: Clamp offsets to screen boundaries and safe drawing insets
+    // Responsive Reposition & Safe Area Awareness: Clamp offsets to screen boundaries
     LaunchedEffect(configuration.screenWidthDp, configuration.screenHeightDp, safeDrawingInsets) {
         val leftInset = safeDrawingInsets.getLeft(density, layoutDirection)
         val topInset = safeDrawingInsets.getTop(density)
@@ -288,9 +290,8 @@ fun TradingApp() {
         
         val buttonSizePx = with(density) { 70.dp.roundToPx() }
         val modalWidthPx = with(density) { 260.dp.roundToPx() }
-        val modalHeightPx = with(density) { 500.dp.roundToPx() } // Estimated height
+        val modalHeightPx = with(density) { 500.dp.roundToPx() }
 
-        // Safe area limits
         val minX = leftInset
         val maxX = (screenWidthPx - rightInset - buttonSizePx).coerceAtLeast(minX)
         val minY = topInset
@@ -481,11 +482,6 @@ fun TradingApp() {
                                 onScrollDone = { targetTimestamp = null },
                                 onLongPress = {
                                     showSettingsModal = true
-                                    chartSettings = chartSettings.copy(
-                                        canvas = chartSettings.canvas.copy(
-                                            headerVisible = !chartSettings.canvas.headerVisible
-                                        )
-                                    )
                                 }
                             )
                         }

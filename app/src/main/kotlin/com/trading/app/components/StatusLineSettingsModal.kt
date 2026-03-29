@@ -136,7 +136,7 @@ fun StatusLineSettingsModal(
                     }
 
                     StatusSettingCheckbox("Open market status", tempSettings.openMarketStatus) { tempSettings = tempSettings.copy(openMarketStatus = it) }
-                    StatusSettingCheckbox("Chart values", tempSettings.ohlc) { tempSettings = tempSettings.copy(ohlc = it) }
+                    StatusSettingCheckbox("OHLC", tempSettings.ohlc) { tempSettings = tempSettings.copy(ohlc = it) }
                     StatusSettingCheckbox("Bar change values", tempSettings.barChangeValues) { tempSettings = tempSettings.copy(barChangeValues = it) }
                     StatusSettingCheckbox("Volume", tempSettings.volume) { tempSettings = tempSettings.copy(volume = it) }
                     StatusSettingCheckbox("Last day change values", tempSettings.lastDayChange) { tempSettings = tempSettings.copy(lastDayChange = it) }

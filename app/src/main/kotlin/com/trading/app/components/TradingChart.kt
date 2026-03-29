@@ -2,9 +2,13 @@ package com.trading.app.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -63,18 +67,26 @@ private fun getFullSymbolName(symbol: String): String {
     }
 }
 
-private fun getFlagEmoji(symbol: String): String {
-    return when (symbol.uppercase()) {
-        "EURUSD" -> "🇪🇺🇺🇸"
-        "GBPUSD" -> "🇬🇧🇺🇸"
-        "USDJPY" -> "🇺🇸🇯🇵"
-        "AUDUSD" -> "🇦🇺🇺🇸"
-        "USDCAD" -> "🇺🇸🇨🇦"
-        "USDCHF" -> "🇺🇸🇨🇭"
-        "NZDUSD" -> "🇳🇿🇺🇸"
-        "BTCUSD" -> "₿🇺🇸"
-        "ETHUSD" -> "Ξ🇺🇸"
-        else -> "🏳️"
+private fun getSymbolLogo(symbol: String): String {
+    val s = symbol.uppercase()
+    return when {
+        s.contains("BTC") -> "₿"
+        s.contains("ETH") -> "Ξ"
+        s.contains("EUR") -> "€"
+        s.contains("GBP") -> "£"
+        s.contains("JPY") -> "¥"
+        else -> s.take(1)
+    }
+}
+
+private fun getSymbolLogoColor(symbol: String): ComposeColor {
+    val s = symbol.uppercase()
+    return when {
+        s.contains("BTC") -> ComposeColor(0xFFF7931A)
+        s.contains("ETH") -> ComposeColor(0xFF627EEA)
+        s.contains("EUR") -> ComposeColor(0xFF003399)
+        s.contains("GBP") -> ComposeColor(0xFF00247D)
+        else -> ComposeColor(0xFF2A2E39)
     }
 }
 
@@ -136,34 +148,31 @@ fun TradingChart(
     var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
     var volumeData by remember { mutableStateOf<List<HistogramData>>(emptyList()) }
 
-    // Initial mock data to ensure visibility
     var currentQuote by remember { mutableStateOf<SymbolQuote?>(
         SymbolQuote(
             name = symbol,
-            lastPrice = 65267.184f,
-            change = -26.465f,
-            changePercent = -0.04f,
-            open = 65293.65f,
-            high = 65341.45f,
-            low = 65224.85f,
-            prevClose = 65293.65f,
-            bid = 65266.70f,
-            ask = 65267.22f,
-            volume = 1000f
+            lastPrice = 66486f,
+            change = 165f,
+            changePercent = 0.25f,
+            open = 66321f,
+            high = 66540f,
+            low = 66280f,
+            prevClose = 66321f,
+            bid = 66485f,
+            ask = 66487f,
+            volume = 1500f
         )
     ) }
 
     var seriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var volumeSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
 
-    // Helper to parse hex string to IntColor
     fun String.toIntColor(): IntColor = try {
         IntColor(AndroidColor.parseColor(this))
     } catch (e: Exception) {
         IntColor(AndroidColor.GRAY)
     }
     
-    // Helper to convert thickness to LineWidth
     fun Int.toLineWidth(): LineWidth = when (this) {
         1 -> LineWidth.ONE
         2 -> LineWidth.TWO
@@ -172,7 +181,6 @@ fun TradingChart(
         else -> LineWidth.ONE
     }
     
-    // Helper to convert string style to LineStyle
     fun String.toLineStyle(): LineStyle = when (this) {
         "Solid" -> LineStyle.SOLID
         "Dashed" -> LineStyle.DASHED
@@ -180,7 +188,6 @@ fun TradingChart(
         else -> LineStyle.SOLID
     }
 
-    // MT5 Live Connection
     val mt5Service = remember {
         Mt5Service(pcIpAddress = "192.168.1.100") { quote ->
             currentQuote = quote
@@ -215,7 +222,7 @@ fun TradingChart(
         val newCandles = mutableListOf<CandlestickData>()
         val newVolumes = mutableListOf<HistogramData>()
         val random = Random()
-        var lastClose = 65045.50f
+        var lastClose = 66486f
         val now = System.currentTimeMillis() / 1000
         val interval = 86400L
 
@@ -238,7 +245,6 @@ fun TradingChart(
         seriesApi?.setData(newCandles)
         volumeSeriesApi?.setData(newVolumes)
         
-        // Update mock currentQuote when symbol changes
         currentQuote = currentQuote?.copy(
             name = symbol,
             lastPrice = lastClose,
@@ -428,66 +434,98 @@ fun TradingChart(
             }
         )
 
-        // Overlay UI
+        // Top Right Currency Selector (as circled in red in image)
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 12.dp, end = 12.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(ComposeColor(0xFF131722))
+                .border(1.dp, ComposeColor(0xFF363A45), RoundedCornerShape(4.dp))
+                .clickable { onCurrencyClick() }
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = selectedCurrency,
+                    color = ComposeColor.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.width(3.dp))
+                Icon(
+                    Icons.Default.KeyboardArrowDown,
+                    null,
+                    tint = ComposeColor(0xFF787B86),
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+
+        // Overlay UI (Top Left Status Line)
         Column(
             modifier = Modifier
                 .padding(
-                    start = 8.dp,
+                    start = 12.dp,
                     top = chartSettings.canvas.marginTop.dp,
                     end = chartSettings.canvas.marginRight.dp,
                     bottom = chartSettings.canvas.marginBottom.dp
                 )
-                .align(
-                    when (chartSettings.trading.alignment) {
-                        "Left" -> Alignment.TopStart
-                        "Right" -> Alignment.TopEnd
-                        else -> Alignment.TopStart
-                    }
-                )
+                .align(Alignment.TopStart)
         ) {
-            // Symbol Name and Flags
+            // Line 1: Asset Name and Market Status Green Dot
             if (chartSettings.statusLine.symbol) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (chartSettings.statusLine.logo) {
-                        Box(modifier = Modifier.size(32.dp).padding(end = 8.dp)) {
-                            // Overlapping circles for flags
-                            Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(ComposeColor.White).align(Alignment.TopStart))
-                            Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(ComposeColor.Gray).align(Alignment.BottomEnd))
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .background(getSymbolLogoColor(symbol)),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(
-                                text = getFlagEmoji(symbol),
+                                text = getSymbolLogo(symbol),
+                                color = ComposeColor.White,
                                 fontSize = 12.sp,
-                                modifier = Modifier.align(Alignment.Center)
+                                fontWeight = FontWeight.Bold
                             )
                         }
+                        Spacer(modifier = Modifier.width(8.dp))
                     }
                     Text(
                         text = if (chartSettings.statusLine.titleMode == "Description") getFullSymbolName(symbol) else symbol,
-                        color = ComposeColor.White,
-                        fontSize = chartSettings.canvas.symbolFontSize.sp,
-                        fontWeight = if (chartSettings.canvas.headerFontBold) FontWeight.Bold else FontWeight.Medium
+                        color = ComposeColor(0xFFB2B5BE), // Muted grey to match TradingView
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
                     )
                     
-                    // Scale indicator showing current label
-                    if (chartSettings.scales.currencyAndUnit != "Hidden") {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = chartSettings.scales.symbolLabel,
-                            color = ComposeColor.Gray,
-                            fontSize = 9.sp
-                        )
-                    }
-                    
-                    // Open market status if enabled
+                    // Green Dot for Market Open with shadow/glow
                     if (chartSettings.statusLine.openMarketStatus) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Market Open",
-                            color = ComposeColor(0xFF089981),
-                            fontSize = 10.sp,
-                            modifier = Modifier
-                                .background(ComposeColor(0x20089981), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Box(contentAlignment = Alignment.Center) {
+                            // Outer soft glow
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(ComposeColor(0xFF089981).copy(alpha = 0.15f))
+                            )
+                            // Inner prominent glow
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(ComposeColor(0xFF089981).copy(alpha = 0.35f))
+                            )
+                            // Main Dot
+                            Box(
+                                modifier = Modifier
+                                    .size(11.dp)
+                                    .clip(CircleShape)
+                                    .background(ComposeColor(0xFF089981))
+                            )
+                        }
                     }
                 }
             }
@@ -495,13 +533,13 @@ fun TradingChart(
             currentQuote?.let { quote ->
                 val color = if (quote.change >= 0) ComposeColor(0xFF089981) else ComposeColor(0xFFF05252)
                 
-                // Price and Change
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                // Line 2: Price and Change
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                     Text(
                         text = formatPrice(quote.lastPrice, symbol),
-                        color = color,
-                        fontSize = chartSettings.canvas.chartItemFontSize.sp,
-                        fontWeight = if (chartSettings.canvas.headerFontBold) FontWeight.Bold else FontWeight.Medium
+                        color = ComposeColor(0xFFD1D4DC),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
                     )
                     if (chartSettings.statusLine.barChangeValues) {
                         Spacer(modifier = Modifier.width(8.dp))
@@ -510,93 +548,59 @@ fun TradingChart(
                         Text(
                             text = String.format("%s%s (%+.2f%%)", sign, formattedChange, quote.changePercent),
                             color = color,
-                            fontSize = chartSettings.canvas.chartItemFontSize.sp,
-                            fontWeight = if (chartSettings.canvas.headerFontBold) FontWeight.Bold else FontWeight.Medium
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
                 
-                // Last day change if enabled
-                if (chartSettings.statusLine.lastDayChange) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                        Text(
-                            text = "Prev close: ${formatPrice(quote.prevClose, symbol)}",
-                            color = ComposeColor.Gray,
-                            fontSize = chartSettings.canvas.bottomFontSize.sp
-                        )
-                    }
+                // Line 3: Indicator Status (e.g. Vol · BTC)
+                if (showVolume && chartSettings.statusLine.volume) {
+                    Text(
+                        text = "Vol · ${symbol.take(3).uppercase()}",
+                        color = ComposeColor(0xFF787B86),
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
 
-                // Bid/Ask display if enabled
-                if (chartSettings.scales.bidAskMode.contains("Value", ignoreCase = true)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                        Text(
-                            text = "Bid: ",
-                            color = ComposeColor.Gray,
-                            fontSize = chartSettings.canvas.chartItemFontSize.sp
-                        )
-                        Text(
-                            text = formatPrice(quote.bid, symbol),
-                            color = ComposeColor(android.graphics.Color.parseColor(chartSettings.scales.bidColor)),
-                            fontSize = chartSettings.canvas.chartItemFontSize.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(
-                            text = "Ask: ",
-                            color = ComposeColor.Gray,
-                            fontSize = chartSettings.canvas.chartItemFontSize.sp
-                        )
-                        Text(
-                            text = formatPrice(quote.ask, symbol),
-                            color = ComposeColor(android.graphics.Color.parseColor(chartSettings.scales.askColor)),
-                            fontSize = chartSettings.canvas.chartItemFontSize.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                // Line 4: Toggle indicators icon (under volume)
+                Box(
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .size(24.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(ComposeColor(0xFF1E222D))
+                        .border(1.dp, ComposeColor(0xFF363A45), RoundedCornerShape(4.dp))
+                        .clickable { onVolumeToggle(!showVolume) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = "Toggle Indicators",
+                        tint = ComposeColor(0xFFD1D4DC),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                // Additional Indicators
+                if (showRsi) {
+                    Text(
+                        text = "RSI ($rsiPeriod)",
+                        color = ComposeColor(0xFF787B86),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
                 }
 
                 // OHLC Row
                 if (chartSettings.statusLine.ohlc) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                        if (chartSettings.symbol.openVisible) {
-                            OhlcItem("O", quote.open, symbol, chartSettings.canvas.chartItemFontSize, chartSettings.canvas.bottomFontBold)
-                        }
-                        if (chartSettings.symbol.highVisible) {
-                            OhlcItem("H", quote.high, symbol, chartSettings.canvas.chartItemFontSize, chartSettings.canvas.bottomFontBold)
-                        }
-                        if (chartSettings.symbol.lowVisible) {
-                            OhlcItem("L", quote.low, symbol, chartSettings.canvas.chartItemFontSize, chartSettings.canvas.bottomFontBold)
-                        }
-                        if (chartSettings.symbol.closeVisible) {
-                            OhlcItem("C", quote.lastPrice, symbol, chartSettings.canvas.chartItemFontSize, chartSettings.canvas.bottomFontBold)
-                        }
-                        
-                        if (chartSettings.statusLine.barChangeValues) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            val formattedChange = formatPrice(quote.change, symbol)
-                            val sign = if (quote.change >= 0) "+" else ""
-                            Text(
-                                text = String.format("%s%s (%+.2f%%)", sign, formattedChange, quote.changePercent),
-                                color = color,
-                                fontSize = chartSettings.canvas.chartItemFontSize.sp,
-                                fontWeight = if (chartSettings.canvas.bottomFontBold) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+                        if (chartSettings.symbol.openVisible) OhlcItem("O", quote.open, symbol)
+                        if (chartSettings.symbol.highVisible) OhlcItem("H", quote.high, symbol)
+                        if (chartSettings.symbol.lowVisible) OhlcItem("L", quote.low, symbol)
+                        if (chartSettings.symbol.closeVisible) OhlcItem("C", quote.lastPrice, symbol)
                     }
-                }
-
-                // Bar Change (separate line if requested or just showing more info)
-                if (chartSettings.statusLine.barChangeValues && !chartSettings.statusLine.ohlc) {
-                    val formattedChange = formatPrice(quote.change, symbol)
-                    val sign = if (quote.change >= 0) "+" else ""
-                    Text(
-                        text = String.format("Bar change: %s%s (%+.2f%%)", sign, formattedChange, quote.changePercent),
-                        color = color,
-                        fontSize = chartSettings.canvas.chartItemFontSize.sp,
-                        fontWeight = if (chartSettings.canvas.bottomFontBold) FontWeight.Bold else FontWeight.Normal,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
                 }
 
                 // Buy/Sell Buttons
@@ -613,261 +617,6 @@ fun TradingChart(
                             price = formatPrice(quote.ask, symbol),
                             backgroundColor = ComposeColor(android.graphics.Color.parseColor(chartSettings.scales.askColor))
                         )
-                        
-                        // One-click trading indicator
-                        if (chartSettings.trading.oneClickTrading) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .background(ComposeColor(0xFF4CAF50), RoundedCornerShape(4.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("1", color = ComposeColor.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-                
-                // Positions and Profit/Loss if enabled
-                if (chartSettings.trading.positionsAndOrders) {
-                    Column(modifier = Modifier.padding(top = 12.dp).fillMaxWidth(0.5f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Positions", color = ComposeColor.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            
-                            // Show position mode (Money/Contracts)
-                            if (chartSettings.trading.positionsMode == "Contracts") {
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("(${chartSettings.trading.positionsMode})", color = ComposeColor.Gray, fontSize = 9.sp)
-                            }
-                        }
-                        
-                        // Sample position entry
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp)
-                                .background(ComposeColor(0x20089981), RoundedCornerShape(4.dp))
-                                .padding(4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("Long x1", color = ComposeColor(0xFF089981), fontSize = 10.sp)
-                            
-                            if (!chartSettings.trading.screenshotVisibility) {
-                                if (chartSettings.trading.profitLossValue) {
-                                    if (chartSettings.trading.positionsMode == "Contracts") {
-                                        Text("100 contracts", color = ComposeColor.Gray, fontSize = 9.sp)
-                                    } else {
-                                        Text("+50.00 USD", color = ComposeColor(0xFF089981), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Reverse position button if enabled
-                        if (chartSettings.trading.reversePositionButton) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 6.dp)
-                                    .background(ComposeColor(0xFFEF5350), RoundedCornerShape(4.dp))
-                                    .clickable { }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Text("Reverse", color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-                
-                // Execution marks if enabled
-                if (chartSettings.trading.executionMarks) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                            .background(ComposeColor(0x15FFFFFF), RoundedCornerShape(4.dp))
-                            .padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Execution", color = ComposeColor.Gray, fontSize = 10.sp)
-                        
-                        if (chartSettings.trading.executionLabels) {
-                            Text("BUY @ 50.25", color = ComposeColor(0xFF089981), fontSize = 9.sp)
-                        }
-                    }
-                }
-                
-                // Extended price lines indicator
-                if (chartSettings.trading.extendedPriceLines) {
-                    Row(modifier = Modifier.padding(top = 2.dp)) {
-                        Text(
-                            text = "Extended lines active",
-                            color = ComposeColor(0xFFB39DDB),
-                            fontSize = 9.sp,
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        )
-                    }
-                }
-                
-                // Project order if enabled
-                if (chartSettings.trading.projectOrder) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                            .background(ComposeColor(0x154CAF50), RoundedCornerShape(4.dp))
-                            .padding(4.dp)
-                    ) {
-                        Text("Projected Order", color = ComposeColor(0xFF4CAF50), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Row(modifier = Modifier.padding(top = 2.dp)) {
-                            Text("Entry: 50.00", color = ComposeColor.Gray, fontSize = 9.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("TP: 52.00", color = ComposeColor.Gray, fontSize = 9.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("SL: 48.00", color = ComposeColor.Gray, fontSize = 9.sp)
-                        }
-                    }
-                }
-                
-                // Brackets mode if not Money
-                if (chartSettings.trading.bracketsMode == "Contracts") {
-                    Text(
-                        text = "Brackets: ${chartSettings.trading.bracketsMode}",
-                        color = ComposeColor.Gray,
-                        fontSize = 9.sp,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-                
-                // ALERTS SECTION
-                // Alert Lines indicator
-                if (chartSettings.alerts.alertLines) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                            .background(ComposeColor(0x15FFFFFF), RoundedCornerShape(4.dp))
-                            .padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Alert Lines", color = ComposeColor.Gray, fontSize = 10.sp)
-                        
-                        if (chartSettings.alerts.onlyActiveAlerts) {
-                            Text("(Active only)", color = ComposeColor(0xFFB39DDB), fontSize = 9.sp)
-                        }
-                    }
-                }
-                
-                // Alert Volume indicator
-                if (chartSettings.alerts.alertVolume) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                            .background(ComposeColor(0x15FFA500), RoundedCornerShape(4.dp))
-                            .padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Volume Alert", color = ComposeColor.Gray, fontSize = 10.sp)
-                        Text("${chartSettings.alerts.volumeLevel}%", color = ComposeColor(0xFFFFA500), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-                
-                // EVENTS SECTION
-                // Economic Events indicator
-                if (chartSettings.events.economicEvents) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                            .background(ComposeColor(0x1542A5F5), RoundedCornerShape(4.dp))
-                            .padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Economic Events", color = ComposeColor.Gray, fontSize = 10.sp)
-                        
-                        if (chartSettings.events.onlyFutureEvents) {
-                            Text("(Future)", color = ComposeColor(0xFF42A5F5), fontSize = 9.sp)
-                        }
-                    }
-                }
-                
-                // Session Breaks indicator
-                if (chartSettings.events.sessionBreaks) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                            .alpha(0.7f)
-                            .background(
-                                ComposeColor(android.graphics.Color.parseColor(chartSettings.events.sessionBreaksColor)),
-                                RoundedCornerShape(4.dp)
-                            )
-                            .padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Session Breaks (${chartSettings.events.eventsBreaksThickness}px)",
-                            color = ComposeColor(android.graphics.Color.parseColor(chartSettings.events.sessionBreaksColor)),
-                            fontSize = 10.sp
-                        )
-                    }
-                }
-                
-                // Ideas indicator
-                if (chartSettings.events.ideas) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                            .background(ComposeColor(0x15BB86FC), RoundedCornerShape(4.dp))
-                            .padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Ideas", color = ComposeColor.Gray, fontSize = 10.sp)
-                        Text(chartSettings.events.ideasMode, color = ComposeColor(0xFFBB86FC), fontSize = 9.sp)
-                    }
-                }
-                
-                // Event Breaks indicator
-                if (chartSettings.events.eventsBreaks) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                            .alpha(0.7f)
-                            .background(
-                                ComposeColor(android.graphics.Color.parseColor(chartSettings.events.eventsBreaksColor)),
-                                RoundedCornerShape(4.dp)
-                            )
-                            .padding(4.dp)
-                    ) {
-                        Text(
-                            text = "Event Breaks",
-                            color = ComposeColor(android.graphics.Color.parseColor(chartSettings.events.eventsBreaksColor)),
-                            fontSize = 10.sp
-                        )
-                    }
-                }
-                
-                // Toast notification indicator
-                if (!chartSettings.alerts.hideToasts) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                            .background(ComposeColor(0x1550C878), RoundedCornerShape(4.dp))
-                            .padding(4.dp)
-                    ) {
-                        Text("Notifications enabled", color = ComposeColor(0xFF50C878), fontSize = 9.sp)
                     }
                 }
             }
@@ -886,10 +635,10 @@ private fun formatPrice(price: Float, symbol: String = ""): String {
 }
 
 @Composable
-fun OhlcItem(label: String, value: Float, symbol: String, fontSize: Int = 11, isBold: Boolean = false) {
-    Row(modifier = Modifier.padding(end = 6.dp)) {
-        Text(text = "$label ", color = ComposeColor.Gray, fontSize = fontSize.sp)
-        Text(text = formatPrice(value, symbol), color = ComposeColor.White, fontSize = fontSize.sp, fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal)
+fun OhlcItem(label: String, value: Float, symbol: String) {
+    Row(modifier = Modifier.padding(end = 8.dp)) {
+        Text(text = "$label ", color = ComposeColor.Gray, fontSize = 11.sp)
+        Text(text = formatPrice(value, symbol), color = ComposeColor.White, fontSize = 11.sp)
     }
 }
 
@@ -897,10 +646,10 @@ fun OhlcItem(label: String, value: Float, symbol: String, fontSize: Int = 11, is
 fun TradingButton(label: String, price: String, backgroundColor: ComposeColor) {
     Column(
         modifier = Modifier
-            .width(80.dp)
+            .width(85.dp)
             .clip(RoundedCornerShape(4.dp))
             .background(backgroundColor)
-            .padding(horizontal = 2.dp, vertical = 4.dp),
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (label.isNotEmpty()) {

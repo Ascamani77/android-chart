@@ -39,7 +39,7 @@ data class StatusLineSettings(
     val symbol: Boolean = true,
     val titleMode: String = "Description",
     val openMarketStatus: Boolean = true,
-    val ohlc: Boolean = true,
+    val ohlc: Boolean = false, // Set to false by default
     val barChangeValues: Boolean = true,
     val volume: Boolean = true,
     val lastDayChange: Boolean = false,
@@ -114,7 +114,7 @@ data class CanvasSettings(
 )
 
 data class TradingSettings(
-    val buySellButtons: Boolean = true,
+    val buySellButtons: Boolean = false, // Set to false by default
     val showBuySellLabels: Boolean = true,
     val oneClickTrading: Boolean = false,
     val executionSound: Boolean = false,
