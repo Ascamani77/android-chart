@@ -66,11 +66,9 @@ fun Header(
                 .fillMaxWidth()
                 .height(50.4.dp)
                 .background(backgroundColor)
-                .padding(horizontal = 8.dp),
+                .padding(start = 1.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Spacer(modifier = Modifier.width(4.dp))
-
             // 1. STATIC LEFT: Asset Pair Button
             Row(
                 modifier = Modifier.padding(end = 4.dp),

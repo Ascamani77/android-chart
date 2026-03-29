@@ -29,6 +29,8 @@ import com.tradingview.lightweightcharts.api.chart.models.color.IntColor
 import com.tradingview.lightweightcharts.api.series.models.Time
 import com.tradingview.lightweightcharts.api.chart.models.color.surface.SolidColor
 import android.graphics.Color as AndroidColor
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 
 // Data class to match the "Quote" structure
 data class SymbolQuote(
@@ -252,6 +254,11 @@ fun TradingChart(
         AndroidView(
             factory = { context ->
                 ChartsView(context).apply {
+                    val uppercaseSymbol = symbol.uppercase()
+                    val isBitcoin = uppercaseSymbol.contains("BTC") || uppercaseSymbol.contains("BITCOIN")
+                    val precision = if (isBitcoin) 0 else 2
+                    val minMove = if (isBitcoin) 1f else 0.01f
+
                     api.applyOptions {
                         layout = LayoutOptions(
                             background = SolidColor(color = getFullChartColor(chartSettings.canvas.fullChartColor, chartSettings.canvas.background)),
@@ -282,7 +289,8 @@ fun TradingChart(
                             )
                         )
                         rightPriceScale = PriceScaleOptions(
-                            borderColor = chartSettings.canvas.scaleLineColor.toIntColor()
+                            borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
+                            entireTextOnly = false
                         )
                         timeScale = TimeScaleOptions(
                             borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
@@ -292,6 +300,9 @@ fun TradingChart(
                             visible = chartSettings.canvas.watermarkVisible,
                             color = chartSettings.canvas.watermarkColor.toIntColor(),
                             text = if (chartSettings.canvas.watermarkVisible) symbol else ""
+                        )
+                        localization = LocalizationOptions(
+                            locale = "en-US"
                         )
                     }
 
@@ -304,7 +315,12 @@ fun TradingChart(
                             borderDownColor = chartSettings.symbol.borderColorDown.toIntColor(),
                             wickVisible = chartSettings.symbol.wickVisible,
                             wickUpColor = chartSettings.symbol.wickColorUp.toIntColor(),
-                            wickDownColor = chartSettings.symbol.wickColorDown.toIntColor()
+                            wickDownColor = chartSettings.symbol.wickColorDown.toIntColor(),
+                            priceFormat = PriceFormat.priceFormatBuiltIn(
+                                type = PriceFormat.Type.PRICE,
+                                precision = precision,
+                                minMove = minMove
+                            )
                         ),
                         onSeriesCreated = { api ->
                             seriesApi = api
@@ -336,6 +352,11 @@ fun TradingChart(
             },
             modifier = Modifier.fillMaxSize(),
             update = { chartsView ->
+                val uppercaseSymbol = symbol.uppercase()
+                val isBitcoin = uppercaseSymbol.contains("BTC") || uppercaseSymbol.contains("BITCOIN")
+                val precision = if (isBitcoin) 0 else 2
+                val minMove = if (isBitcoin) 1f else 0.01f
+
                 chartsView.api.applyOptions {
                     layout = LayoutOptions(
                         background = SolidColor(color = getFullChartColor(chartSettings.canvas.fullChartColor, chartSettings.canvas.background)),
@@ -365,7 +386,8 @@ fun TradingChart(
                         )
                     )
                     rightPriceScale = PriceScaleOptions(
-                        borderColor = chartSettings.canvas.scaleLineColor.toIntColor()
+                        borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
+                        entireTextOnly = false
                     )
                     timeScale = TimeScaleOptions(
                         borderColor = chartSettings.canvas.scaleLineColor.toIntColor()
@@ -374,6 +396,9 @@ fun TradingChart(
                         visible = chartSettings.canvas.watermarkVisible,
                         color = chartSettings.canvas.watermarkColor.toIntColor(),
                         text = if (chartSettings.canvas.watermarkVisible) symbol else ""
+                    )
+                    localization = LocalizationOptions(
+                        locale = "en-US"
                     )
                 }
                 
@@ -386,7 +411,12 @@ fun TradingChart(
                         borderDownColor = chartSettings.symbol.borderColorDown.toIntColor(),
                         wickVisible = chartSettings.symbol.wickVisible,
                         wickUpColor = chartSettings.symbol.wickColorUp.toIntColor(),
-                        wickDownColor = chartSettings.symbol.wickColorDown.toIntColor()
+                        wickDownColor = chartSettings.symbol.wickColorDown.toIntColor(),
+                        priceFormat = PriceFormat.priceFormatBuiltIn(
+                            type = PriceFormat.Type.PRICE,
+                            precision = precision,
+                            minMove = minMove
+                        )
                     )
                 )
 
@@ -468,15 +498,17 @@ fun TradingChart(
                 // Price and Change
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                     Text(
-                        text = String.format("%.3f", quote.lastPrice),
+                        text = formatPrice(quote.lastPrice, symbol),
                         color = color,
                         fontSize = chartSettings.canvas.chartItemFontSize.sp,
                         fontWeight = if (chartSettings.canvas.headerFontBold) FontWeight.Bold else FontWeight.Medium
                     )
                     if (chartSettings.statusLine.barChangeValues) {
                         Spacer(modifier = Modifier.width(8.dp))
+                        val formattedChange = formatPrice(quote.change, symbol)
+                        val sign = if (quote.change >= 0) "+" else ""
                         Text(
-                            text = String.format("%+.3f (%+.2f%%)", quote.change, quote.changePercent),
+                            text = String.format("%s%s (%+.2f%%)", sign, formattedChange, quote.changePercent),
                             color = color,
                             fontSize = chartSettings.canvas.chartItemFontSize.sp,
                             fontWeight = if (chartSettings.canvas.headerFontBold) FontWeight.Bold else FontWeight.Medium
@@ -488,7 +520,7 @@ fun TradingChart(
                 if (chartSettings.statusLine.lastDayChange) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                         Text(
-                            text = "Prev close: ${String.format("%.2f", quote.prevClose)}",
+                            text = "Prev close: ${formatPrice(quote.prevClose, symbol)}",
                             color = ComposeColor.Gray,
                             fontSize = chartSettings.canvas.bottomFontSize.sp
                         )
@@ -504,7 +536,7 @@ fun TradingChart(
                             fontSize = chartSettings.canvas.chartItemFontSize.sp
                         )
                         Text(
-                            text = String.format("%.2f", quote.bid),
+                            text = formatPrice(quote.bid, symbol),
                             color = ComposeColor(android.graphics.Color.parseColor(chartSettings.scales.bidColor)),
                             fontSize = chartSettings.canvas.chartItemFontSize.sp,
                             fontWeight = FontWeight.Bold
@@ -516,7 +548,7 @@ fun TradingChart(
                             fontSize = chartSettings.canvas.chartItemFontSize.sp
                         )
                         Text(
-                            text = String.format("%.2f", quote.ask),
+                            text = formatPrice(quote.ask, symbol),
                             color = ComposeColor(android.graphics.Color.parseColor(chartSettings.scales.askColor)),
                             fontSize = chartSettings.canvas.chartItemFontSize.sp,
                             fontWeight = FontWeight.Bold
@@ -528,22 +560,24 @@ fun TradingChart(
                 if (chartSettings.statusLine.ohlc) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                         if (chartSettings.symbol.openVisible) {
-                            OhlcItem("O", quote.open, chartSettings.canvas.chartItemFontSize, chartSettings.canvas.bottomFontBold)
+                            OhlcItem("O", quote.open, symbol, chartSettings.canvas.chartItemFontSize, chartSettings.canvas.bottomFontBold)
                         }
                         if (chartSettings.symbol.highVisible) {
-                            OhlcItem("H", quote.high, chartSettings.canvas.chartItemFontSize, chartSettings.canvas.bottomFontBold)
+                            OhlcItem("H", quote.high, symbol, chartSettings.canvas.chartItemFontSize, chartSettings.canvas.bottomFontBold)
                         }
                         if (chartSettings.symbol.lowVisible) {
-                            OhlcItem("L", quote.low, chartSettings.canvas.chartItemFontSize, chartSettings.canvas.bottomFontBold)
+                            OhlcItem("L", quote.low, symbol, chartSettings.canvas.chartItemFontSize, chartSettings.canvas.bottomFontBold)
                         }
                         if (chartSettings.symbol.closeVisible) {
-                            OhlcItem("C", quote.lastPrice, chartSettings.canvas.chartItemFontSize, chartSettings.canvas.bottomFontBold)
+                            OhlcItem("C", quote.lastPrice, symbol, chartSettings.canvas.chartItemFontSize, chartSettings.canvas.bottomFontBold)
                         }
                         
                         if (chartSettings.statusLine.barChangeValues) {
                             Spacer(modifier = Modifier.width(8.dp))
+                            val formattedChange = formatPrice(quote.change, symbol)
+                            val sign = if (quote.change >= 0) "+" else ""
                             Text(
-                                text = String.format("%+.2f (%+.2f%%)", quote.change, quote.changePercent),
+                                text = String.format("%s%s (%+.2f%%)", sign, formattedChange, quote.changePercent),
                                 color = color,
                                 fontSize = chartSettings.canvas.chartItemFontSize.sp,
                                 fontWeight = if (chartSettings.canvas.bottomFontBold) FontWeight.Bold else FontWeight.Normal
@@ -554,8 +588,10 @@ fun TradingChart(
 
                 // Bar Change (separate line if requested or just showing more info)
                 if (chartSettings.statusLine.barChangeValues && !chartSettings.statusLine.ohlc) {
+                    val formattedChange = formatPrice(quote.change, symbol)
+                    val sign = if (quote.change >= 0) "+" else ""
                     Text(
-                        text = String.format("Bar change: %+.2f (%+.2f%%)", quote.change, quote.changePercent),
+                        text = String.format("Bar change: %s%s (%+.2f%%)", sign, formattedChange, quote.changePercent),
                         color = color,
                         fontSize = chartSettings.canvas.chartItemFontSize.sp,
                         fontWeight = if (chartSettings.canvas.bottomFontBold) FontWeight.Bold else FontWeight.Normal,
@@ -568,13 +604,13 @@ fun TradingChart(
                     Row(modifier = Modifier.padding(top = 12.dp)) {
                         TradingButton(
                             label = if (chartSettings.trading.showBuySellLabels) "SELL" else "",
-                            price = String.format("%.2f", quote.bid),
+                            price = formatPrice(quote.bid, symbol),
                             backgroundColor = ComposeColor(android.graphics.Color.parseColor(chartSettings.scales.bidColor))
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         TradingButton(
                             label = if (chartSettings.trading.showBuySellLabels) "BUY" else "",
-                            price = String.format("%.2f", quote.ask),
+                            price = formatPrice(quote.ask, symbol),
                             backgroundColor = ComposeColor(android.graphics.Color.parseColor(chartSettings.scales.askColor))
                         )
                         
@@ -839,11 +875,21 @@ fun TradingChart(
     }
 }
 
+private fun formatPrice(price: Float, symbol: String = ""): String {
+    val symbols = DecimalFormatSymbols(Locale.US)
+    symbols.groupingSeparator = ','
+    val uppercaseSymbol = symbol.uppercase()
+    val isBitcoin = uppercaseSymbol.contains("BTC") || uppercaseSymbol.contains("BITCOIN")
+    val pattern = if (isBitcoin) "#,##0" else "#,##0.##"
+    val df = DecimalFormat(pattern, symbols)
+    return df.format(price)
+}
+
 @Composable
-fun OhlcItem(label: String, value: Float, fontSize: Int = 11, isBold: Boolean = false) {
+fun OhlcItem(label: String, value: Float, symbol: String, fontSize: Int = 11, isBold: Boolean = false) {
     Row(modifier = Modifier.padding(end = 6.dp)) {
         Text(text = "$label ", color = ComposeColor.Gray, fontSize = fontSize.sp)
-        Text(text = String.format("%.2f", value), color = ComposeColor.White, fontSize = fontSize.sp, fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal)
+        Text(text = formatPrice(value, symbol), color = ComposeColor.White, fontSize = fontSize.sp, fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal)
     }
 }
 
