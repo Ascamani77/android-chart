@@ -1,5 +1,6 @@
 package com.trading.app.components
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
@@ -146,13 +147,9 @@ fun TradingChart(
     selectedTimeZone: String = "UTC"
 ) {
     var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
-    var volumeData by remember { mutableStateOf<List<HistogramData>>(emptyList()) }
-    var showMarketStatus by remember { mutableStateOf(false) }
-
     var currentQuote by remember { mutableStateOf<SymbolQuote?>(null) }
-
     var seriesApi by remember { mutableStateOf<SeriesApi?>(null) }
-    var volumeSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var showMarketStatus by remember { mutableStateOf(false) }
 
     fun String.toIntColor(): IntColor = try {
         IntColor(AndroidColor.parseColor(this))
@@ -176,83 +173,59 @@ fun TradingChart(
     }
 
     val mt5Service = remember {
-        Mt5Service(pcIpAddress = "192.168.1.100") { quote ->
-            currentQuote = quote
-            seriesApi?.let { api ->
-                val lastCandle = candlestickData.lastOrNull()
-                if (lastCandle != null) {
-                    val updatedCandle = CandlestickData(
-                        time = lastCandle.time,
-                        open = lastCandle.open,
-                        high = maxOf(lastCandle.high, quote.lastPrice),
-                        low = minOf(lastCandle.low, quote.lastPrice),
-                        close = quote.lastPrice
-                    )
-                    api.update(updatedCandle)
-                }
+        Mt5Service(
+            pcIpAddress = "172.26.23.133", 
+            port = 8081,
+            onHistoryUpdate = { history ->
+                Log.d("TradingChart", "Updating chart with ${history.size} candles")
+                candlestickData = history
+            },
+            onQuoteUpdate = { quote ->
+                currentQuote = quote
             }
+        )
+    }
+
+    LaunchedEffect(Unit) {
+        mt5Service.connect()
+    }
+
+    LaunchedEffect(symbol, timeframe) {
+        mt5Service.subscribe(symbol, timeframe)
+    }
+
+    LaunchedEffect(candlestickData, seriesApi, style) {
+        val api = seriesApi ?: return@LaunchedEffect
+        if (candlestickData.isNotEmpty()) {
+            when (style) {
+                "bars" -> api.setData(candlestickData.map { BarData(it.time, it.open, it.high, it.low, it.close) })
+                "line", "area" -> api.setData(candlestickData.map { LineData(it.time, it.close) })
+                "heikin_ashi" -> api.setData(calculateHeikinAshi(candlestickData))
+                else -> api.setData(candlestickData)
+            }
+            Log.d("TradingChart", "Data applied to series")
         }
     }
 
-    LaunchedEffect(symbol) {
-        mt5Service.connect()
-        mt5Service.subscribe(symbol)
+    LaunchedEffect(currentQuote) {
+        val quote = currentQuote ?: return@LaunchedEffect
+        val api = seriesApi ?: return@LaunchedEffect
+        val lastCandle = candlestickData.lastOrNull() ?: return@LaunchedEffect
+        
+        val updatedCandle = CandlestickData(
+            time = lastCandle.time,
+            open = lastCandle.open,
+            high = maxOf(lastCandle.high, quote.lastPrice),
+            low = minOf(lastCandle.low, quote.lastPrice),
+            close = quote.lastPrice
+        )
+        api.update(updatedCandle)
     }
 
     DisposableEffect(Unit) {
         onDispose {
             mt5Service.disconnect()
         }
-    }
-
-    LaunchedEffect(symbol, timeframe) {
-        val newCandles = mutableListOf<CandlestickData>()
-        val newVolumes = mutableListOf<HistogramData>()
-        val random = Random()
-        var lastClose = 66486f
-        val now = System.currentTimeMillis() / 1000
-        val interval = 86400L
-
-        for (i in 0 until 500) {
-            val open = lastClose
-            val close = open + (random.nextFloat() - 0.5f) * 100f
-            val high = maxOf(open, close) + random.nextFloat() * 50f
-            val low = minOf(open, close) - random.nextFloat() * 50f
-            val time = Time.Utc(now - (500 - i) * interval)
-
-            newCandles.add(CandlestickData(time, open, high, low, close))
-            
-            val volColor = if (close >= open) "#089981" else "#F05252"
-            newVolumes.add(HistogramData(time, random.nextFloat() * 1000f + 200f, color = volColor.toIntColor()))
-            lastClose = close
-        }
-
-        candlestickData = newCandles
-        volumeData = newVolumes
-        
-        seriesApi?.let { api ->
-            when (style) {
-                "bars" -> api.setData(newCandles.map { BarData(it.time, it.open, it.high, it.low, it.close) })
-                "line", "area" -> api.setData(newCandles.map { LineData(it.time, it.close) })
-                "heikin_ashi" -> api.setData(calculateHeikinAshi(newCandles))
-                else -> api.setData(newCandles)
-            }
-        }
-        volumeSeriesApi?.setData(newVolumes)
-        
-        currentQuote = SymbolQuote(
-            name = symbol,
-            lastPrice = lastClose,
-            change = 165f,
-            changePercent = 0.25f,
-            open = lastClose - 10f,
-            high = lastClose + 20f,
-            low = lastClose - 30f,
-            prevClose = lastClose - 165f,
-            bid = lastClose - 0.5f,
-            ask = lastClose + 0.5f,
-            volume = 1500f
-        )
     }
 
     val chartBgColor = getFullChartColor(chartSettings.canvas.fullChartColor, chartSettings.canvas.background)
@@ -320,36 +293,18 @@ fun TradingChart(
                                     options = BarSeriesOptions(
                                         upColor = chartSettings.symbol.upColor.toIntColor(),
                                         downColor = chartSettings.symbol.downColor.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(
-                                            type = PriceFormat.Type.PRICE,
-                                            precision = precision,
-                                            minMove = minMove
-                                        )
+                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove)
                                     ),
-                                    onSeriesCreated = { api ->
-                                        seriesApi = api
-                                        api.setData(candlestickData.map {
-                                            BarData(it.time, it.open, it.high, it.low, it.close)
-                                        })
-                                    }
+                                    onSeriesCreated = { api -> seriesApi = api }
                                 )
                             }
                             "line" -> {
                                 api.addLineSeries(
                                     options = LineSeriesOptions(
                                         color = chartSettings.symbol.upColor.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(
-                                            type = PriceFormat.Type.PRICE,
-                                            precision = precision,
-                                            minMove = minMove
-                                        )
+                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove)
                                     ),
-                                    onSeriesCreated = { api ->
-                                        seriesApi = api
-                                        api.setData(candlestickData.map {
-                                            LineData(it.time, it.close)
-                                        })
-                                    }
+                                    onSeriesCreated = { api -> seriesApi = api }
                                 )
                             }
                             "area" -> {
@@ -359,64 +314,9 @@ fun TradingChart(
                                         topColor = IntColor(baseColorInt),
                                         bottomColor = IntColor(applyOpacity(baseColorInt, 10)),
                                         lineColor = IntColor(baseColorInt),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(
-                                            type = PriceFormat.Type.PRICE,
-                                            precision = precision,
-                                            minMove = minMove
-                                        )
+                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove)
                                     ),
-                                    onSeriesCreated = { api ->
-                                        seriesApi = api
-                                        api.setData(candlestickData.map { 
-                                            LineData(it.time, it.close)
-                                        })
-                                    }
-                                )
-                            }
-                            "hollow_candles" -> {
-                                api.addCandlestickSeries(
-                                    options = CandlestickSeriesOptions(
-                                        upColor = IntColor(AndroidColor.TRANSPARENT),
-                                        downColor = chartSettings.symbol.downColor.toIntColor(),
-                                        borderVisible = true,
-                                        borderUpColor = chartSettings.symbol.upColor.toIntColor(),
-                                        borderDownColor = chartSettings.symbol.downColor.toIntColor(),
-                                        wickVisible = true,
-                                        wickUpColor = chartSettings.symbol.upColor.toIntColor(),
-                                        wickDownColor = chartSettings.symbol.downColor.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(
-                                            type = PriceFormat.Type.PRICE,
-                                            precision = precision,
-                                            minMove = minMove
-                                        )
-                                    ),
-                                    onSeriesCreated = { api ->
-                                        seriesApi = api
-                                        api.setData(candlestickData)
-                                    }
-                                )
-                            }
-                            "heikin_ashi" -> {
-                                api.addCandlestickSeries(
-                                    options = CandlestickSeriesOptions(
-                                        upColor = chartSettings.symbol.upColor.toIntColor(),
-                                        downColor = chartSettings.symbol.downColor.toIntColor(),
-                                        borderVisible = chartSettings.symbol.borderVisible,
-                                        borderUpColor = chartSettings.symbol.borderColorUp.toIntColor(),
-                                        borderDownColor = chartSettings.symbol.borderColorDown.toIntColor(),
-                                        wickVisible = chartSettings.symbol.wickVisible,
-                                        wickUpColor = chartSettings.symbol.wickColorUp.toIntColor(),
-                                        wickDownColor = chartSettings.symbol.wickColorDown.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(
-                                            type = PriceFormat.Type.PRICE,
-                                            precision = precision,
-                                            minMove = minMove
-                                        )
-                                    ),
-                                    onSeriesCreated = { api ->
-                                        seriesApi = api
-                                        api.setData(calculateHeikinAshi(candlestickData))
-                                    }
+                                    onSeriesCreated = { api -> seriesApi = api }
                                 )
                             }
                             else -> {
@@ -430,49 +330,16 @@ fun TradingChart(
                                         wickVisible = chartSettings.symbol.wickVisible,
                                         wickUpColor = chartSettings.symbol.wickColorUp.toIntColor(),
                                         wickDownColor = chartSettings.symbol.wickColorDown.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(
-                                            type = PriceFormat.Type.PRICE,
-                                            precision = precision,
-                                            minMove = minMove
-                                        )
+                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove)
                                     ),
-                                    onSeriesCreated = { api ->
-                                        seriesApi = api
-                                        api.setData(candlestickData)
-                                    }
+                                    onSeriesCreated = { api -> seriesApi = api }
                                 )
                             }
-                        }
-
-                        if (showVolume) {
-                            api.addHistogramSeries(
-                                options = HistogramSeriesOptions(
-                                    priceScaleId = PriceScaleId("volume")
-                                ),
-                                onSeriesCreated = { api ->
-                                    volumeSeriesApi = api
-                                    api.priceScale().applyOptions(
-                                        PriceScaleOptions(
-                                            scaleMargins = PriceScaleMargins(
-                                                top = 0.9f,
-                                                bottom = 0f
-                                            ),
-                                            visible = false
-                                        )
-                                    )
-                                    api.setData(volumeData)
-                                }
-                            )
                         }
                     }
                 },
                 modifier = Modifier.fillMaxSize(),
                 update = { chartsView ->
-                    val uppercaseSymbol = symbol.uppercase()
-                    val isBitcoin = uppercaseSymbol.contains("BTC") || uppercaseSymbol.contains("BITCOIN")
-                    val precision = if (isBitcoin) 0 else 2
-                    val minMove = if (isBitcoin) 1f else 0.01f
-
                     chartsView.api.applyOptions {
                         layout = LayoutOptions(
                             background = SolidColor(color = chartBgColor),
@@ -501,151 +368,12 @@ fun TradingChart(
                                 style = chartSettings.canvas.crosshairLineStyle.toLineStyle()
                             )
                         )
-                        rightPriceScale = PriceScaleOptions(
-                            borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
-                            entireTextOnly = false
-                        )
-                        timeScale = TimeScaleOptions(
-                            borderColor = chartSettings.canvas.scaleLineColor.toIntColor()
-                        )
-                        watermark = WatermarkOptions(
-                            visible = chartSettings.canvas.watermarkVisible,
-                            color = chartSettings.canvas.watermarkColor.toIntColor(),
-                            text = if (chartSettings.canvas.watermarkVisible) symbol else ""
-                        )
-                        localization = LocalizationOptions(
-                            locale = "en-US"
-                        )
                     }
-                    
-                    seriesApi?.let { api ->
-                        when (style) {
-                            "bars" -> {
-                                api.applyOptions(
-                                    BarSeriesOptions(
-                                        upColor = chartSettings.symbol.upColor.toIntColor(),
-                                        downColor = chartSettings.symbol.downColor.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(
-                                            type = PriceFormat.Type.PRICE,
-                                            precision = precision,
-                                            minMove = minMove
-                                        )
-                                    )
-                                )
-                            }
-                            "line" -> {
-                                api.applyOptions(
-                                    LineSeriesOptions(
-                                        color = chartSettings.symbol.upColor.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(
-                                            type = PriceFormat.Type.PRICE,
-                                            precision = precision,
-                                            minMove = minMove
-                                        )
-                                    )
-                                )
-                            }
-                            "area" -> {
-                                val baseColorInt = try { AndroidColor.parseColor(chartSettings.symbol.upColor) } catch (e: Exception) { AndroidColor.GREEN }
-                                api.applyOptions(
-                                    AreaSeriesOptions(
-                                        topColor = IntColor(baseColorInt),
-                                        bottomColor = IntColor(applyOpacity(baseColorInt, 10)),
-                                        lineColor = IntColor(baseColorInt),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(
-                                            type = PriceFormat.Type.PRICE,
-                                            precision = precision,
-                                            minMove = minMove
-                                        )
-                                    )
-                                )
-                            }
-                            "hollow_candles" -> {
-                                api.applyOptions(
-                                    CandlestickSeriesOptions(
-                                        upColor = IntColor(AndroidColor.TRANSPARENT),
-                                        downColor = chartSettings.symbol.downColor.toIntColor(),
-                                        borderVisible = true,
-                                        borderUpColor = chartSettings.symbol.upColor.toIntColor(),
-                                        borderDownColor = chartSettings.symbol.downColor.toIntColor(),
-                                        wickVisible = true,
-                                        wickUpColor = chartSettings.symbol.upColor.toIntColor(),
-                                        wickDownColor = chartSettings.symbol.downColor.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(
-                                            type = PriceFormat.Type.PRICE,
-                                            precision = precision,
-                                            minMove = minMove
-                                        )
-                                    )
-                                )
-                            }
-                            "heikin_ashi" -> {
-                                api.applyOptions(
-                                    CandlestickSeriesOptions(
-                                        upColor = chartSettings.symbol.upColor.toIntColor(),
-                                        downColor = chartSettings.symbol.downColor.toIntColor(),
-                                        borderVisible = chartSettings.symbol.borderVisible,
-                                        borderUpColor = chartSettings.symbol.borderColorUp.toIntColor(),
-                                        borderDownColor = chartSettings.symbol.borderColorDown.toIntColor(),
-                                        wickVisible = chartSettings.symbol.wickVisible,
-                                        wickUpColor = chartSettings.symbol.wickColorUp.toIntColor(),
-                                        wickDownColor = chartSettings.symbol.wickColorDown.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(
-                                            type = PriceFormat.Type.PRICE,
-                                            precision = precision,
-                                            minMove = minMove
-                                        )
-                                    )
-                                )
-                            }
-                            else -> {
-                                api.applyOptions(
-                                    CandlestickSeriesOptions(
-                                        upColor = chartSettings.symbol.upColor.toIntColor(),
-                                        downColor = chartSettings.symbol.downColor.toIntColor(),
-                                        borderVisible = chartSettings.symbol.borderVisible,
-                                        borderUpColor = chartSettings.symbol.borderColorUp.toIntColor(),
-                                        borderDownColor = chartSettings.symbol.borderColorDown.toIntColor(),
-                                        wickVisible = chartSettings.symbol.wickVisible,
-                                        wickUpColor = chartSettings.symbol.wickColorUp.toIntColor(),
-                                        wickDownColor = chartSettings.symbol.wickColorDown.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(
-                                            type = PriceFormat.Type.PRICE,
-                                            precision = precision,
-                                            minMove = minMove
-                                        )
-                                    )
-                                )
-                            }
-                        }
-                    }
-
-                    volumeSeriesApi?.applyOptions(
-                        HistogramSeriesOptions(
-                            visible = chartSettings.statusLine.volume
-                        )
-                    )
                 }
             )
         }
 
-        // Intersection Box (Bottom Right) where Settings icon will live
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .size(width = 60.dp, height = 34.dp)
-                .clickable { onSettingsClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "Chart Settings",
-                tint = ComposeColor(0xFFD1D4DC),
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        // Top Right Currency Selector (as circled in red in image)
+        // Top Right Currency Selector
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -683,7 +411,6 @@ fun TradingChart(
                 )
                 .align(Alignment.TopStart)
         ) {
-            // Line 1: Asset Name and Market Status Green Dot
             if (chartSettings.statusLine.symbol) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (chartSettings.statusLine.logo) {
@@ -701,12 +428,11 @@ fun TradingChart(
                     }
                     Text(
                         text = if (chartSettings.statusLine.titleMode == "Description") getFullSymbolName(symbol) else symbol,
-                        color = ComposeColor(0xFFB2B5BE), // Muted grey to match TradingView
+                        color = ComposeColor(0xFFB2B5BE),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                     
-                    // Market Status Dot
                     if (chartSettings.statusLine.openMarketStatus) {
                         val isCrypto = symbol.uppercase().contains("BTC") || symbol.uppercase().contains("ETH")
                         val calendar = Calendar.getInstance()
@@ -719,27 +445,9 @@ fun TradingChart(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier.clickable { showMarketStatus = true }
                         ) {
-                            // Outer soft glow
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(dotColor.copy(alpha = 0.15f))
-                            )
-                            // Inner prominent glow
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(dotColor.copy(alpha = 0.35f))
-                            )
-                            // Main Dot
-                            Box(
-                                modifier = Modifier
-                                    .size(11.dp)
-                                    .clip(CircleShape)
-                                    .background(dotColor)
-                            )
+                            Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(dotColor.copy(alpha = 0.15f)))
+                            Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(dotColor.copy(alpha = 0.35f)))
+                            Box(modifier = Modifier.size(11.dp).clip(CircleShape).background(dotColor))
                         }
                     }
                 }
@@ -748,7 +456,6 @@ fun TradingChart(
             currentQuote?.let { quote ->
                 val color = if (quote.change >= 0) ComposeColor(0xFF089981) else ComposeColor(0xFFF05252)
                 
-                // Line 2: Price and Change
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                     Text(
                         text = formatPrice(quote.lastPrice, symbol),
@@ -758,10 +465,9 @@ fun TradingChart(
                     )
                     if (chartSettings.statusLine.barChangeValues) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        val formattedChange = formatPrice(quote.change, symbol)
                         val sign = if (quote.change >= 0) "+" else ""
                         Text(
-                            text = String.format("%s%s (%+.2f%%)", sign, formattedChange, quote.changePercent),
+                            text = String.format("%s%s (%+.2f%%)", sign, formatPrice(quote.change, symbol), quote.changePercent),
                             color = color,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium
@@ -769,7 +475,6 @@ fun TradingChart(
                     }
                 }
                 
-                // Line 3: Indicator Status (e.g. Vol · BTC)
                 if (showVolume && chartSettings.statusLine.volume) {
                     Text(
                         text = "Vol · ${symbol.take(3).uppercase()}",
@@ -779,7 +484,6 @@ fun TradingChart(
                     )
                 }
 
-                // Line 4: Toggle indicators icon (under volume)
                 Box(
                     modifier = Modifier
                         .padding(top = 8.dp)
@@ -798,17 +502,6 @@ fun TradingChart(
                     )
                 }
 
-                // Additional Indicators
-                if (showRsi) {
-                    Text(
-                        text = "RSI ($rsiPeriod)",
-                        color = ComposeColor(0xFF787B86),
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
-
-                // OHLC Row
                 if (chartSettings.statusLine.ohlc) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
                         if (chartSettings.symbol.openVisible) OhlcItem("O", quote.open, symbol)
@@ -818,7 +511,6 @@ fun TradingChart(
                     }
                 }
 
-                // Buy/Sell Buttons
                 if (chartSettings.trading.buySellButtons) {
                     Row(modifier = Modifier.padding(top = 12.dp)) {
                         TradingButton(
@@ -835,6 +527,22 @@ fun TradingChart(
                     }
                 }
             }
+        }
+
+        // Settings Button (Bottom Right)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .size(width = 60.dp, height = 34.dp)
+                .clickable { onSettingsClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Chart Settings",
+                tint = ComposeColor(0xFFD1D4DC),
+                modifier = Modifier.size(24.dp)
+            )
         }
 
         if (showMarketStatus) {
