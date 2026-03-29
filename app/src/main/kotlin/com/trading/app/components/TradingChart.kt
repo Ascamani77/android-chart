@@ -438,26 +438,25 @@ fun TradingChart(
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 12.dp, end = 12.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .padding(top = 12.dp, end = 2.dp)
+                .clip(RoundedCornerShape(3.dp))
                 .background(ComposeColor(0xFF131722))
-                .border(1.dp, ComposeColor(0xFF363A45), RoundedCornerShape(4.dp))
+                .border(1.dp, ComposeColor(0xFF363A45), RoundedCornerShape(3.dp))
                 .clickable { onCurrencyClick() }
-                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .padding(horizontal = 4.dp, vertical = 1.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = selectedCurrency,
-                    color = ComposeColor.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium
+                    color = ComposeColor(0xFFD1D4DC),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Normal
                 )
-                Spacer(modifier = Modifier.width(3.dp))
                 Icon(
                     Icons.Default.KeyboardArrowDown,
                     null,
                     tint = ComposeColor(0xFF787B86),
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
