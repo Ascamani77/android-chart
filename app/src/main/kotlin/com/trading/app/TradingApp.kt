@@ -499,10 +499,8 @@ fun TradingApp() {
                 offset = quickActionsButtonOffset,
                 onOffsetChange = { 
                     quickActionsButtonOffset = it
-                    // Update modal offset relative to button if needed, 
-                    // or keep it separate. Currently keeping it separate 
-                    // for more flexibility unless user wants it tied.
-                }
+                },
+                isLocked = isLocked
             )
 
             // Quick Actions Modal
@@ -532,6 +530,8 @@ fun TradingApp() {
                     },
                     isTimezoneVisible = isTimezonePaneVisible,
                     onTimezoneToggle = { isTimezonePaneVisible = !isTimezonePaneVisible },
+                    isLocked = isLocked,
+                    onLockToggle = { isLocked = !isLocked },
                     onClose = { showQuickActions = false },
                     offset = quickActionsModalOffset,
                     onOffsetChange = { quickActionsModalOffset = it }

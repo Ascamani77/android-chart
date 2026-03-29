@@ -34,6 +34,7 @@ fun QuickActionsButton(
     onClick: () -> Unit,
     offset: IntOffset,
     onOffsetChange: (IntOffset) -> Unit,
+    isLocked: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     // We use rememberUpdatedState to ensure the drag gesture always uses the latest offset values
@@ -44,16 +45,18 @@ fun QuickActionsButton(
         modifier = modifier
             .offset { currentOffset }
             .size(70.dp)
-            .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    // Apply the movement to the current state
-                    currentOnOffsetChange(
-                        IntOffset(
-                            (currentOffset.x + dragAmount.x).roundToInt(),
-                            (currentOffset.y + dragAmount.y).roundToInt()
+            .pointerInput(isLocked) {
+                if (!isLocked) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        // Apply the movement to the current state
+                        currentOnOffsetChange(
+                            IntOffset(
+                                (currentOffset.x + dragAmount.x).roundToInt(),
+                                (currentOffset.y + dragAmount.y).roundToInt()
+                            )
                         )
-                    )
+                    }
                 }
             }
             .clickable(
@@ -86,6 +89,27 @@ fun QuickActionsButton(
             tint = Color.White,
             modifier = Modifier.size(30.dp)
         )
+
+        // Lock Indicator
+        if (isLocked) {
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-8).dp, y = 8.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF2962FF))
+                    .padding(4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = "Locked",
+                    tint = Color.White,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+        }
     }
 }
 
@@ -102,6 +126,8 @@ fun QuickActionsModal(
     onChartTypeClick: () -> Unit,
     isTimezoneVisible: Boolean,
     onTimezoneToggle: () -> Unit,
+    isLocked: Boolean = false,
+    onLockToggle: () -> Unit = {},
     onClose: () -> Unit,
     offset: IntOffset,
     onOffsetChange: (IntOffset) -> Unit
@@ -112,15 +138,17 @@ fun QuickActionsModal(
     Box(
         modifier = Modifier
             .offset { currentOffset }
-            .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    currentOnOffsetChange(
-                        IntOffset(
-                            (currentOffset.x + dragAmount.x).roundToInt(),
-                            (currentOffset.y + dragAmount.y).roundToInt()
+            .pointerInput(isLocked) {
+                if (!isLocked) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        currentOnOffsetChange(
+                            IntOffset(
+                                (currentOffset.x + dragAmount.x).roundToInt(),
+                                (currentOffset.y + dragAmount.y).roundToInt()
+                            )
                         )
-                    )
+                    }
                 }
             }
             .pointerInput(Unit) {
@@ -180,39 +208,21 @@ fun QuickActionsModal(
 
             Spacer(modifier = Modifier.height(20.dp))
             
+            // Lock Button Toggle
+            QuickActionToggleRow(
+                label = "Lock Button Position",
+                isActive = isLocked,
+                onToggle = onLockToggle
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+            
             // Custom row for "hide timezone pane"
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF1E222D))
-                    .clickable { onTimezoneToggle() }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = if (isTimezoneVisible) "Hide Timezone Pane" else "Show Timezone Pane",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Box(
-                    modifier = Modifier
-                        .size(36.dp, 20.dp)
-                        .clip(CircleShape)
-                        .background(if (isTimezoneVisible) Color(0xFF2962FF) else Color(0xFF434651))
-                        .padding(2.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .align(if (isTimezoneVisible) Alignment.CenterEnd else Alignment.CenterStart)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                    )
-                }
-            }
+            QuickActionToggleRow(
+                label = if (isTimezoneVisible) "Hide Timezone Pane" else "Show Timezone Pane",
+                isActive = isTimezoneVisible,
+                onToggle = onTimezoneToggle
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
             
@@ -223,19 +233,59 @@ fun QuickActionsModal(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(
-                    imageVector = Icons.Default.DragIndicator,
+                    imageVector = if (isLocked) Icons.Default.Lock else Icons.Default.DragIndicator,
                     contentDescription = null,
                     tint = Color(0xFF434651),
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Drag to move",
+                    text = if (isLocked) "Button is pinned" else "Drag to move",
                     color = Color(0xFF434651),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun QuickActionToggleRow(
+    label: String,
+    isActive: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF1E222D))
+            .clickable { onToggle() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Box(
+            modifier = Modifier
+                .size(36.dp, 20.dp)
+                .clip(CircleShape)
+                .background(if (isActive) Color(0xFF2962FF) else Color(0xFF434651))
+                .padding(2.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .align(if (isActive) Alignment.CenterEnd else Alignment.CenterStart)
+                    .clip(CircleShape)
+                    .background(Color.White)
+            )
         }
     }
 }
