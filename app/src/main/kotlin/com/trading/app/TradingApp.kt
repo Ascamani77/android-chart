@@ -620,7 +620,9 @@ fun TradingApp() {
                     onDrawingsClick = { isSidebarVisible = !isSidebarVisible; showQuickActions = false },
                     onChartTypeClick = { /* Show chart type selection or cycle types */ 
                         chartStyle = when(chartStyle) {
-                            "candles" -> "bars"
+                            "candles" -> "hollow_candles"
+                            "hollow_candles" -> "heikin_ashi"
+                            "heikin_ashi" -> "bars"
                             "bars" -> "line"
                             "line" -> "area"
                             else -> "candles"
