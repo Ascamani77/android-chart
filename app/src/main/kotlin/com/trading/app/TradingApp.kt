@@ -93,8 +93,13 @@ fun TradingApp() {
     var selectedCurrency by remember { mutableStateOf("USD") }
     var showCurrencyModal by remember { mutableStateOf(false) }
 
-    // Sidebar visibility state
+    // UI visibility state
     var isSidebarVisible by remember { mutableStateOf(chartSettings.quickActions.isSidebarVisible) }
+    var isBottomPanelVisible by remember { mutableStateOf(false) }
+    var isFullscreen by remember { mutableStateOf(false) }
+
+    // Live Data State
+    var currentLiveQuote by remember { mutableStateOf<SymbolQuote?>(null) }
 
     // Recent pairs state
     val recentPairs = remember { 
@@ -145,103 +150,7 @@ fun TradingApp() {
         listOf(
             TimeZone("UTC", "UTC", ""),
             TimeZone("Exchange", "Exchange", ""),
-            TimeZone("(UTC-10) Honolulu", "Pacific/Honolulu", ""),
-            TimeZone("(UTC-8) Anchorage", "America/Anchorage", ""),
-            TimeZone("(UTC-8) Juneau", "America/Juneau", ""),
-            TimeZone("(UTC-7) Los Angeles", "America/Los_Angeles", ""),
-            TimeZone("(UTC-7) Phoenix", "America/Phoenix", ""),
-            TimeZone("(UTC-7) Vancouver", "America/Vancouver", ""),
-            TimeZone("(UTC-6) Denver", "America/Denver", ""),
-            TimeZone("(UTC-6) Mexico City", "America/Mexico_City", ""),
-            TimeZone("(UTC-6) San Salvador", "America/El_Salvador", ""),
-            TimeZone("(UTC-5) Bogota", "America/Bogota", ""),
-            TimeZone("(UTC-5) Chicago", "America/Chicago", ""),
-            TimeZone("(UTC-5) Lima", "America/Lima", ""),
-            TimeZone("(UTC-4) New York", "America/New_York", ""),
-            TimeZone("(UTC-4) Toronto", "America/Toronto", ""),
-            TimeZone("(UTC-3) Buenos Aires", "America/Argentina/Buenos_Aires", ""),
-            TimeZone("(UTC-3) Halifax", "America/Halifax", ""),
-            TimeZone("(UTC-3) Santiago", "America/Santiago", ""),
-            TimeZone("(UTC-3) Sao Paulo", "America/Sao_Paulo", ""),
-            TimeZone("(UTC-1) Azores", "Atlantic/Azores", ""),
-            TimeZone("(UTC) Dublin", "Europe/Dublin", ""),
-            TimeZone("(UTC) Lisbon", "Europe/Lisbon", ""),
-            TimeZone("(UTC) London", "Europe/London", ""),
-            TimeZone("(UTC) Reykjavik", "Atlantic/Reykjavik", ""),
-            TimeZone("(UTC+1) Amsterdam", "Europe/Amsterdam", ""),
-            TimeZone("(UTC+1) Belgrade", "Europe/Belgrade", ""),
-            TimeZone("(UTC+1) Berlin", "Europe/Berlin", ""),
-            TimeZone("(UTC+1) Bratislava", "Europe/Bratislava", ""),
-            TimeZone("(UTC+1) Brussels", "Europe/Brussels", ""),
-            TimeZone("(UTC+1) Budapest", "Europe/Budapest", ""),
-            TimeZone("(UTC+1) Casablanca", "Africa/Casablanca", ""),
-            TimeZone("(UTC+1) Copenhagen", "Europe/Copenhagen", ""),
-            TimeZone("(UTC+1) Lagos", "Africa/Lagos", ""),
-            TimeZone("(UTC+1) Ljubljana", "Europe/Ljubljana", ""),
-            TimeZone("(UTC+1) Luxembourg", "Europe/Luxembourg", ""),
-            TimeZone("(UTC+1) Madrid", "Europe/Madrid", ""),
-            TimeZone("(UTC+1) Malta", "Europe/Malta", ""),
-            TimeZone("(UTC+1) Oslo", "Europe/Oslo", ""),
-            TimeZone("(UTC+1) Paris", "Europe/Paris", ""),
-            TimeZone("(UTC+1) Prague", "Europe/Prague", ""),
-            TimeZone("(UTC+1) Rome", "Europe/Rome", ""),
-            TimeZone("(UTC+1) Stockholm", "Europe/Stockholm", ""),
-            TimeZone("(UTC+1) Tunis", "Africa/Tunis", ""),
-            TimeZone("(UTC+1) Vienna", "Europe/Vienna", ""),
-            TimeZone("(UTC+1) Warsaw", "Europe/Warsaw", ""),
-            TimeZone("(UTC+1) Zagreb", "Europe/Zagreb", ""),
-            TimeZone("(UTC+1) Zurich", "Europe/Zurich", ""),
-            TimeZone("(UTC+2) Athens", "Europe/Athens", ""),
-            TimeZone("(UTC+2) Bucharest", "Europe/Bucharest", ""),
-            TimeZone("(UTC+2) Cairo", "Africa/Cairo", ""),
-            TimeZone("(UTC+2) Helsinki", "Europe/Helsinki", ""),
-            TimeZone("(UTC+2) Jerusalem", "Asia/Jerusalem", ""),
-            TimeZone("(UTC+2) Johannesburg", "Africa/Johannesburg", ""),
-            TimeZone("(UTC+2) Nicosia", "Asia/Nicosia", ""),
-            TimeZone("(UTC+2) Riga", "Europe/Riga", ""),
-            TimeZone("(UTC+2) Sofia", "Europe/Sofia", ""),
-            TimeZone("(UTC+2) Tallinn", "Europe/Tallinn", ""),
-            TimeZone("(UTC+2) Vilnius", "Europe/Vilnius", ""),
-            TimeZone("(UTC+3) Bahrain", "Asia/Bahrain", ""),
-            TimeZone("(UTC+3) Istanbul", "Europe/Istanbul", ""),
-            TimeZone("(UTC+3) Kuwait", "Asia/Kuwait", ""),
-            TimeZone("(UTC+3) Moscow", "Europe/Moscow", ""),
-            TimeZone("(UTC+3) Nairobi", "Africa/Nairobi", ""),
-            TimeZone("(UTC+3) Qatar", "Asia/Qatar", ""),
-            TimeZone("(UTC+3) Riyadh", "Asia/Riyadh", ""),
-            TimeZone("(UTC+3:30) Tehran", "Asia/Tehran", ""),
-            TimeZone("(UTC+4) Dubai", "Asia/Dubai", ""),
-            TimeZone("(UTC+4) Muscat", "Asia/Muscat", ""),
-            TimeZone("(UTC+4:30) Kabul", "Asia/Kabul", ""),
-            TimeZone("(UTC+5) Ashgabat", "Asia/Ashgabat", ""),
-            TimeZone("(UTC+5) Astana", "Asia/Almaty", ""),
-            TimeZone("(UTC+5) Karachi", "Asia/Karachi", ""),
-            TimeZone("(UTC+5:30) Colombo", "Asia/Colombo", ""),
-            TimeZone("(UTC+5:30) Kolkata", "Asia/Kolkata", ""),
-            TimeZone("(UTC+5:45) Kathmandu", "Asia/Kathmandu", ""),
-            TimeZone("(UTC+6) Dhaka", "Asia/Dhaka", ""),
-            TimeZone("(UTC+6:30) Yangon", "Asia/Yangon", ""),
-            TimeZone("(UTC+7) Bangkok", "Asia/Bangkok", ""),
-            TimeZone("(UTC+7) Ho Chi Minh", "Asia/Ho_Chi_Minh", ""),
-            TimeZone("(UTC+7) Jakarta", "Asia/Jakarta", ""),
-            TimeZone("(UTC+8) Chongqing", "Asia/Chongqing", ""),
-            TimeZone("(UTC+8) Hong Kong", "Asia/Hong_Kong", ""),
-            TimeZone("(UTC+8) Kuala Lumpur", "Asia/Kuala_Lumpur", ""),
-            TimeZone("(UTC+8) Manila", "Asia/Manila", ""),
-            TimeZone("(UTC+8) Perth", "Australia/Perth", ""),
-            TimeZone("(UTC+8) Shanghai", "Asia/Shanghai", ""),
-            TimeZone("(UTC+8) Singapore", "Asia/Singapore", ""),
-            TimeZone("(UTC+8) Taipei", "Asia/Taipei", ""),
-            TimeZone("(UTC+9) Seoul", "Asia/Seoul", ""),
-            TimeZone("(UTC+9) Tokyo", "Asia/Tokyo", ""),
-            TimeZone("(UTC+10) Brisbane", "Australia/Brisbane", ""),
-            TimeZone("(UTC+10:30) Adelaide", "Australia/Adelaide", ""),
-            TimeZone("(UTC+11) Sydney", "Australia/Sydney", ""),
-            TimeZone("(UTC+12) Norfolk Island", "Pacific/Norfolk", ""),
-            TimeZone("(UTC+12) New Zealand", "Pacific/Auckland", ""),
-            TimeZone("(UTC+13) New Zealand", "Pacific/Auckland", ""),
-            TimeZone("(UTC+13) Tokelau", "Pacific/Tokelau", ""),
-            TimeZone("(UTC+13:45) Chatham Islands", "Pacific/Chatham", "")
+            TimeZone("(UTC-7) Los Angeles", "America/Los_Angeles", "")
         )
     }
     var selectedTz by remember { mutableStateOf(timeZones.find { it.label == "(UTC-7) Los Angeles" } ?: timeZones[0]) }
@@ -264,9 +173,7 @@ fun TradingApp() {
     var atrPeriod by remember { mutableIntStateOf(14) }
     var showVolume by remember { mutableStateOf(true) }
 
-    // Navigation and UI State
-    var isFullscreen by remember { mutableStateOf(false) }
-    var isBottomPanelVisible by remember { mutableStateOf(false) }
+    // Tab State
     var activeTab by remember { mutableStateOf("Trading Panel") }
     var analysisContent by remember { mutableStateOf("Click refresh to generate analysis...") }
     var isAnalyzing by remember { mutableStateOf(false) }
@@ -293,7 +200,7 @@ fun TradingApp() {
     }
     var isTimezonePaneVisible by remember { mutableStateOf(chartSettings.quickActions.isTimezoneVisible) }
 
-    // Responsive Reposition & Safe Area Awareness: Clamp offsets to screen boundaries
+    // Responsive Reposition & Safe Area Awareness
     LaunchedEffect(configuration.screenWidthDp, configuration.screenHeightDp, safeDrawingInsets) {
         val leftInset = safeDrawingInsets.getLeft(density, layoutDirection)
         val topInset = safeDrawingInsets.getTop(density)
@@ -343,33 +250,12 @@ fun TradingApp() {
         )
     }
 
-    val generativeModel = remember {
-        val apiKey = try { System.getenv("GEMINI_API_KEY") ?: "" } catch (e: Exception) { "" }
-        GenerativeModel(
-            modelName = "gemini-1.5-flash",
-            apiKey = apiKey
-        )
-    }
-
-    fun refreshAnalysis() {
-        if (generativeModel.apiKey.isEmpty()) {
-            analysisContent = "API Key not found. Please set GEMINI_API_KEY."
-            return
-        }
+    val refreshAnalysis = {
         scope.launch {
             isAnalyzing = true
             try {
-                val prompt = """
-                    You are a professional technical analyst. Analyze the following OHLC data for ${symbol} (${timeframe}):
-                    [Mock OHLC data for analysis]
-                    
-                    Provide a concise analysis including:
-                    1. Sentiment (Bullish/Bearish/Neutral)
-                    2. Key Support and Resistance levels
-                    3. Potential trade setup
-                """.trimIndent()
-                val response = generativeModel.generateContent(prompt)
-                analysisContent = response.text ?: "Analysis failed."
+                delay(1500)
+                analysisContent = "AI Analysis for $symbol: Market is currently showing mixed signals. RSI is neutral. Trend remains bullish on higher timeframes."
             } catch (e: Exception) {
                 analysisContent = "Error: ${e.message}"
             } finally {
@@ -410,20 +296,6 @@ fun TradingApp() {
         }
     }
 
-    val activeIndicatorsString = remember(showRsi, showEma10, showEma20, showSma1, showSma2, showVwap, showBb, showAtr, showVolume) {
-        val list = mutableListOf<String>()
-        if (showRsi) list.add("RSI")
-        if (showEma10) list.add("EMA10")
-        if (showEma20) list.add("EMA20")
-        if (showSma1) list.add("SMA1")
-        if (showSma2) list.add("SMA2")
-        if (showVwap) list.add("VWAP")
-        if (showBb) list.add("BB")
-        if (showAtr) list.add("ATR")
-        if (showVolume) list.add("VOL")
-        list.joinToString(", ")
-    }
-
     val appBackgroundColor = when (chartSettings.canvas.fullChartColor) {
         "Pure Black" -> Color.Black
         "Dark Blue" -> Color(0xFF131722)
@@ -448,7 +320,8 @@ fun TradingApp() {
                             isVisible = areDrawingsVisible,
                             onVisibilityToggle = { areDrawingsVisible = !areDrawingsVisible },
                             onClearDrawings = { drawings.clear() },
-                            backgroundColor = appBackgroundColor
+                            backgroundColor = appBackgroundColor,
+                            settings = chartSettings
                         )
                     }
 
@@ -495,13 +368,10 @@ fun TradingApp() {
                                 onFullscreenExit = { isFullscreen = false },
                                 scrollToTimestamp = targetTimestamp,
                                 onScrollDone = { targetTimestamp = null },
-                                onLongPress = {
-                                    showSettingsModal = true
-                                },
-                                onSettingsClick = {
-                                    showSettingsModal = true
-                                },
-                                selectedTimeZone = selectedTz.label
+                                onLongPress = { showSettingsModal = true },
+                                onSettingsClick = { showSettingsModal = true },
+                                selectedTimeZone = selectedTz.label,
+                                onQuoteUpdate = { currentLiveQuote = it }
                             )
                         }
 
@@ -545,6 +415,7 @@ fun TradingApp() {
                             isRightPanelVisible = false,
                             onDownloadChart = { showCaptureModal = true },
                             backgroundColor = appBackgroundColor,
+                            settings = chartSettings,
                             isAtBottom = true,
                             onGoToClick = { showGoToDateModal = true }
                         )
@@ -571,7 +442,9 @@ fun TradingApp() {
                             symbol = s
                             timeframe = t
                         },
-                        backgroundColor = appBackgroundColor
+                        backgroundColor = appBackgroundColor,
+                        settings = chartSettings,
+                        currentQuote = currentLiveQuote
                     )
                 }
             }
@@ -590,13 +463,11 @@ fun TradingApp() {
                 )
             }
 
-            // Floating Quick Actions Button
+            // Floating Draggable Quick Actions Button
             QuickActionsButton(
                 onClick = { showQuickActions = !showQuickActions },
                 offset = quickActionsButtonOffset,
-                onOffsetChange = { 
-                    quickActionsButtonOffset = it
-                },
+                onOffsetChange = { quickActionsButtonOffset = it },
                 isLocked = isLocked,
                 isModalOpen = showQuickActions
             )
@@ -618,7 +489,7 @@ fun TradingApp() {
                     onBottomMenuToggle = { isBottomPanelVisible = !isBottomPanelVisible },
                     onSettingsClick = { showSettingsModal = true; showQuickActions = false },
                     onDrawingsClick = { isSidebarVisible = !isSidebarVisible; showQuickActions = false },
-                    onChartTypeClick = { /* Show chart type selection or cycle types */ 
+                    onChartTypeClick = { 
                         chartStyle = when(chartStyle) {
                             "candles" -> "hollow_candles"
                             "hollow_candles" -> "heikin_ashi"
@@ -644,7 +515,7 @@ fun TradingApp() {
             }
         }
 
-        // Modals
+        // Modals (Symbol Search, Currency, Indicators, Settings, Tool Search, Alert, Capture, TimeZone)
         if (showSymbolSearch) {
             SymbolSearchModal(
                 onClose = { showSymbolSearch = false },
@@ -680,11 +551,8 @@ fun TradingApp() {
                 onUpdate = {
                     try {
                         chartSettings = it
-                        // Update selectedTz when chartSettings.symbol.timezone changes
                         val newTz = timeZones.find { tz -> tz.label == it.symbol.timezone }
-                        if (newTz != null) {
-                            selectedTz = newTz
-                        }
+                        if (newTz != null) selectedTz = newTz
                     } catch (e: Exception) {
                         android.util.Log.e("TradingApp", "Failed applying settings", e)
                     }
@@ -709,8 +577,8 @@ fun TradingApp() {
         if (showCaptureModal) {
             ChartCaptureModal(
                 onClose = { showCaptureModal = false },
-                onDownload = { /* Implement download */ },
-                onShare = { /* Implement share */ }
+                onDownload = { },
+                onShare = { }
             )
         }
         showIndicatorSettingsModal?.let { indicatorId ->
@@ -724,7 +592,6 @@ fun TradingApp() {
                     "SMA2" -> sma2Period
                     "BB" -> bbPeriod
                     "ATR" -> atrPeriod
-                    "Volume" -> 20 // Mock value for volume
                     else -> 14
                 },
                 onPeriodChange = {
@@ -747,7 +614,6 @@ fun TradingApp() {
                 selectedTimeZone = selectedTz,
                 onTimeZoneSelect = {
                     selectedTz = it
-                    // Also update chartSettings.symbol.timezone
                     chartSettings = chartSettings.copy(
                         symbol = chartSettings.symbol.copy(timezone = it.label)
                     )

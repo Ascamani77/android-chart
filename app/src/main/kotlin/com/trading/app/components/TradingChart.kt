@@ -144,12 +144,15 @@ fun TradingChart(
     onScrollDone: () -> Unit = {},
     onLongPress: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
-    selectedTimeZone: String = "UTC"
+    selectedTimeZone: String = "UTC",
+    onQuoteUpdate: (SymbolQuote) -> Unit = {}
 ) {
     var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
-    var currentQuote by remember { mutableStateOf<SymbolQuote?>(null) }
+    var currentQuoteState by remember { mutableStateOf<SymbolQuote?>(null) }
     var seriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var showMarketStatus by remember { mutableStateOf(false) }
+
+    val updatedOnQuoteUpdate = rememberUpdatedState(onQuoteUpdate)
 
     fun String.toIntColor(): IntColor = try {
         IntColor(AndroidColor.parseColor(this))
@@ -177,11 +180,20 @@ fun TradingChart(
             pcIpAddress = "172.26.23.133", 
             port = 8081,
             onHistoryUpdate = { history ->
-                Log.d("TradingChart", "Updating chart with ${history.size} candles")
                 candlestickData = history
             },
             onQuoteUpdate = { quote ->
-                currentQuote = quote
+                // Calculate dynamic change vs previous close from history
+                val prevClose = candlestickData.getOrNull(candlestickData.size - 2)?.close ?: quote.lastPrice
+                val change = quote.lastPrice - prevClose
+                val changePercent = if (prevClose != 0f) (change / prevClose) * 100f else 0f
+                
+                val updatedQuote = quote.copy(
+                    change = change,
+                    changePercent = changePercent
+                )
+                currentQuoteState = updatedQuote
+                updatedOnQuoteUpdate.value(updatedQuote)
             }
         )
     }
@@ -203,12 +215,11 @@ fun TradingChart(
                 "heikin_ashi" -> api.setData(calculateHeikinAshi(candlestickData))
                 else -> api.setData(candlestickData)
             }
-            Log.d("TradingChart", "Data applied to series")
         }
     }
 
-    LaunchedEffect(currentQuote) {
-        val quote = currentQuote ?: return@LaunchedEffect
+    LaunchedEffect(currentQuoteState) {
+        val quote = currentQuoteState ?: return@LaunchedEffect
         val api = seriesApi ?: return@LaunchedEffect
         val lastCandle = candlestickData.lastOrNull() ?: return@LaunchedEffect
         
@@ -277,14 +288,6 @@ fun TradingChart(
                                 borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
                                 timeVisible = true
                             )
-                            watermark = WatermarkOptions(
-                                visible = chartSettings.canvas.watermarkVisible,
-                                color = chartSettings.canvas.watermarkColor.toIntColor(),
-                                text = if (chartSettings.canvas.watermarkVisible) symbol else ""
-                            )
-                            localization = LocalizationOptions(
-                                locale = "en-US"
-                            )
                         }
 
                         when (style) {
@@ -302,18 +305,6 @@ fun TradingChart(
                                 api.addLineSeries(
                                     options = LineSeriesOptions(
                                         color = chartSettings.symbol.upColor.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove)
-                                    ),
-                                    onSeriesCreated = { api -> seriesApi = api }
-                                )
-                            }
-                            "area" -> {
-                                val baseColorInt = try { AndroidColor.parseColor(chartSettings.symbol.upColor) } catch (e: Exception) { AndroidColor.GREEN }
-                                api.addAreaSeries(
-                                    options = AreaSeriesOptions(
-                                        topColor = IntColor(baseColorInt),
-                                        bottomColor = IntColor(applyOpacity(baseColorInt, 10)),
-                                        lineColor = IntColor(baseColorInt),
                                         priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove)
                                     ),
                                     onSeriesCreated = { api -> seriesApi = api }
@@ -453,7 +444,7 @@ fun TradingChart(
                 }
             }
 
-            currentQuote?.let { quote ->
+            currentQuoteState?.let { quote ->
                 val color = if (quote.change >= 0) ComposeColor(0xFF089981) else ComposeColor(0xFFF05252)
                 
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
@@ -508,22 +499,6 @@ fun TradingChart(
                         if (chartSettings.symbol.highVisible) OhlcItem("H", quote.high, symbol)
                         if (chartSettings.symbol.lowVisible) OhlcItem("L", quote.low, symbol)
                         if (chartSettings.symbol.closeVisible) OhlcItem("C", quote.lastPrice, symbol)
-                    }
-                }
-
-                if (chartSettings.trading.buySellButtons) {
-                    Row(modifier = Modifier.padding(top = 12.dp)) {
-                        TradingButton(
-                            label = if (chartSettings.trading.showBuySellLabels) "SELL" else "",
-                            price = formatPrice(quote.bid, symbol),
-                            backgroundColor = ComposeColor(android.graphics.Color.parseColor(chartSettings.scales.bidColor))
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TradingButton(
-                            label = if (chartSettings.trading.showBuySellLabels) "BUY" else "",
-                            price = formatPrice(quote.ask, symbol),
-                            backgroundColor = ComposeColor(android.graphics.Color.parseColor(chartSettings.scales.askColor))
-                        )
                     }
                 }
             }
