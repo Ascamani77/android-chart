@@ -11,7 +11,7 @@ import org.json.JSONObject
 class Mt5Service(
     private val pcIpAddress: String = "172.26.23.133",
     private val port: Int = 8081,
-    private val onHistoryUpdate: (List<CandlestickData>) -> Unit,
+    private val onHistoryUpdate: (String, List<CandlestickData>) -> Unit,
     private val onQuoteUpdate: (SymbolQuote) -> Unit
 ) {
     private val client = OkHttpClient()
@@ -24,9 +24,8 @@ class Mt5Service(
     }
 
     fun connect() {
-        Log.e(TAG, "!!! connect() called !!!")
         val url = "ws://$pcIpAddress:$port"
-        Log.e(TAG, "Attempting connection to: $url")
+        Log.d(TAG, "Connecting to $url")
         
         val request = Request.Builder()
             .url(url)
@@ -34,67 +33,65 @@ class Mt5Service(
         
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.e(TAG, ">>> SUCCESS: WebSocket Opened! <<<")
+                Log.i(TAG, "WebSocket Connected")
                 pendingSubscription?.let {
-                    Log.d(TAG, "Sending queued sub: $it")
                     webSocket.send(it)
                     pendingSubscription = null
                 }
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                // Log only the first 100 chars to avoid flooding
-                Log.d(TAG, "Msg received: ${text.take(100)}")
                 try {
                     val root = JSONObject(text)
                     val type = root.optString("type")
                     
                     if (type == "history") {
-                        val dataArray = root.getJSONArray("data")
-                        Log.i(TAG, "Processing ${dataArray.length()} history candles")
+                        val symbol = root.optString("symbol", root.optString("name", ""))
+                        val dataArray = root.optJSONArray("data") ?: return
+                        
                         val history = mutableListOf<CandlestickData>()
                         for (i in 0 until dataArray.length()) {
                             val obj = dataArray.getJSONObject(i)
+                            val timeVal = obj.optLong("time", 0L)
+                            if (timeVal == 0L) continue
+                            
                             history.add(CandlestickData(
-                                time = Time.Utc(obj.getLong("time")),
-                                open = obj.getDouble("open").toFloat(),
-                                high = obj.getDouble("high").toFloat(),
-                                low = obj.getDouble("low").toFloat(),
-                                close = obj.getDouble("close").toFloat()
+                                time = Time.Utc(timeVal),
+                                open = obj.optDouble("open", 0.0).toFloat(),
+                                high = obj.optDouble("high", 0.0).toFloat(),
+                                low = obj.optDouble("low", 0.0).toFloat(),
+                                close = obj.optDouble("close", 0.0).toFloat()
                             ))
                         }
-                        onHistoryUpdate(history)
+                        Log.d(TAG, "Parsed ${history.size} candles for $symbol")
+                        onHistoryUpdate(symbol, history)
                     } else if (type == "tick") {
+                        val symbol = root.optString("symbol", root.optString("name", ""))
                         val quote = gson.fromJson(text, SymbolQuote::class.java)
-                        onQuoteUpdate(quote)
+                        // Ensure name is set
+                        val finalQuote = if (quote.name.isNullOrEmpty()) quote.copy(name = symbol) else quote
+                        onQuoteUpdate(finalQuote)
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error parsing JSON: ${e.message}")
+                    Log.e(TAG, "Parse error: ${e.message}")
                 }
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e(TAG, "!!! CONNECTION FAILURE !!!: ${t.message}")
-                t.printStackTrace()
-            }
-
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                Log.w(TAG, "WebSocket Closing: $reason")
+                Log.e(TAG, "WebSocket Failure: ${t.message}")
             }
         })
     }
 
     fun subscribe(symbol: String, timeframe: String = "1h") {
         val msg = "{\"action\": \"subscribe\", \"symbol\": \"$symbol\", \"timeframe\": \"$timeframe\"}"
-        Log.e(TAG, "Subscribing: $msg")
+        Log.d(TAG, "Subscribing to $symbol ($timeframe)")
         if (webSocket?.send(msg) != true) {
-            Log.w(TAG, "Socket NOT READY, queuing sub")
             pendingSubscription = msg
         }
     }
 
     fun disconnect() {
-        Log.e(TAG, "disconnect() called")
         webSocket?.close(1000, "App closing")
         webSocket = null
     }

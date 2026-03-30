@@ -153,6 +153,7 @@ fun TradingChart(
     var showMarketStatus by remember { mutableStateOf(false) }
 
     val updatedOnQuoteUpdate = rememberUpdatedState(onQuoteUpdate)
+    val currentSymbol = rememberUpdatedState(symbol)
 
     fun String.toIntColor(): IntColor = try {
         IntColor(AndroidColor.parseColor(this))
@@ -179,21 +180,25 @@ fun TradingChart(
         Mt5Service(
             pcIpAddress = "172.26.23.133", 
             port = 8081,
-            onHistoryUpdate = { history ->
-                candlestickData = history
+            onHistoryUpdate = { receivedSymbol, history ->
+                // Check if it's the current symbol or if receivedSymbol is empty (legacy support)
+                if (receivedSymbol.isEmpty() || receivedSymbol.equals(currentSymbol.value, ignoreCase = true)) {
+                    candlestickData = history
+                }
             },
             onQuoteUpdate = { quote ->
-                // Calculate dynamic change vs previous close from history
-                val prevClose = candlestickData.getOrNull(candlestickData.size - 2)?.close ?: quote.lastPrice
-                val change = quote.lastPrice - prevClose
-                val changePercent = if (prevClose != 0f) (change / prevClose) * 100f else 0f
-                
-                val updatedQuote = quote.copy(
-                    change = change,
-                    changePercent = changePercent
-                )
-                currentQuoteState = updatedQuote
-                updatedOnQuoteUpdate.value(updatedQuote)
+                if (quote.name.equals(currentSymbol.value, ignoreCase = true)) {
+                    val prevClose = candlestickData.getOrNull(candlestickData.size - 2)?.close ?: quote.lastPrice
+                    val change = quote.lastPrice - prevClose
+                    val changePercent = if (prevClose != 0f) (change / prevClose) * 100f else 0f
+                    
+                    val updatedQuote = quote.copy(
+                        change = change,
+                        changePercent = changePercent
+                    )
+                    currentQuoteState = updatedQuote
+                    updatedOnQuoteUpdate.value(updatedQuote)
+                }
             }
         )
     }
@@ -203,6 +208,9 @@ fun TradingChart(
     }
 
     LaunchedEffect(symbol, timeframe) {
+        candlestickData = emptyList()
+        currentQuoteState = null
+        // We don't reset seriesApi here because the 'key' below handles view recreation
         mt5Service.subscribe(symbol, timeframe)
     }
 
@@ -215,6 +223,8 @@ fun TradingChart(
                 "heikin_ashi" -> api.setData(calculateHeikinAshi(candlestickData))
                 else -> api.setData(candlestickData)
             }
+        } else {
+            api.setData(emptyList())
         }
     }
 
@@ -242,14 +252,24 @@ fun TradingChart(
     val chartBgColor = getFullChartColor(chartSettings.canvas.fullChartColor, chartSettings.canvas.background)
 
     Box(modifier = Modifier.fillMaxSize().background(ComposeColor.Black)) {
-        key(style) {
+        key(style, symbol) {
             AndroidView(
                 factory = { context ->
                     ChartsView(context).apply {
                         val uppercaseSymbol = symbol.uppercase()
                         val isBitcoin = uppercaseSymbol.contains("BTC") || uppercaseSymbol.contains("BITCOIN")
-                        val precision = if (isBitcoin) 0 else 2
-                        val minMove = if (isBitcoin) 1f else 0.01f
+                        val isForex = uppercaseSymbol.length == 6 || uppercaseSymbol.contains("/")
+                        
+                        val precision = when {
+                            isBitcoin -> 0
+                            isForex -> 5
+                            else -> 2
+                        }
+                        val minMove = when {
+                            isBitcoin -> 1f
+                            isForex -> 0.00001f
+                            else -> 0.01f
+                        }
 
                         api.applyOptions {
                             layout = LayoutOptions(
@@ -282,7 +302,8 @@ fun TradingChart(
                             )
                             rightPriceScale = PriceScaleOptions(
                                 borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
-                                entireTextOnly = false
+                                entireTextOnly = false,
+                                autoScale = true
                             )
                             timeScale = TimeScaleOptions(
                                 borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
@@ -535,7 +556,14 @@ private fun formatPrice(price: Float, symbol: String = ""): String {
     symbols.groupingSeparator = ','
     val uppercaseSymbol = symbol.uppercase()
     val isBitcoin = uppercaseSymbol.contains("BTC") || uppercaseSymbol.contains("BITCOIN")
-    val pattern = if (isBitcoin) "#,##0" else "#,##0.##"
+    val isForex = uppercaseSymbol.length == 6 || uppercaseSymbol.contains("/")
+    
+    val pattern = when {
+        isBitcoin -> "#,##0"
+        isForex -> "#,##0.00000"
+        else -> "#,##0.##"
+    }
+
     val df = DecimalFormat(pattern, symbols)
     return df.format(price)
 }
