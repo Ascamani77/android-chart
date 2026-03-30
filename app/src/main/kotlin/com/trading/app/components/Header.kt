@@ -48,7 +48,8 @@ fun Header(
     onLayersClick: () -> Unit = {},
     onChatClick: () -> Unit = {},
     onDrawingClick: () -> Unit = {},
-    onMoreClick: () -> Unit = {}
+    onMoreClick: () -> Unit = {},
+    onTradeClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     var showTimeframeMenu by remember { mutableStateOf(false) }
@@ -78,15 +79,11 @@ fun Header(
                 Row(
                     modifier = Modifier
                         .height(36.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .border(1.dp, Color(0xFF363A45).copy(alpha = 0.3f), RoundedCornerShape(18.dp))
                         .clickable { onSymbolClick() }
-                        .padding(horizontal = 10.dp),
+                        .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(symbol, color = secondaryWhite, fontWeight = FontWeight.Bold, fontSize = fontSize)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
                 }
 
                 Spacer(modifier = Modifier.width(4.dp))
@@ -202,7 +199,7 @@ fun Header(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Extra space between timeframe and GoTo icon
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(19.2.dp))
 
                 IconButton(onClick = onGoToClick, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Default.DateRange, "GoTo", tint = secondaryWhite, modifier = Modifier.size(26.dp))
@@ -259,7 +256,7 @@ fun Header(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Button(
-                    onClick = { /* Trade */ },
+                    onClick = { onTradeClick() },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF08090C)),
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     modifier = Modifier.height(32.4.dp),

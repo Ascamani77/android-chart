@@ -193,6 +193,8 @@ fun TradingApp() {
     var showDrawingsModal by remember { mutableStateOf(false) }
     var showAnalysisHubModal by remember { mutableStateOf(false) }
     var showChartTypeModal by remember { mutableStateOf(false) }
+    var showFloatingTradingButtons by remember { mutableStateOf(false) }
+    var lotSize by remember { mutableStateOf("1") }
 
     // Quick Actions State
     var showQuickActions by remember { mutableStateOf(false) }
@@ -377,6 +379,18 @@ fun TradingApp() {
                                 selectedTimeZone = selectedTz.label,
                                 onQuoteUpdate = { currentLiveQuote = it }
                             )
+
+                            if (showFloatingTradingButtons) {
+                                FloatingTradingButtons(
+                                    sellPrice = currentLiveQuote?.bid?.toString() ?: "0.00",
+                                    buyPrice = currentLiveQuote?.ask?.toString() ?: "0.00",
+                                    lotSize = lotSize,
+                                    onLotSizeChange = { lotSize = it },
+                                    onSellClick = { /* Handle Sell */ },
+                                    onBuyClick = { /* Handle Buy */ },
+                                    onMoreClick = { /* Handle More */ }
+                                )
+                            }
                         }
 
                         if (!isFullscreen && isBottomPanelVisible) {
@@ -425,7 +439,8 @@ fun TradingApp() {
                             onNewsClick = { showNewsPage = true },
                             onChatClick = { /* activeTab = "Chat"; isBottomPanelVisible = true */ },
                             onDrawingClick = { showDrawingsModal = true },
-                            onMoreClick = { showAnalysisHubModal = true }
+                            onMoreClick = { showAnalysisHubModal = true },
+                            onTradeClick = { showFloatingTradingButtons = !showFloatingTradingButtons }
                         )
                     }
                 }
