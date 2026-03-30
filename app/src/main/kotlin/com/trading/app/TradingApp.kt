@@ -420,7 +420,9 @@ fun TradingApp() {
                             isAtBottom = true,
                             onGoToClick = { showGoToDateModal = true },
                             onNewsClick = { showNewsPage = true },
-                            onChatClick = { /* activeTab = "Chat"; isBottomPanelVisible = true */ }
+                            onChatClick = { /* activeTab = "Chat"; isBottomPanelVisible = true */ },
+                            onDrawingClick = { isSidebarVisible = !isSidebarVisible },
+                            onMoreClick = { showQuickActions = true }
                         )
                     }
                 }

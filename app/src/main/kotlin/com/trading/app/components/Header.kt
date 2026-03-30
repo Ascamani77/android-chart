@@ -46,24 +46,17 @@ fun Header(
     onGoToClick: () -> Unit = {},
     onNewsClick: () -> Unit = {},
     onLayersClick: () -> Unit = {},
-    onChatClick: () -> Unit = {}
+    onChatClick: () -> Unit = {},
+    onDrawingClick: () -> Unit = {},
+    onMoreClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     var showTimeframeMenu by remember { mutableStateOf(false) }
     var showStyleMenu by remember { mutableStateOf(false) }
     
-    val fontSize = settings.canvas.headerFontSize.sp
+    val fontSize = (settings.canvas.headerFontSize + 4).sp
     val fontWeight = if (settings.canvas.headerFontBold) FontWeight.Bold else FontWeight.Medium
-
-    val currentSymbolInfo = remember(symbol) {
-        val type = when {
-            symbol.startsWith("BTC") || symbol.startsWith("ETH") || symbol.startsWith("SOL") -> "Crypto"
-            symbol.length == 6 && (symbol.contains("USD") || symbol.contains("EUR") || symbol.contains("JPY") || symbol.contains("GBP")) -> "Forex"
-            symbol == "SPX" || symbol == "DJI" || symbol == "IXIC" || symbol == "NIFTY" -> "Index"
-            else -> "Stock"
-        }
-        SymbolInfo(ticker = symbol, name = "", type = type)
-    }
+    val secondaryWhite = Color(0xFFD1D4DC)
 
     Column(modifier = Modifier.fillMaxWidth()) {
         if (isAtBottom) {
@@ -77,7 +70,7 @@ fun Header(
                 .padding(start = 1.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. STATIC LEFT: Asset Pair Button with Flag
+            // 1. STATIC LEFT: Asset Pair Button (Flag removed)
             Row(
                 modifier = Modifier.padding(end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -91,9 +84,7 @@ fun Header(
                         .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AssetIcon(currentSymbolInfo, size = 28)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = fontSize)
+                    Text(symbol, color = secondaryWhite, fontWeight = FontWeight.Bold, fontSize = fontSize)
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
                 }
@@ -107,13 +98,13 @@ fun Header(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onGoToClick, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.DateRange, "GoTo", tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                    Icon(Icons.Default.DateRange, "GoTo", tint = secondaryWhite, modifier = Modifier.size(26.dp))
                 }
 
                 HeaderDivider()
 
                 IconButton(onClick = { /* Compare */ }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Outlined.AddCircleOutline, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                    Icon(Icons.Outlined.AddCircleOutline, null, tint = secondaryWhite, modifier = Modifier.size(26.dp))
                 }
 
                 HeaderDivider()
@@ -134,7 +125,7 @@ fun Header(
                                 "1M", "M" -> "M"
                                 else -> timeframe
                             },
-                            color = Color.White,
+                            color = secondaryWhite,
                             fontSize = fontSize,
                             fontWeight = FontWeight.Bold
                         )
@@ -155,9 +146,9 @@ fun Header(
                         DropdownMenuItem(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Add, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                                    Icon(Icons.Default.Add, null, tint = secondaryWhite, modifier = Modifier.size(26.dp))
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Text("Add custom interval...", color = Color(0xFFD1D4DC), fontSize = 14.sp)
+                                    Text("Add custom interval...", color = secondaryWhite, fontSize = 14.sp)
                                 }
                             },
                             onClick = { showTimeframeMenu = false }
@@ -222,10 +213,17 @@ fun Header(
 
                 HeaderDivider()
 
+                // DRAWING ICON
+                IconButton(onClick = onDrawingClick, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Outlined.Edit, "Drawings", tint = secondaryWhite, modifier = Modifier.size(26.dp))
+                }
+
+                HeaderDivider()
+
                 // Chart Style
                 Box {
                     IconButton(onClick = { showStyleMenu = true }, modifier = Modifier.size(48.dp)) {
-                        Icon(getStyleIcon(chartStyle), null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                        Icon(getStyleIcon(chartStyle), null, tint = secondaryWhite, modifier = Modifier.size(26.dp))
                     }
                     
                     DropdownMenu(
@@ -282,48 +280,64 @@ fun Header(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.WaterfallChart, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                    Icon(Icons.Default.WaterfallChart, null, tint = secondaryWhite, modifier = Modifier.size(26.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Indicators", color = Color.White, fontSize = fontSize, fontWeight = fontWeight)
+                    Text("Indicators", color = secondaryWhite, fontSize = fontSize, fontWeight = fontWeight)
                 }
                 
                 IconButton(onClick = { }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.GridView, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.GridView, null, tint = secondaryWhite, modifier = Modifier.size(24.dp))
+                }
+
+                HeaderDivider()
+
+                // MORE ICON WITH RED DOT
+                Box(modifier = Modifier.size(42.dp), contentAlignment = Alignment.Center) {
+                    IconButton(onClick = onMoreClick) {
+                        Icon(Icons.Default.MoreHoriz, "More", tint = secondaryWhite, modifier = Modifier.size(26.dp))
+                    }
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 10.dp, end = 10.dp)
+                            .size(6.dp)
+                            .background(Color(0xFFF23645), CircleShape)
+                            .align(Alignment.TopEnd)
+                    )
                 }
 
                 HeaderDivider()
 
                 IconButton(onClick = onUndo, enabled = canUndo, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Default.Undo, null, tint = if(canUndo) Color.White else Color(0xFF434651), modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.Undo, null, tint = if(canUndo) secondaryWhite else Color(0xFF434651), modifier = Modifier.size(24.dp))
                 }
                 IconButton(onClick = onRedo, enabled = canRedo, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Default.Redo, null, tint = if(canRedo) Color.White else Color(0xFF434651), modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.Redo, null, tint = if(canRedo) secondaryWhite else Color(0xFF434651), modifier = Modifier.size(24.dp))
                 }
 
                 HeaderDivider()
 
                 IconButton(onClick = onToolSearchClick, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Default.Search, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                    Icon(Icons.Default.Search, null, tint = secondaryWhite, modifier = Modifier.size(26.dp))
                 }
                 IconButton(onClick = onDownloadChart, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Default.CameraAlt, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                    Icon(Icons.Default.CameraAlt, null, tint = secondaryWhite, modifier = Modifier.size(26.dp))
                 }
 
                 HeaderDivider()
 
                 // NEWS ICON
                 IconButton(onClick = onNewsClick, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Outlined.Newspaper, "News", tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                    Icon(Icons.Outlined.Newspaper, "News", tint = secondaryWhite, modifier = Modifier.size(26.dp))
                 }
 
                 // LAYERS ICON (Object Tree)
                 IconButton(onClick = onLayersClick, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Outlined.Layers, "Layers", tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                    Icon(Icons.Outlined.Layers, "Layers", tint = secondaryWhite, modifier = Modifier.size(26.dp))
                 }
 
                 // CHAT ICON
                 IconButton(onClick = onChatClick, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Outlined.Chat, "Chat", tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                    Icon(Icons.Outlined.Chat, "Chat", tint = secondaryWhite, modifier = Modifier.size(26.dp))
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -336,7 +350,7 @@ fun Header(
                     shape = RoundedCornerShape(18.dp),
                     border = BorderStroke(1.dp, Color(0xFF2A2E39))
                 ) {
-                    Text("Trade", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Trade", color = secondaryWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
