@@ -190,6 +190,9 @@ fun TradingApp() {
     var showIndicatorSettingsModal by remember { mutableStateOf<String?>(null) }
     var showTimeZoneModal by remember { mutableStateOf(false) }
     var showNewsPage by remember { mutableStateOf(false) }
+    var showDrawingsModal by remember { mutableStateOf(false) }
+    var showAnalysisHubModal by remember { mutableStateOf(false) }
+    var showChartTypeModal by remember { mutableStateOf(false) }
 
     // Quick Actions State
     var showQuickActions by remember { mutableStateOf(false) }
@@ -421,8 +424,8 @@ fun TradingApp() {
                             onGoToClick = { showGoToDateModal = true },
                             onNewsClick = { showNewsPage = true },
                             onChatClick = { /* activeTab = "Chat"; isBottomPanelVisible = true */ },
-                            onDrawingClick = { isSidebarVisible = !isSidebarVisible },
-                            onMoreClick = { showQuickActions = true }
+                            onDrawingClick = { showDrawingsModal = true },
+                            onMoreClick = { showAnalysisHubModal = true }
                         )
                     }
                 }
@@ -500,14 +503,8 @@ fun TradingApp() {
                     onSettingsClick = { showSettingsModal = true; showQuickActions = false },
                     onDrawingsClick = { isSidebarVisible = !isSidebarVisible; showQuickActions = false },
                     onChartTypeClick = { 
-                        chartStyle = when(chartStyle) {
-                            "candles" -> "hollow_candles"
-                            "hollow_candles" -> "heikin_ashi"
-                            "heikin_ashi" -> "bars"
-                            "bars" -> "line"
-                            "line" -> "area"
-                            else -> "candles"
-                        }
+                        showChartTypeModal = true
+                        showQuickActions = false
                     },
                     isTimezoneVisible = isTimezonePaneVisible,
                     onTimezoneToggle = { isTimezonePaneVisible = !isTimezonePaneVisible },
@@ -589,6 +586,30 @@ fun TradingApp() {
                 onClose = { showCaptureModal = false },
                 onDownload = { },
                 onShare = { }
+            )
+        }
+        if (showDrawingsModal) {
+            DrawingsModal(
+                onClose = { showDrawingsModal = false },
+                onToolSelect = { activeTool = it }
+            )
+        }
+        if (showAnalysisHubModal) {
+            AnalysisHubModal(
+                onClose = { showAnalysisHubModal = false },
+                onIndicatorClick = { showIndicatorModal = true; showAnalysisHubModal = false },
+                onAlertClick = { showAlertModal = true; showAnalysisHubModal = false },
+                onChartTypeClick = { 
+                    showChartTypeModal = true
+                    showAnalysisHubModal = false
+                }
+            )
+        }
+        if (showChartTypeModal) {
+            ChartTypeModal(
+                currentStyle = chartStyle,
+                onStyleChange = { chartStyle = it },
+                onClose = { showChartTypeModal = false }
             )
         }
         showIndicatorSettingsModal?.let { indicatorId ->

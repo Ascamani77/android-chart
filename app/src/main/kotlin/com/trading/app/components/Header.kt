@@ -52,7 +52,6 @@ fun Header(
 ) {
     val scrollState = rememberScrollState()
     var showTimeframeMenu by remember { mutableStateOf(false) }
-    var showStyleMenu by remember { mutableStateOf(false) }
     
     val fontSize = (settings.canvas.headerFontSize + 4).sp
     val fontWeight = if (settings.canvas.headerFontBold) FontWeight.Bold else FontWeight.Medium
@@ -60,7 +59,7 @@ fun Header(
 
     Column(modifier = Modifier.fillMaxWidth()) {
         if (isAtBottom) {
-            Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF2A2E39))
+            Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF2A2E39).copy(alpha = 0.3f))
         }
         Row(
             modifier = Modifier
@@ -70,11 +69,12 @@ fun Header(
                 .padding(start = 1.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. STATIC LEFT: Asset Pair Button (Flag removed)
+            // 1. STATIC LEFT: Asset Pair Button and Timeframe selector
             Row(
                 modifier = Modifier.padding(end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Symbol button
                 Row(
                     modifier = Modifier
                         .height(36.dp)
@@ -88,34 +88,16 @@ fun Header(
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
                 }
-            }
 
-            // 2. SCROLLABLE SECTION
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .horizontalScroll(scrollState),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onGoToClick, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.DateRange, "GoTo", tint = secondaryWhite, modifier = Modifier.size(26.dp))
-                }
+                Spacer(modifier = Modifier.width(4.dp))
 
-                HeaderDivider()
-
-                IconButton(onClick = { /* Compare */ }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Outlined.AddCircleOutline, null, tint = secondaryWhite, modifier = Modifier.size(26.dp))
-                }
-
-                HeaderDivider()
-
-                // Timeframe Selection (Only the current timeframe shown)
+                // Timeframe Selection (Now static)
                 Box {
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
                             .clickable { showTimeframeMenu = true }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -129,12 +111,12 @@ fun Header(
                             fontSize = fontSize,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
                         Icon(
                             Icons.Default.KeyboardArrowDown,
                             null,
                             tint = Color(0xFF787B86),
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                     
@@ -210,83 +192,27 @@ fun Header(
                         TimeframeItem("100 ranges", "100r", timeframe, onTimeframeClick) { showTimeframeMenu = false }
                     }
                 }
+            }
+
+            // 2. SCROLLABLE SECTION
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(scrollState),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Extra space between timeframe and GoTo icon
+                Spacer(modifier = Modifier.width(16.dp))
+
+                IconButton(onClick = onGoToClick, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.DateRange, "GoTo", tint = secondaryWhite, modifier = Modifier.size(26.dp))
+                }
 
                 HeaderDivider()
 
                 // DRAWING ICON
                 IconButton(onClick = onDrawingClick, modifier = Modifier.size(42.dp)) {
                     Icon(Icons.Outlined.Edit, "Drawings", tint = secondaryWhite, modifier = Modifier.size(26.dp))
-                }
-
-                HeaderDivider()
-
-                // Chart Style
-                Box {
-                    IconButton(onClick = { showStyleMenu = true }, modifier = Modifier.size(48.dp)) {
-                        Icon(getStyleIcon(chartStyle), null, tint = secondaryWhite, modifier = Modifier.size(26.dp))
-                    }
-                    
-                    DropdownMenu(
-                        expanded = showStyleMenu,
-                        onDismissRequest = { showStyleMenu = false },
-                        modifier = Modifier.background(Color(0xFF1E222D)).width(240.dp)
-                    ) {
-                        StyleMenuItem("Bars", "bars", Icons.Default.Reorder, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Candles", "candles", Icons.Default.BarChart, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Hollow candles", "hollow_candles", Icons.Default.BarChart, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Volume candles", "volume_candles", Icons.Default.BarChart, chartStyle, onStyleChange) { showStyleMenu = false }
-                        
-                        Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
-                        
-                        StyleMenuItem("Line", "line", Icons.Default.ShowChart, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Line with markers", "line_markers", Icons.Default.ShowChart, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Step line", "step_line", Icons.Default.StackedLineChart, chartStyle, onStyleChange) { showStyleMenu = false }
-                        
-                        Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
-
-                        StyleMenuItem("Area", "area", Icons.Default.AreaChart, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("HLC area", "hlc_area", Icons.Default.AreaChart, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Baseline", "baseline", Icons.Default.HorizontalRule, chartStyle, onStyleChange) { showStyleMenu = false }
-                        
-                        Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
-
-                        StyleMenuItem("Columns", "columns", Icons.Default.BarChart, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("High-low", "high_low", Icons.Default.VerticalAlignBottom, chartStyle, onStyleChange) { showStyleMenu = false }
-                        
-                        Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
-
-                        StyleMenuItem("Volume footprint", "volume_footprint", Icons.Default.FormatAlignLeft, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Time price opportunity", "tpo", Icons.Default.GridView, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Session volume profile", "svp", Icons.Default.AlignHorizontalLeft, chartStyle, onStyleChange) { showStyleMenu = false }
-                        
-                        Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
-
-                        StyleMenuItem("Heikin Ashi", "heikin_ashi", Icons.Default.BarChart, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Renko", "renko", Icons.Default.GridView, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Line break", "line_break", Icons.Default.FormatAlignLeft, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Kagi", "kagi", Icons.Default.ShowChart, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Point & figure", "point_figure", Icons.Default.Close, chartStyle, onStyleChange) { showStyleMenu = false }
-                        StyleMenuItem("Range", "range", Icons.Default.Height, chartStyle, onStyleChange) { showStyleMenu = false }
-                    }
-                }
-
-                HeaderDivider()
-
-                // Indicators
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { onIndicatorClick() }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.WaterfallChart, null, tint = secondaryWhite, modifier = Modifier.size(26.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Indicators", color = secondaryWhite, fontSize = fontSize, fontWeight = fontWeight)
-                }
-                
-                IconButton(onClick = { }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.GridView, null, tint = secondaryWhite, modifier = Modifier.size(24.dp))
                 }
 
                 HeaderDivider()
@@ -325,16 +251,6 @@ fun Header(
 
                 HeaderDivider()
 
-                // NEWS ICON
-                IconButton(onClick = onNewsClick, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Outlined.Newspaper, "News", tint = secondaryWhite, modifier = Modifier.size(26.dp))
-                }
-
-                // LAYERS ICON (Object Tree)
-                IconButton(onClick = onLayersClick, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Outlined.Layers, "Layers", tint = secondaryWhite, modifier = Modifier.size(26.dp))
-                }
-
                 // CHAT ICON
                 IconButton(onClick = onChatClick, modifier = Modifier.size(42.dp)) {
                     Icon(Icons.Outlined.Chat, "Chat", tint = secondaryWhite, modifier = Modifier.size(26.dp))
@@ -355,7 +271,7 @@ fun Header(
             }
         }
         if (isAtBottom) {
-            Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF2A2E39))
+            Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF2A2E39).copy(alpha = 0.3f))
         }
     }
 }
@@ -419,7 +335,7 @@ fun HeaderDivider() {
             .padding(horizontal = 4.dp)
             .height(28.dp)
             .width(1.dp),
-        color = Color(0xFF2A2E39)
+        color = Color(0xFF2A2E39).copy(alpha = 0.3f)
     )
 }
 

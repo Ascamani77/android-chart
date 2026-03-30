@@ -37,7 +37,6 @@ fun BottomBar(
     currentQuote: SymbolQuote? = null // Pass the live quote down
 ) {
     val pairsScrollState = rememberScrollState()
-    val tabs = listOf("Stock Screener", "Pine Editor", "Strategy Tester", "Trading Panel", "AI Analysis")
     
     Column(
         modifier = Modifier
@@ -117,32 +116,6 @@ fun BottomBar(
                 }
             }
             Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF2A2E39))
-        }
-
-        // Bottom Tabs
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .horizontalScroll(rememberScrollState()),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            tabs.forEach { tab ->
-                val isActive = activeTab == tab
-                Box(
-                    modifier = Modifier
-                        .clickable { onTabClick(tab) }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = tab,
-                        color = if (isActive) Color(0xFF2962FF) else Color(0xFF787B86),
-                        fontSize = 12.sp,
-                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
-                    )
-                }
-            }
         }
     }
 }
