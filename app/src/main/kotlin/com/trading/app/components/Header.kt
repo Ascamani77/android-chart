@@ -6,8 +6,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.AddCircleOutline
-import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,7 +43,10 @@ fun Header(
     backgroundColor: Color = Color(0xFF08090C),
     settings: ChartSettings = ChartSettings(),
     isAtBottom: Boolean = true,
-    onGoToClick: () -> Unit = {}
+    onGoToClick: () -> Unit = {},
+    onNewsClick: () -> Unit = {},
+    onLayersClick: () -> Unit = {},
+    onChatClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     var showTimeframeMenu by remember { mutableStateOf(false) }
@@ -53,7 +55,6 @@ fun Header(
     val fontSize = settings.canvas.headerFontSize.sp
     val fontWeight = if (settings.canvas.headerFontBold) FontWeight.Bold else FontWeight.Medium
 
-    // Helper to determine asset info for icons
     val currentSymbolInfo = remember(symbol) {
         val type = when {
             symbol.startsWith("BTC") || symbol.startsWith("ETH") || symbol.startsWith("SOL") -> "Crypto"
@@ -98,56 +99,52 @@ fun Header(
                 }
             }
 
-            // 2. SCROLLABLE SECTION: Everything else scrolls sideways
+            // 2. SCROLLABLE SECTION
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .horizontalScroll(scrollState),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // GoTo Button (Moved from Bottom)
                 IconButton(onClick = onGoToClick, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Default.DateRange, "GoTo", tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                 }
 
                 HeaderDivider()
 
-                // Compare button
                 IconButton(onClick = { /* Compare */ }, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Outlined.AddCircleOutline, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                 }
 
                 HeaderDivider()
 
-                // Timeframe Quick Selection
-                val quickTimeframes = listOf(
-                    "5m" to "5m",
-                    "15m" to "15m",
-                    "30m" to "30m",
-                    "1h" to "1h",
-                    "4h" to "4h",
-                    "D" to "1D",
-                    "W" to "1W"
-                )
-
-                quickTimeframes.forEach { (display, id) ->
-                    val isSelected = timeframe == id || (id == "1D" && timeframe == "D") || (id == "1W" && timeframe == "W")
-                    Text(
-                        text = display,
-                        color = if (isSelected) Color(0xFF2962FF) else Color.White,
+                // Timeframe Selection (Only the current timeframe shown)
+                Box {
+                    Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
-                            .clickable { onTimeframeClick(id) }
+                            .clickable { showTimeframeMenu = true }
                             .padding(horizontal = 10.dp, vertical = 6.dp),
-                        fontSize = fontSize,
-                        fontWeight = fontWeight
-                    )
-                }
-
-                // Dropdown for more timeframes
-                Box {
-                    IconButton(onClick = { showTimeframeMenu = true }, modifier = Modifier.size(42.dp)) {
-                        Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(26.dp))
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = when(timeframe) {
+                                "1D", "D" -> "D"
+                                "1W", "W" -> "W"
+                                "1M", "M" -> "M"
+                                else -> timeframe
+                            },
+                            color = Color.White,
+                            fontSize = fontSize,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            Icons.Default.KeyboardArrowDown,
+                            null,
+                            tint = Color(0xFF787B86),
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                     
                     DropdownMenu(
@@ -236,7 +233,6 @@ fun Header(
                         onDismissRequest = { showStyleMenu = false },
                         modifier = Modifier.background(Color(0xFF1E222D)).width(240.dp)
                     ) {
-                        // Group 1: Candle Types
                         StyleMenuItem("Bars", "bars", Icons.Default.Reorder, chartStyle, onStyleChange) { showStyleMenu = false }
                         StyleMenuItem("Candles", "candles", Icons.Default.BarChart, chartStyle, onStyleChange) { showStyleMenu = false }
                         StyleMenuItem("Hollow candles", "hollow_candles", Icons.Default.BarChart, chartStyle, onStyleChange) { showStyleMenu = false }
@@ -244,21 +240,18 @@ fun Header(
                         
                         Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
                         
-                        // Group 2: Line Types
                         StyleMenuItem("Line", "line", Icons.Default.ShowChart, chartStyle, onStyleChange) { showStyleMenu = false }
                         StyleMenuItem("Line with markers", "line_markers", Icons.Default.ShowChart, chartStyle, onStyleChange) { showStyleMenu = false }
                         StyleMenuItem("Step line", "step_line", Icons.Default.StackedLineChart, chartStyle, onStyleChange) { showStyleMenu = false }
                         
                         Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
 
-                        // Group 3: Area Types
                         StyleMenuItem("Area", "area", Icons.Default.AreaChart, chartStyle, onStyleChange) { showStyleMenu = false }
                         StyleMenuItem("HLC area", "hlc_area", Icons.Default.AreaChart, chartStyle, onStyleChange) { showStyleMenu = false }
                         StyleMenuItem("Baseline", "baseline", Icons.Default.HorizontalRule, chartStyle, onStyleChange) { showStyleMenu = false }
                         
                         Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 4.dp))
 
-                        // Group 4: Others
                         StyleMenuItem("Columns", "columns", Icons.Default.BarChart, chartStyle, onStyleChange) { showStyleMenu = false }
                         StyleMenuItem("High-low", "high_low", Icons.Default.VerticalAlignBottom, chartStyle, onStyleChange) { showStyleMenu = false }
                         
@@ -294,14 +287,12 @@ fun Header(
                     Text("Indicators", color = Color.White, fontSize = fontSize, fontWeight = fontWeight)
                 }
                 
-                // Layout icon next to indicators
                 IconButton(onClick = { }, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Default.GridView, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(24.dp))
                 }
 
                 HeaderDivider()
 
-                // Undo/Redo
                 IconButton(onClick = onUndo, enabled = canUndo, modifier = Modifier.size(42.dp)) {
                     Icon(Icons.Default.Undo, null, tint = if(canUndo) Color.White else Color(0xFF434651), modifier = Modifier.size(24.dp))
                 }
@@ -311,26 +302,6 @@ fun Header(
 
                 HeaderDivider()
 
-                // Layout options (Square)
-                IconButton(onClick = { }, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Default.CropSquare, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(24.dp))
-                }
-                
-                // Save Button
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Save", color = Color(0xFF2962FF), fontSize = fontSize, fontWeight = FontWeight.Bold)
-                    Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF2962FF), modifier = Modifier.size(22.dp))
-                }
-
-                HeaderDivider()
-
-                // Utility Icons
                 IconButton(onClick = onToolSearchClick, modifier = Modifier.size(42.dp)) {
                     Icon(Icons.Default.Search, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                 }
@@ -338,9 +309,25 @@ fun Header(
                     Icon(Icons.Default.CameraAlt, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
                 }
 
+                HeaderDivider()
+
+                // NEWS ICON
+                IconButton(onClick = onNewsClick, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Outlined.Newspaper, "News", tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                }
+
+                // LAYERS ICON (Object Tree)
+                IconButton(onClick = onLayersClick, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Outlined.Layers, "Layers", tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                }
+
+                // CHAT ICON
+                IconButton(onClick = onChatClick, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Outlined.Chat, "Chat", tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+                }
+
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Trade Button (Black)
                 Button(
                     onClick = { /* Trade */ },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF08090C)),
@@ -350,19 +337,6 @@ fun Header(
                     border = BorderStroke(1.dp, Color(0xFF2A2E39))
                 ) {
                     Text("Trade", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Chat Button (White)
-                Button(
-                    onClick = { /* Chat */ },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 12.dp),
-                    modifier = Modifier.height(32.4.dp),
-                    shape = RoundedCornerShape(18.dp)
-                ) {
-                    Text("Chat", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -189,6 +189,7 @@ fun TradingApp() {
     var showCaptureModal by remember { mutableStateOf(false) }
     var showIndicatorSettingsModal by remember { mutableStateOf<String?>(null) }
     var showTimeZoneModal by remember { mutableStateOf(false) }
+    var showNewsPage by remember { mutableStateOf(false) }
 
     // Quick Actions State
     var showQuickActions by remember { mutableStateOf(false) }
@@ -417,7 +418,9 @@ fun TradingApp() {
                             backgroundColor = appBackgroundColor,
                             settings = chartSettings,
                             isAtBottom = true,
-                            onGoToClick = { showGoToDateModal = true }
+                            onGoToClick = { showGoToDateModal = true },
+                            onNewsClick = { showNewsPage = true },
+                            onChatClick = { /* activeTab = "Chat"; isBottomPanelVisible = true */ }
                         )
                     }
                 }
@@ -447,6 +450,11 @@ fun TradingApp() {
                         currentQuote = currentLiveQuote
                     )
                 }
+            }
+
+            // News Page Overlay
+            if (showNewsPage) {
+                NewsPage(onBack = { showNewsPage = false })
             }
 
             // Backdrop for Quick Actions
