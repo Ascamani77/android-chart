@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -18,10 +20,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trading.app.models.SymbolInfo
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,11 +35,29 @@ fun ExitLevelsModal(
     symbol: String,
     orderType: String,
     entryPrice: Float,
+    initialUnits: String,
+    initialTp: String,
+    initialSl: String,
     onClose: () -> Unit,
     onConfirm: (List<ExitLevel>) -> Unit
 ) {
-    var levels by remember { mutableStateOf(listOf(ExitLevel(id = 1, units = "1"))) }
+    var levels by remember { 
+        mutableStateOf(
+            listOf(
+                ExitLevel(
+                    id = 1, 
+                    units = initialUnits, 
+                    tp = initialTp, 
+                    sl = initialSl
+                )
+            )
+        ) 
+    }
     val scrollState = rememberScrollState()
+
+    val totalExitUnits = levels.sumOf { it.units.toDoubleOrNull() ?: 0.0 }
+    val orderUnits = initialUnits.toDoubleOrNull() ?: 1.0
+    val protectedPercent = if (orderUnits != 0.0) (totalExitUnits / orderUnits) * 100.0 else 0.0
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
@@ -97,7 +121,7 @@ fun ExitLevelsModal(
                     Column {
                         Text(symbol, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         Text(
-                            "$orderType Market 1 @ ${String.format("%,.2f", entryPrice)}",
+                            "$orderType Market $initialUnits @ ${formatPrice(entryPrice, symbol)}",
                             color = Color(0xFF787B86),
                             fontSize = 13.sp
                         )
@@ -107,9 +131,11 @@ fun ExitLevelsModal(
                 // Protected size
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Protected size", color = Color(0xFF787B86), fontSize = 14.sp)
-                    Text(" • 200.00%", color = Color.White, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(Icons.Default.Warning, null, tint = Color(0xFFF2A52C), modifier = Modifier.size(14.dp))
+                    Text(" • ${String.format("%.2f%%", protectedPercent)}", color = Color.White, fontSize = 14.sp)
+                    if (protectedPercent > 100.0) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(Icons.Default.Warning, null, tint = Color(0xFFF2A52C), modifier = Modifier.size(14.dp))
+                    }
                 }
                 Box(
                     modifier = Modifier
@@ -121,9 +147,9 @@ fun ExitLevelsModal(
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(1f) // Based on the image showing 200% maybe? Assuming it's full orange
+                            .fillMaxWidth((protectedPercent / 100.0).toFloat().coerceIn(0f, 1f))
                             .fillMaxHeight()
-                            .background(Color(0xFFF2A52C))
+                            .background(if (protectedPercent > 100.0) Color(0xFFF2A52C) else Color(0xFF089981))
                     )
                 }
 
@@ -137,6 +163,8 @@ fun ExitLevelsModal(
                 // Render Levels
                 levels.forEachIndexed { index, level ->
                     LevelItem(
+                        symbol = symbol,
+                        entryPrice = entryPrice,
                         level = level,
                         index = index,
                         isLast = index == levels.size - 1,
@@ -157,7 +185,12 @@ fun ExitLevelsModal(
                         .fillMaxWidth()
                         .padding(vertical = 24.dp)
                         .clickable {
-                            levels = levels + ExitLevel(id = levels.size + 1, units = "1")
+                            levels = levels + ExitLevel(
+                                id = levels.size + 1, 
+                                units = "1",
+                                tp = formatPrice(entryPrice * 1.01f, symbol),
+                                sl = formatPrice(entryPrice * 0.99f, symbol)
+                            )
                         },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -196,12 +229,22 @@ fun ExitLevelsModal(
 
 @Composable
 fun LevelItem(
+    symbol: String,
+    entryPrice: Float,
     level: ExitLevel,
     index: Int,
     isLast: Boolean,
     onUpdate: (ExitLevel) -> Unit,
     onDelete: () -> Unit
 ) {
+    val tickSize = if (symbol.uppercase().contains("BTC")) 1f else if (symbol.length == 6 || symbol.contains("/")) 0.00001f else 0.01f
+    
+    val tpVal = level.tp.replace(",", "").toFloatOrNull() ?: entryPrice
+    val slVal = level.sl.replace(",", "").toFloatOrNull() ?: entryPrice
+    
+    val tpTicks = abs(tpVal - entryPrice) / tickSize
+    val slTicks = abs(slVal - entryPrice) / tickSize
+
     Column(modifier = Modifier.padding(top = 16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -215,7 +258,7 @@ fun LevelItem(
         }
 
         if (!isLast) {
-            // Summary view for previously added levels
+            // Summary view
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -226,13 +269,13 @@ fun LevelItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("TP", color = Color(0xFF089981), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(" 1 @ 5,079.66", color = Color.White, fontSize = 14.sp)
+                Text(" ${level.units} @ ${level.tp}", color = Color.White, fontSize = 14.sp)
                 Text(" • ", color = Color(0xFF787B86))
                 Text("SL", color = Color(0xFFF23645), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(" 1 @ 4,462.78", color = Color.White, fontSize = 14.sp)
+                Text(" ${level.units} @ ${level.sl}", color = Color.White, fontSize = 14.sp)
             }
         } else {
-            // Expanded editable view for the current level
+            // Expanded editable view
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -250,7 +293,14 @@ fun LevelItem(
                         .padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(level.units, color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    BasicTextField(
+                        value = level.units,
+                        onValueChange = { onUpdate(level.copy(units = it)) },
+                        textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        cursorBrush = SolidColor(Color.White),
+                        modifier = Modifier.weight(1f)
+                    )
                     Icon(Icons.Default.SwapHoriz, null, tint = Color(0xFF787B86), modifier = Modifier.size(18.dp))
                     Text("100.00%", color = Color(0xFF787B86), fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
                 }
@@ -268,9 +318,16 @@ fun LevelItem(
                         .padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("5079.66", color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    BasicTextField(
+                        value = level.tp,
+                        onValueChange = { onUpdate(level.copy(tp = it)) },
+                        textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        cursorBrush = SolidColor(Color.White),
+                        modifier = Modifier.weight(1f)
+                    )
                     Icon(Icons.Default.SwapHoriz, null, tint = Color(0xFF787B86), modifier = Modifier.size(18.dp))
-                    Text("47150 ticks", color = Color(0xFF787B86), fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
+                    Text(String.format("%.0f ticks", tpTicks), color = Color(0xFF787B86), fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
                     Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(14.dp))
                 }
 
@@ -287,14 +344,33 @@ fun LevelItem(
                         .padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("4462.78", color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    BasicTextField(
+                        value = level.sl,
+                        onValueChange = { onUpdate(level.copy(sl = it)) },
+                        textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        cursorBrush = SolidColor(Color.White),
+                        modifier = Modifier.weight(1f)
+                    )
                     Icon(Icons.Default.SwapHoriz, null, tint = Color(0xFF787B86), modifier = Modifier.size(18.dp))
-                    Text("14538 ticks", color = Color(0xFF787B86), fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
+                    Text(String.format("%.0f ticks", slTicks), color = Color(0xFF787B86), fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
                     Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(14.dp))
                 }
             }
         }
     }
+}
+
+private fun formatPrice(price: Float, symbol: String = ""): String {
+    val uppercaseSymbol = symbol.uppercase()
+    val isBitcoin = uppercaseSymbol.contains("BTC")
+    val isForex = uppercaseSymbol.length == 6 || uppercaseSymbol.contains("/")
+    val pattern = when {
+        isBitcoin -> "%,.0f"
+        isForex -> "%,.5f"
+        else -> "%,.2f"
+    }
+    return String.format(pattern, price)
 }
 
 data class ExitLevel(

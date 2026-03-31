@@ -49,16 +49,36 @@ fun OrderModal(
     
     // Inputs
     var unitsInput by remember { mutableStateOf("1") }
+    var limitPriceInput by remember { mutableStateOf("") }
     var tpEnabled by remember { mutableStateOf(false) }
-    var tpPriceInput by remember { mutableStateOf(formatPrice(askPrice + 50f, symbol)) }
+    var tpPriceInput by remember { mutableStateOf("") }
     var slEnabled by remember { mutableStateOf(false) }
-    var slPriceInput by remember { mutableStateOf(formatPrice(askPrice - 50f, symbol)) }
+    var slPriceInput by remember { mutableStateOf("") }
+    
+    // Default values logic
+    LaunchedEffect(selectedTab, selectedType, symbol) {
+        val currentMarketPrice = if (selectedType == "buy") askPrice else bidPrice
+        if (limitPriceInput.isEmpty()) {
+            limitPriceInput = formatPrice(currentMarketPrice, symbol).replace(",", "")
+        }
+        if (tpPriceInput.isEmpty()) {
+            tpPriceInput = formatPrice(currentMarketPrice * 1.05f, symbol).replace(",", "")
+        }
+        if (slPriceInput.isEmpty()) {
+            slPriceInput = formatPrice(currentMarketPrice * 0.95f, symbol).replace(",", "")
+        }
+    }
+
+    // Extra Settings
+    var timeInForce by remember { mutableStateOf("Week") }
     
     // Modes
     var unitsMode by remember { mutableStateOf("Units") }
     var secondaryUnitsMode by remember { mutableStateOf("Margin USD") }
     var tpMode by remember { mutableStateOf("Price") }
+    var secondaryTpMode by remember { mutableStateOf("Ticks") }
     var slMode by remember { mutableStateOf("Price") }
+    var secondarySlMode by remember { mutableStateOf("Ticks") }
     
     // UI State
     var showModeSelector by remember { mutableStateOf<String?>(null) }
@@ -67,7 +87,10 @@ fun OrderModal(
     var slEnablesQuantityInRisk by remember { mutableStateOf(false) }
     var showExitLevelsModal by remember { mutableStateOf(false) }
 
-    val entryPrice = if (selectedType == "buy") askPrice else bidPrice
+    val marketPrice = if (selectedType == "buy") askPrice else bidPrice
+    val limitPrice = limitPriceInput.replace(",", "").toFloatOrNull() ?: marketPrice
+    val entryPrice = if (selectedTab == "Market") marketPrice else limitPrice
+    
     val units = unitsInput.toFloatOrNull() ?: 0f
     val leverage = 500f
     val tradeValue = units * entryPrice
@@ -82,9 +105,16 @@ fun OrderModal(
     val tpTicks = abs(tpPrice - entryPrice) / tickSize
     val slTicks = abs(slPrice - entryPrice) / tickSize
     
+    // Relative Price Calculation for Label
+    val priceDiffTicks = ((limitPrice - marketPrice) / tickSize).toInt()
+    val priceSign = if (priceDiffTicks >= 0) "+" else "-"
+    val priceLabel = if (selectedType == "buy") "Ask $priceSign ${abs(priceDiffTicks)}" else "Bid $priceSign ${abs(priceDiffTicks)}"
+
     // Risk Calculation
     val riskAmount = units * abs(entryPrice - slPrice)
     val riskPercent = if (balance != 0f) (riskAmount / balance) * 100f else 0f
+    val tpProfitAmount = units * abs(tpPrice - entryPrice)
+    val tpProfitPercent = if (balance != 0f) (tpProfitAmount / balance) * 100f else 0f
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
@@ -162,6 +192,28 @@ fun OrderModal(
 
                 // Scrollable Content
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+                    
+                    if (selectedTab == "Limit" || selectedTab == "Stop") {
+                        // Price Box
+                        Text("Price", color = Color(0xFF787B86), fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).border(1.dp, Color(0xFF2A2E39), RoundedCornerShape(4.dp)).padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            BasicTextField(
+                                value = limitPriceInput,
+                                onValueChange = { limitPriceInput = it },
+                                textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                cursorBrush = SolidColor(Color.White),
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(Icons.Default.SwapHoriz, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(priceLabel, color = Color(0xFF787B86), fontSize = 14.sp)
+                        }
+                    }
+
                     // BOX 1: Units
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Row(modifier = Modifier.clickable { showModeSelector = "Units" }, verticalAlignment = Alignment.CenterVertically) {
@@ -222,8 +274,17 @@ fun OrderModal(
                         )
                         Icon(Icons.Default.SwapHoriz, null, tint = if (tpEnabled) Color(0xFF787B86) else Color(0xFF434651), modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(String.format("%.0f ticks", tpTicks), color = if (tpEnabled) Color(0xFF787B86) else Color(0xFF434651), fontSize = 14.sp)
-                        Icon(Icons.Default.KeyboardArrowDown, null, tint = if (tpEnabled) Color(0xFF787B86) else Color(0xFF434651), modifier = Modifier.size(16.dp))
+                        Row(modifier = Modifier.clickable { if (tpEnabled) showModeSelector = "SecondaryTP" }, verticalAlignment = Alignment.CenterVertically) {
+                            val secondaryValue = when(secondaryTpMode) {
+                                "Ticks" -> String.format("%.0f ticks", tpTicks)
+                                "% price" -> String.format("%.2f%%", (abs(tpPrice - entryPrice)/entryPrice)*100)
+                                "Risk, USD" -> String.format("%.2f USD", tpProfitAmount)
+                                "Risk, % balance" -> String.format("%.2f%%", tpProfitPercent)
+                                else -> String.format("%.0f ticks", tpTicks)
+                            }
+                            Text(secondaryValue, color = if (tpEnabled) Color(0xFF787B86) else Color(0xFF434651), fontSize = 14.sp)
+                            Icon(if (showModeSelector == "SecondaryTP") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = if (tpEnabled) Color(0xFF787B86) else Color(0xFF434651), modifier = Modifier.size(16.dp))
+                        }
                     }
 
                     // BOX 3: Stop Loss
@@ -249,11 +310,33 @@ fun OrderModal(
                         )
                         Icon(Icons.Default.SwapHoriz, null, tint = if (slEnabled) Color(0xFF787B86) else Color(0xFF434651), modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(String.format("%.0f ticks", slTicks), color = if (slEnabled) Color(0xFF787B86) else Color(0xFF434651), fontSize = 14.sp)
-                        Icon(Icons.Default.KeyboardArrowDown, null, tint = if (slEnabled) Color(0xFF787B86) else Color(0xFF434651), modifier = Modifier.size(16.dp))
+                        Row(modifier = Modifier.clickable { if (slEnabled) showModeSelector = "SecondarySL" }, verticalAlignment = Alignment.CenterVertically) {
+                            val secondaryValue = when(secondarySlMode) {
+                                "Ticks" -> String.format("%.0f ticks", slTicks)
+                                "% price" -> String.format("%.2f%%", (abs(slPrice - entryPrice)/entryPrice)*100)
+                                "Risk, USD" -> String.format("%.2f USD", riskAmount)
+                                "Risk, % balance" -> String.format("%.2f%%", riskPercent)
+                                else -> String.format("%.0f ticks", slTicks)
+                            }
+                            Text(secondaryValue, color = if (slEnabled) Color(0xFF787B86) else Color(0xFF434651), fontSize = 14.sp)
+                            Icon(if (showModeSelector == "SecondarySL") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = if (slEnabled) Color(0xFF787B86) else Color(0xFF434651), modifier = Modifier.size(16.dp))
+                        }
                     }
 
                     Text("+ Add level", color = Color(0xFF2962FF), fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp).clickable { showExitLevelsModal = true })
+
+                    if (selectedTab == "Limit" || selectedTab == "Stop") {
+                        // Extra Settings
+                        Text("Extra settings", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
+                        Text("Time in force", color = Color(0xFF787B86), fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).border(1.dp, Color(0xFF2A2E39), RoundedCornerShape(4.dp)).clickable { showModeSelector = "TIF" }.padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(timeInForce, color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                            Icon(if (showModeSelector == "TIF") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
+                        }
+                    }
 
                     // Order Info
                     Text("Order info", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
@@ -264,7 +347,7 @@ fun OrderModal(
                         Text(String.format("%.2f / %,.2f", margin, balance), color = Color.White, fontSize = 14.sp)
                     }
                     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(6.dp).clip(RoundedCornerShape(50)).background(Color(0xFF2A2E39)), contentAlignment = Alignment.CenterStart) {
-                        Box(modifier = Modifier.fillMaxWidth(margin / balance).fillMaxHeight().background(Color(0xFF787B86)))
+                        Box(modifier = Modifier.fillMaxWidth((margin / balance).coerceIn(0f, 1f)).fillMaxHeight().background(Color(0xFF787B86)))
                     }
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Leverage", color = Color.White, fontSize = 14.sp); Spacer(modifier = Modifier.weight(1f)); Text("500:1", color = Color.White, fontSize = 14.sp)
@@ -301,25 +384,49 @@ fun OrderModal(
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(0.dp)
                     ) {
-                        Text(if (selectedType == "buy") "Buy" else "Sell", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(if (selectedTab == "Market") (if (selectedType == "buy") "Buy" else "Sell") else "Place Order", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
 
-            // Mode Selector Overlays... (truncated for brevity but logic remains same)
+            // Mode Selector Overlays
             if (showModeSelector != null) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable { showModeSelector = null }) {
                     Surface(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 32.dp), color = Color(0xFF1E222D), shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)) {
                         Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                            val currentMode = when(showModeSelector) { "Units" -> unitsMode; "SecondaryUnits" -> secondaryUnitsMode; "TP" -> tpMode; else -> slMode }
+                            val currentMode = when(showModeSelector) { 
+                                "Units" -> unitsMode 
+                                "SecondaryUnits" -> secondaryUnitsMode 
+                                "TP" -> tpMode
+                                "SecondaryTP" -> secondaryTpMode
+                                "SL" -> slMode
+                                "SecondarySL" -> secondarySlMode
+                                else -> timeInForce 
+                            }
+                            
                             val options = when(showModeSelector) {
                                 "Units" -> listOf(Triple("Units", "", false), Triple("Margin USD", "", true), Triple("% balance", "", true), Triple("Risk, USD", "", true), Triple("Risk, % balance", "", true))
                                 "SecondaryUnits" -> listOf(Triple("Margin USD", String.format("%.2f", margin), false), Triple("% balance", String.format("%.2f", (margin/balance)*100), false), Triple("Risk, USD", String.format("%.2f", riskAmount), true), Triple("Risk, % balance", String.format("%.2f", riskPercent), true))
+                                "TIF" -> listOf(Triple("Day", "", false), Triple("Week", "", false), Triple("Month", "", false), Triple("GTD", "", false))
+                                "SecondaryTP" -> listOf(Triple("Ticks", String.format("%,.0f", tpTicks), false), Triple("% price", String.format("%.2f", (abs(tpPrice - entryPrice)/entryPrice)*100), false), Triple("Risk, USD", String.format("%.2f", tpProfitAmount), false), Triple("Risk, % balance", String.format("%.2f", tpProfitPercent), false))
+                                "SecondarySL" -> listOf(Triple("Ticks", String.format("%,.0f", slTicks), false), Triple("% price", String.format("%.2f", (abs(slPrice - entryPrice)/entryPrice)*100), false), Triple("Risk, USD", String.format("%.2f", riskAmount), false), Triple("Risk, % balance", String.format("%.2f", riskPercent), false))
                                 else -> listOf(Triple("Price", "", false), Triple("Ticks", "", false), Triple("% price", "", true), Triple("Risk, USD", "", true), Triple("Risk, % balance", "", true))
                             }
+                            
                             options.forEach { (label, value, hasInfo) ->
                                 val isSelected = label == currentMode
-                                Row(modifier = Modifier.fillMaxWidth().background(if (isSelected) Color.White else Color.Transparent).clickable { when(showModeSelector) { "Units" -> unitsMode = label; "SecondaryUnits" -> secondaryUnitsMode = label; "TP" -> tpMode = label; "SL" -> slMode = label }; showModeSelector = null }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Row(modifier = Modifier.fillMaxWidth().background(if (isSelected) Color.White else Color.Transparent).clickable { 
+                                    when(showModeSelector) { 
+                                        "Units" -> unitsMode = label 
+                                        "SecondaryUnits" -> secondaryUnitsMode = label 
+                                        "TP" -> tpMode = label
+                                        "SecondaryTP" -> secondaryTpMode = label
+                                        "SL" -> slMode = label
+                                        "SecondarySL" -> secondarySlMode = label
+                                        "TIF" -> timeInForce = label
+                                    }
+                                    showModeSelector = null 
+                                }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                                         Text(label, color = if (isSelected) Color.Black else Color.White, fontSize = 16.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                         if (hasInfo) { Spacer(modifier = Modifier.width(4.dp)); Icon(Icons.Outlined.Info, null, tint = if (isSelected) Color.Black else Color(0xFF787B86), modifier = Modifier.size(18.dp)) }
@@ -332,7 +439,6 @@ fun OrderModal(
                 }
             }
             
-            // Presets and More Menu remain...
             if (showPresets) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable { showPresets = false }) {
                     Surface(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 32.dp), color = Color(0xFF1E222D), shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)) {
@@ -373,7 +479,16 @@ fun OrderModal(
     }
     
     if (showExitLevelsModal) {
-        ExitLevelsModal(symbol = symbol, orderType = if (selectedType == "buy") "Buy" else "Sell", entryPrice = entryPrice, onClose = { showExitLevelsModal = false }, onConfirm = { showExitLevelsModal = false })
+        ExitLevelsModal(
+            symbol = symbol, 
+            orderType = if (selectedTab == "Market") (if (selectedType == "buy") "Buy" else "Sell") else selectedTab, 
+            entryPrice = entryPrice, 
+            initialUnits = unitsInput,
+            initialTp = tpPriceInput,
+            initialSl = slPriceInput,
+            onClose = { showExitLevelsModal = false }, 
+            onConfirm = { showExitLevelsModal = false }
+        )
     }
 }
 
