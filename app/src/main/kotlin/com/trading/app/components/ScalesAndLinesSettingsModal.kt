@@ -132,10 +132,15 @@ fun ScalesAndLinesSettingsModal(
                     
                     ScalesCheckboxRow("Symbol name label", tempSettings.symbolNameLabel) { tempSettings = tempSettings.copy(symbolNameLabel = it) }
                     ScalesCheckboxRow("Symbol last price label", tempSettings.symbolLastPriceLabel) { tempSettings = tempSettings.copy(symbolLastPriceLabel = it) }
+                    ScalesCheckboxRow("Price line", tempSettings.symbolLastPriceLine) { tempSettings = tempSettings.copy(symbolLastPriceLine = it) }
                     ScalesCheckboxRow("Symbol previous day close price label", tempSettings.symbolPrevCloseLabel) { tempSettings = tempSettings.copy(symbolPrevCloseLabel = it) }
+                    ScalesCheckboxRow("Previous day close price line", tempSettings.symbolPrevCloseLine) { tempSettings = tempSettings.copy(symbolPrevCloseLine = it) }
                     ScalesCheckboxRow("Pre/post market price label", tempSettings.prePostMarketPriceLabel) { tempSettings = tempSettings.copy(prePostMarketPriceLabel = it) }
+                    ScalesCheckboxRow("Pre/post market price line", tempSettings.prePostMarketPriceLine) { tempSettings = tempSettings.copy(prePostMarketPriceLine = it) }
                     ScalesCheckboxRow("High and low price labels", tempSettings.highLowPriceLabels) { tempSettings = tempSettings.copy(highLowPriceLabels = it) }
+                    ScalesCheckboxRow("High and low price lines", tempSettings.highLowPriceLines) { tempSettings = tempSettings.copy(highLowPriceLines = it) }
                     ScalesCheckboxRow("Bid and ask labels", tempSettings.bidAskLabels) { tempSettings = tempSettings.copy(bidAskLabels = it) }
+                    ScalesCheckboxRow("Bid and ask lines", tempSettings.bidAskLines) { tempSettings = tempSettings.copy(bidAskLines = it) }
                     ScalesCheckboxRow("Indicators and financials name labels", tempSettings.indicatorsAndFinancialsNameLabels) { tempSettings = tempSettings.copy(indicatorsAndFinancialsNameLabels = it) }
                     ScalesCheckboxRow("Indicators and financials value labels", tempSettings.indicatorsAndFinancialsValueLabels) { tempSettings = tempSettings.copy(indicatorsAndFinancialsValueLabels = it) }
                     ScalesCheckboxRow("Countdown to bar close", tempSettings.countdown) { tempSettings = tempSettings.copy(countdown = it) }

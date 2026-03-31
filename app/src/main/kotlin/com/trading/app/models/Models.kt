@@ -81,7 +81,13 @@ data class ScalesSettings(
     val highLowPriceLabels: Boolean = false,
     val bidAskLabels: Boolean = false,
     val indicatorsAndFinancialsNameLabels: Boolean = false,
-    val indicatorsAndFinancialsValueLabels: Boolean = false
+    val indicatorsAndFinancialsValueLabels: Boolean = false,
+    // Lines flags
+    val symbolLastPriceLine: Boolean = true,
+    val symbolPrevCloseLine: Boolean = false,
+    val prePostMarketPriceLine: Boolean = false,
+    val highLowPriceLines: Boolean = true,
+    val bidAskLines: Boolean = false
 )
 
 data class CanvasSettings(

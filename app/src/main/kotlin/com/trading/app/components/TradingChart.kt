@@ -25,7 +25,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -37,13 +36,13 @@ import com.trading.app.models.Drawing
 import com.trading.app.models.Position
 import com.trading.app.models.SymbolInfo
 import com.tradingview.lightweightcharts.api.interfaces.SeriesApi
+import com.tradingview.lightweightcharts.api.series.common.PriceLine
 import com.tradingview.lightweightcharts.api.options.models.*
 import com.tradingview.lightweightcharts.api.series.models.*
 import com.tradingview.lightweightcharts.view.ChartsView
 import java.util.*
 import com.tradingview.lightweightcharts.api.series.enums.*
 import com.tradingview.lightweightcharts.api.chart.models.color.IntColor
-import com.tradingview.lightweightcharts.api.series.models.Time
 import com.tradingview.lightweightcharts.api.chart.models.color.surface.SolidColor
 import android.graphics.Color as AndroidColor
 import java.text.DecimalFormat
@@ -165,6 +164,12 @@ fun TradingChart(
     var currentQuoteState by remember { mutableStateOf<SymbolQuote?>(null) }
     var seriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var showMarketStatus by remember { mutableStateOf(false) }
+    
+    // High/Low/Bid/Ask lines state
+    val highPriceLineState = remember { mutableStateOf<PriceLine?>(null) }
+    val lowPriceLineState = remember { mutableStateOf<PriceLine?>(null) }
+    val bidPriceLineState = remember { mutableStateOf<PriceLine?>(null) }
+    val askPriceLineState = remember { mutableStateOf<PriceLine?>(null) }
 
     val updatedOnQuoteUpdate = rememberUpdatedState(onQuoteUpdate)
     val currentSymbol = rememberUpdatedState(symbol)
@@ -255,6 +260,109 @@ fun TradingChart(
         api.update(updatedCandle)
     }
 
+    // Manage High/Low Price Lines
+    LaunchedEffect(candlestickData, currentQuoteState, seriesApi, 
+        chartSettings.scales.highLowPriceLabels, 
+        chartSettings.scales.highLowPriceLines,
+        chartSettings.scales.highLowMode, 
+        chartSettings.scales.highLowLineColor) {
+        
+        val api = seriesApi ?: return@LaunchedEffect
+        val scales = chartSettings.scales
+        
+        // Remove existing lines
+        highPriceLineState.value?.let { api.removePriceLine(it) }
+        lowPriceLineState.value?.let { api.removePriceLine(it) }
+        highPriceLineState.value = null
+        lowPriceLineState.value = null
+
+        if (candlestickData.isEmpty() || (!scales.highLowPriceLabels && !scales.highLowPriceLines)) return@LaunchedEffect
+
+        var maxHigh = candlestickData.maxOf { it.high }
+        var minLow = candlestickData.minOf { it.low }
+        
+        currentQuoteState?.let {
+            maxHigh = maxOf(maxHigh, it.lastPrice)
+            minLow = minOf(minLow, it.lastPrice)
+        }
+
+        val showLine = scales.highLowPriceLines
+        val showLabel = scales.highLowPriceLabels
+
+        val color = try { IntColor(AndroidColor.parseColor(scales.highLowLineColor)) } catch (e: Exception) { IntColor(AndroidColor.WHITE) }
+        
+        highPriceLineState.value = api.createPriceLine(
+            PriceLineOptions(
+                price = maxHigh,
+                color = color,
+                lineWidth = LineWidth.ONE,
+                lineStyle = LineStyle.DASHED,
+                lineVisible = showLine,
+                axisLabelVisible = showLabel,
+                title = "High"
+            )
+        )
+
+        lowPriceLineState.value = api.createPriceLine(
+            PriceLineOptions(
+                price = minLow,
+                color = color,
+                lineWidth = LineWidth.ONE,
+                lineStyle = LineStyle.DASHED,
+                lineVisible = showLine,
+                axisLabelVisible = showLabel,
+                title = "Low"
+            )
+        )
+    }
+
+    // Manage Bid/Ask Price Lines
+    LaunchedEffect(currentQuoteState, seriesApi, 
+        chartSettings.scales.bidAskLabels, 
+        chartSettings.scales.bidAskLines,
+        chartSettings.scales.bidAskMode, 
+        chartSettings.scales.bidColor,
+        chartSettings.scales.askColor) {
+        
+        val api = seriesApi ?: return@LaunchedEffect
+        val quote = currentQuoteState ?: return@LaunchedEffect
+        val scales = chartSettings.scales
+        
+        bidPriceLineState.value?.let { api.removePriceLine(it) }
+        askPriceLineState.value?.let { api.removePriceLine(it) }
+        bidPriceLineState.value = null
+        askPriceLineState.value = null
+
+        if (!scales.bidAskLabels && !scales.bidAskLines) return@LaunchedEffect
+
+        val showLine = scales.bidAskLines
+        val showLabel = scales.bidAskLabels
+
+        bidPriceLineState.value = api.createPriceLine(
+            PriceLineOptions(
+                price = quote.bid,
+                color = try { IntColor(AndroidColor.parseColor(scales.bidColor)) } catch (e: Exception) { IntColor(AndroidColor.BLUE) },
+                lineWidth = LineWidth.ONE,
+                lineStyle = LineStyle.DASHED,
+                lineVisible = showLine,
+                axisLabelVisible = showLabel,
+                title = "Bid"
+            )
+        )
+
+        askPriceLineState.value = api.createPriceLine(
+            PriceLineOptions(
+                price = quote.ask,
+                color = try { IntColor(AndroidColor.parseColor(scales.askColor)) } catch (e: Exception) { IntColor(AndroidColor.RED) },
+                lineWidth = LineWidth.ONE,
+                lineStyle = LineStyle.DASHED,
+                lineVisible = showLine,
+                axisLabelVisible = showLabel,
+                title = "Ask"
+            )
+        )
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             mt5Service.disconnect()
@@ -335,7 +443,7 @@ fun TradingChart(
                             )
                         }
 
-                        val priceLineVisible = chartSettings.scales.symbolLastPriceLabel
+                        val priceLineVisible = chartSettings.scales.symbolLastPriceLine
                         val lastValueVisible = chartSettings.scales.symbolLastPriceLabel
 
                         when (style) {
@@ -416,7 +524,7 @@ fun TradingChart(
                     }
 
                     // Apply series-specific options
-                    val priceLineVisible = chartSettings.scales.symbolLastPriceLabel
+                    val priceLineVisible = chartSettings.scales.symbolLastPriceLine
                     val lastValueVisible = chartSettings.scales.symbolLastPriceLabel
                     
                     seriesApi?.let { api ->
@@ -732,7 +840,7 @@ fun PositionUI(
                                     .pointerInput(Unit) {
                                         detectDragGestures(
                                             onDragStart = { isDraggingTP = true },
-                                            onDragEnd = { 
+                                            onDragEnd = {
                                                 val finalPrice = currentPosition.entryPrice - (tpOffset * pxToPrice)
                                                 onUpdate(currentPosition.copy(tp = finalPrice))
                                                 isDraggingTP = false
@@ -778,7 +886,7 @@ fun PositionUI(
                                     .pointerInput(Unit) {
                                         detectDragGestures(
                                             onDragStart = { isDraggingSL = true },
-                                            onDragEnd = { 
+                                            onDragEnd = {
                                                 val finalPrice = currentPosition.entryPrice - (slOffset * pxToPrice)
                                                 onUpdate(currentPosition.copy(sl = finalPrice))
                                                 isDraggingSL = false
@@ -910,7 +1018,7 @@ fun PositionUI(
                     .pointerInput(Unit) {
                         detectDragGestures(
                             onDragStart = { isDraggingTP = true },
-                            onDragEnd = { 
+                            onDragEnd = {
                                 val finalPrice = currentPosition.entryPrice - (tpOffset * pxToPrice)
                                 onUpdate(currentPosition.copy(tp = finalPrice))
                                 isDraggingTP = false
@@ -988,7 +1096,7 @@ fun PositionUI(
                     .pointerInput(Unit) {
                         detectDragGestures(
                             onDragStart = { isDraggingSL = true },
-                            onDragEnd = { 
+                            onDragEnd = {
                                 val finalPrice = currentPosition.entryPrice - (slOffset * pxToPrice)
                                 onUpdate(currentPosition.copy(sl = finalPrice))
                                 isDraggingSL = false

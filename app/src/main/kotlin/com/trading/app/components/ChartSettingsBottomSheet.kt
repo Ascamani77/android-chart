@@ -303,28 +303,28 @@ fun LinesPage(
         // Options
         LabelOption(
             "Price line", 
-            isChecked = scales.symbolLastPriceLabel,
-            onClick = { onUpdate(scales.copy(symbolLastPriceLabel = !scales.symbolLastPriceLabel)) }
+            isChecked = scales.symbolLastPriceLine,
+            onClick = { onUpdate(scales.copy(symbolLastPriceLine = !scales.symbolLastPriceLine)) }
         )
         LabelOption(
             "Previous day close price line", 
-            isChecked = scales.symbolPrevCloseLabel,
-            onClick = { onUpdate(scales.copy(symbolPrevCloseLabel = !scales.symbolPrevCloseLabel)) }
+            isChecked = scales.symbolPrevCloseLine,
+            onClick = { onUpdate(scales.copy(symbolPrevCloseLine = !scales.symbolPrevCloseLine)) }
         )
         LabelOption(
             "Pre/post market price line", 
-            isChecked = scales.prePostMarketPriceLabel,
-            onClick = { onUpdate(scales.copy(prePostMarketPriceLabel = !scales.prePostMarketPriceLabel)) }
+            isChecked = scales.prePostMarketPriceLine,
+            onClick = { onUpdate(scales.copy(prePostMarketPriceLine = !scales.prePostMarketPriceLine)) }
         )
         LabelOption(
             "High and low price lines", 
-            isChecked = scales.highLowPriceLabels,
-            onClick = { onUpdate(scales.copy(highLowPriceLabels = !scales.highLowPriceLabels)) }
+            isChecked = scales.highLowPriceLines,
+            onClick = { onUpdate(scales.copy(highLowPriceLines = !scales.highLowPriceLines)) }
         )
         LabelOption(
             "Bid and ask lines", 
-            isChecked = scales.bidAskLabels,
-            onClick = { onUpdate(scales.copy(bidAskLabels = !scales.bidAskLabels)) }
+            isChecked = scales.bidAskLines,
+            onClick = { onUpdate(scales.copy(bidAskLines = !scales.bidAskLines)) }
         )
     }
 }
