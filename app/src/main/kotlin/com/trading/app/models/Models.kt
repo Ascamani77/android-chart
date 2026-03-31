@@ -66,6 +66,7 @@ data class ScalesSettings(
     val highLowMode: String = "Value, line",
     val highLowLineColor: String = "#FFFFFF",
     val highLowLabelColor: String = "#2962FF",
+    val highLowCalculationMode: String = "Dynamic", // Options: "500 candles", "100 candles", "Dynamic"
     val indicatorsAndFinancials: String = "Value or name",
     val bidAskMode: String = "Value, line",
     val bidColor: String = "#2962FF",

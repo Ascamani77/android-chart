@@ -163,6 +163,7 @@ fun TradingChart(
     var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
     var currentQuoteState by remember { mutableStateOf<SymbolQuote?>(null) }
     var seriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var chartsViewApi by remember { mutableStateOf<ChartsView?>(null) }
     var showMarketStatus by remember { mutableStateOf(false) }
     
     // High/Low lines state (Line and Label separate for color independence)
@@ -176,6 +177,9 @@ fun TradingChart(
 
     val updatedOnQuoteUpdate = rememberUpdatedState(onQuoteUpdate)
     val currentSymbol = rememberUpdatedState(symbol)
+
+    // Range-based H/L state
+    var visibleRangeHighLow by remember { mutableStateOf<Pair<Float, Float>?>(null) }
 
     fun String.toIntColor(): IntColor = try {
         IntColor(AndroidColor.parseColor(this))
@@ -268,7 +272,9 @@ fun TradingChart(
         chartSettings.scales.highLowPriceLabels, 
         chartSettings.scales.highLowPriceLines,
         chartSettings.scales.highLowLineColor,
-        chartSettings.scales.highLowLabelColor) {
+        chartSettings.scales.highLowLabelColor,
+        chartSettings.scales.highLowCalculationMode,
+        visibleRangeHighLow) {
         
         val api = seriesApi ?: return@LaunchedEffect
         val scales = chartSettings.scales
@@ -286,12 +292,43 @@ fun TradingChart(
 
         if (candlestickData.isEmpty()) return@LaunchedEffect
 
-        var maxHigh = candlestickData.maxOf { it.high }
-        var minLow = candlestickData.minOf { it.low }
+        val calcMode = scales.highLowCalculationMode
         
+        var maxHigh: Float
+        var minLow: Float
+
+        when (calcMode) {
+            "100 candles" -> {
+                val subList = candlestickData.takeLast(100)
+                maxHigh = subList.maxOf { it.high }
+                minLow = subList.minOf { it.low }
+            }
+            "500 candles" -> {
+                val subList = candlestickData.takeLast(500)
+                maxHigh = subList.maxOf { it.high }
+                minLow = subList.minOf { it.low }
+            }
+            "Dynamic" -> {
+                if (visibleRangeHighLow != null) {
+                    maxHigh = visibleRangeHighLow!!.first
+                    minLow = visibleRangeHighLow!!.second
+                } else {
+                    maxHigh = candlestickData.maxOf { it.high }
+                    minLow = candlestickData.minOf { it.low }
+                }
+            }
+            else -> {
+                maxHigh = candlestickData.maxOf { it.high }
+                minLow = candlestickData.minOf { it.low }
+            }
+        }
+        
+        // Include current quote in calculation if it's the latest data
         currentQuoteState?.let {
-            maxHigh = maxOf(maxHigh, it.lastPrice)
-            minLow = minOf(minLow, it.lastPrice)
+            if (calcMode == "Dynamic" || calcMode == "100 candles" || calcMode == "500 candles") {
+                maxHigh = maxOf(maxHigh, it.lastPrice)
+                minLow = minOf(minLow, it.lastPrice)
+            }
         }
 
         val showLine = scales.highLowPriceLines
@@ -433,6 +470,7 @@ fun TradingChart(
             AndroidView(
                 factory = { context ->
                     ChartsView(context).apply {
+                        chartsViewApi = this
                         val uppercaseSymbol = symbol.uppercase()
                         val isBitcoin = uppercaseSymbol.contains("BTC") || uppercaseSymbol.contains("BITCOIN")
                         val isForex = uppercaseSymbol.length == 6 || uppercaseSymbol.contains("/")
@@ -486,6 +524,22 @@ fun TradingChart(
                                 borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
                                 timeVisible = true
                             )
+                        }
+
+                        api.timeScale.subscribeVisibleTimeRangeChange { range ->
+                            if (chartSettings.scales.highLowCalculationMode == "Dynamic" && range != null && candlestickData.isNotEmpty()) {
+                                try {
+                                    val start = (range.from as? Time.Utc)?.timestamp ?: 0L
+                                    val end = (range.to as? Time.Utc)?.timestamp ?: Long.MAX_VALUE
+                                    
+                                    val visibleCandles = candlestickData.filter { (it.time as? Time.Utc)?.timestamp in start..end }
+                                    if (visibleCandles.isNotEmpty()) {
+                                        visibleRangeHighLow = Pair(visibleCandles.maxOf { it.high }, visibleCandles.minOf { it.low })
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("Chart", "Error calculating visible high/low", e)
+                                }
+                            }
                         }
 
                         val priceLineVisible = chartSettings.scales.symbolLastPriceLine

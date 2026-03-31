@@ -212,6 +212,12 @@ fun ScalesAndLinesSettingsModal(
                         options = listOf("Value, line", "Value", "Line"),
                         onValueChange = { tempSettings = tempSettings.copy(highLowMode = it) }
                     )
+                    SettingsLabelDropdownRow(
+                        label = "High/Low Period",
+                        value = tempSettings.highLowCalculationMode,
+                        options = listOf("100 candles", "500 candles", "Dynamic"),
+                        onValueChange = { tempSettings = tempSettings.copy(highLowCalculationMode = it) }
+                    )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
