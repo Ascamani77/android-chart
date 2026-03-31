@@ -197,6 +197,7 @@ fun TradingApp() {
     var showAnalysisHubModal by remember { mutableStateOf(false) }
     var showChartTypeModal by remember { mutableStateOf(false) }
     var showFloatingTradingButtons by remember { mutableStateOf(false) }
+    var showOrderModal by remember { mutableStateOf(false) }
     var lotSize by remember { mutableStateOf("1") }
 
     // Quick Actions State
@@ -391,7 +392,7 @@ fun TradingApp() {
                                 }
                             )
 
-                            if (showFloatingTradingButtons) {
+                            if (showFloatingTradingButtons && chartSettings.trading.oneClickTrading) {
                                 FloatingTradingButtons(
                                     sellPrice = currentLiveQuote?.bid?.toString() ?: "0.00",
                                     buyPrice = currentLiveQuote?.ask?.toString() ?: "0.00",
@@ -462,7 +463,13 @@ fun TradingApp() {
                             onChatClick = { /* activeTab = "Chat"; isBottomPanelVisible = true */ },
                             onDrawingClick = { showDrawingsModal = true },
                             onMoreClick = { showAnalysisHubModal = true },
-                            onTradeClick = { showFloatingTradingButtons = !showFloatingTradingButtons }
+                            onTradeClick = { 
+                                if (chartSettings.trading.oneClickTrading) {
+                                    showFloatingTradingButtons = !showFloatingTradingButtons
+                                } else {
+                                    showOrderModal = true
+                                }
+                            }
                         )
                     }
                 }
@@ -662,6 +669,20 @@ fun TradingApp() {
                 currentStyle = chartStyle,
                 onStyleChange = { chartStyle = it },
                 onClose = { showChartTypeModal = false }
+            )
+        }
+        if (showOrderModal) {
+            OrderModal(
+                symbol = symbol,
+                bidPrice = currentLiveQuote?.bid ?: 0f,
+                askPrice = currentLiveQuote?.ask ?: 0f,
+                onClose = { showOrderModal = false },
+                onPlaceOrder = { positions.add(it) },
+                onTradingSettingsClick = {
+                    showOrderModal = false
+                    settingsInitialTab = "Trading"
+                    showSettingsModal = true
+                }
             )
         }
         showIndicatorSettingsModal?.let { indicatorId ->
