@@ -1,13 +1,18 @@
 package com.trading.app.components
 
 import android.util.Log
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Settings
@@ -16,7 +21,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,6 +34,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.trading.app.data.Mt5Service
 import com.trading.app.models.ChartSettings
 import com.trading.app.models.Drawing
+import com.trading.app.models.Position
 import com.trading.app.models.SymbolInfo
 import com.tradingview.lightweightcharts.api.interfaces.SeriesApi
 import com.tradingview.lightweightcharts.api.options.models.*
@@ -145,7 +156,10 @@ fun TradingChart(
     onLongPress: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     selectedTimeZone: String = "UTC",
-    onQuoteUpdate: (SymbolQuote) -> Unit = {}
+    onQuoteUpdate: (SymbolQuote) -> Unit = {},
+    positions: List<Position> = emptyList(),
+    onPositionUpdate: (Position) -> Unit = {},
+    onPositionDelete: (String) -> Unit = {}
 ) {
     var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
     var currentQuoteState by remember { mutableStateOf<SymbolQuote?>(null) }
@@ -181,7 +195,6 @@ fun TradingChart(
             pcIpAddress = "172.26.23.133", 
             port = 8081,
             onHistoryUpdate = { receivedSymbol, history ->
-                // Check if it's the current symbol or if receivedSymbol is empty (legacy support)
                 if (receivedSymbol.isEmpty() || receivedSymbol.equals(currentSymbol.value, ignoreCase = true)) {
                     candlestickData = history
                 }
@@ -210,7 +223,6 @@ fun TradingChart(
     LaunchedEffect(symbol, timeframe) {
         candlestickData = emptyList()
         currentQuoteState = null
-        // We don't reset seriesApi here because the 'key' below handles view recreation
         mt5Service.subscribe(symbol, timeframe)
     }
 
@@ -251,7 +263,19 @@ fun TradingChart(
 
     val chartBgColor = getFullChartColor(chartSettings.canvas.fullChartColor, chartSettings.canvas.background)
 
-    Box(modifier = Modifier.fillMaxSize().background(ComposeColor.Black)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ComposeColor.Black)
+            .pointerInput(symbol) { // Re-bind when symbol changes
+                detectTapGestures {
+                    // Deselect all positions for the current asset when clicking elsewhere on the chart
+                    positions.forEach { pos ->
+                        if (pos.symbol == symbol && pos.isSelected) onPositionUpdate(pos.copy(isSelected = false))
+                    }
+                }
+            }
+    ) {
         key(style, symbol) {
             AndroidView(
                 factory = { context ->
@@ -273,7 +297,7 @@ fun TradingChart(
 
                         api.applyOptions {
                             layout = LayoutOptions(
-                                background = SolidColor(color = chartBgColor),
+                                background = SolidColor(color = IntColor(chartBgColor)),
                                 textColor = chartSettings.canvas.scaleTextColor.toIntColor(),
                                 fontSize = chartSettings.canvas.scaleFontSize
                             )
@@ -354,7 +378,7 @@ fun TradingChart(
                 update = { chartsView ->
                     chartsView.api.applyOptions {
                         layout = LayoutOptions(
-                            background = SolidColor(color = chartBgColor),
+                            background = SolidColor(color = IntColor(chartBgColor)),
                             textColor = chartSettings.canvas.scaleTextColor.toIntColor(),
                             fontSize = chartSettings.canvas.scaleFontSize
                         )
@@ -525,6 +549,19 @@ fun TradingChart(
             }
         }
 
+        // Overlay for positions - filtered by current asset symbol
+        positions.filter { it.symbol.equals(symbol, ignoreCase = true) }.forEach { position ->
+            key(position.id) {
+                PositionUI(
+                    position = position,
+                    currentPrice = currentQuoteState?.lastPrice ?: 0f,
+                    symbol = symbol,
+                    onUpdate = onPositionUpdate,
+                    onDelete = { onPositionDelete(position.id) }
+                )
+            }
+        }
+
         // Settings Button (Bottom Right)
         Box(
             modifier = Modifier
@@ -578,6 +615,8 @@ fun OhlcItem(label: String, value: Float, symbol: String) {
 
 @Composable
 fun TradingButton(label: String, price: String, backgroundColor: ComposeColor) {
+    @Suppress("UNUSED_VARIABLE")
+    val dummy = backgroundColor // Keep the parameter used if needed
     Column(
         modifier = Modifier
             .width(85.dp)
@@ -590,5 +629,419 @@ fun TradingButton(label: String, price: String, backgroundColor: ComposeColor) {
             Text(text = label, color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
         Text(text = price, color = ComposeColor.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+fun PositionUI(
+    position: Position,
+    currentPrice: Float,
+    symbol: String,
+    onUpdate: (Position) -> Unit,
+    onDelete: () -> Unit
+) {
+    val currentPosition by rememberUpdatedState(position)
+    var tpOffset by remember { mutableStateOf(0f) }
+    var slOffset by remember { mutableStateOf(0f) }
+    var isDraggingTP by remember { mutableStateOf(false) }
+    var isDraggingSL by remember { mutableStateOf(false) }
+    
+    val density = LocalDensity.current
+    val pxToPrice = 20f // Simulated: 1dp = 20 price units
+
+    // Sync offsets from position when not dragging
+    LaunchedEffect(position.tp, isDraggingTP) {
+        if (!isDraggingTP) {
+            tpOffset = position.tp?.let { (position.entryPrice - it) / pxToPrice } ?: 0f
+        }
+    }
+    LaunchedEffect(position.sl, isDraggingSL) {
+        if (!isDraggingSL) {
+            slOffset = position.sl?.let { (position.entryPrice - it) / pxToPrice } ?: 0f
+        }
+    }
+
+    val pnl = (currentPrice - position.entryPrice) * position.volume * (if (position.type == "buy") 1 else -1)
+    val pnlColor = if (pnl >= 0) ComposeColor(0xFF089981) else ComposeColor(0xFFF23645)
+    
+    val showTP = isDraggingTP || position.tp != null
+    val showSL = isDraggingSL || position.sl != null
+
+    val priceTagWidth = 70.dp
+    val dotBoxWidth = 80.dp
+    val trailingContentWidth = priceTagWidth + dotBoxWidth
+    val verticalLineXOffset = priceTagWidth + (dotBoxWidth / 2)
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Main Entry Row
+        Row(
+            modifier = Modifier
+                .align(Alignment.Center) 
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Entry Line (Left side)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(1.dp)
+                    .background(if (position.type == "buy") ComposeColor(0xFF2962FF) else ComposeColor(0xFFF2A52C))
+            )
+            
+            // The grouped label + Arrow column
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.pointerInput(Unit) {
+                        detectTapGestures { onUpdate(currentPosition.copy(isSelected = !currentPosition.isSelected)) }
+                    }
+                ) {
+                    // Column for TP, LotSize, SL
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (position.isSelected) {
+                            // TP Box
+                            Box(
+                                modifier = Modifier
+                                    .padding(bottom = 2.dp)
+                                    .background(ComposeColor(0xFF131722).copy(alpha = 0.8f), RoundedCornerShape(2.dp))
+                                    .border(BorderStroke(1.dp, ComposeColor(0xFF089981).copy(alpha = 0.5f)), RoundedCornerShape(2.dp))
+                                    .pointerInput(Unit) {
+                                        detectDragGestures(
+                                            onDragStart = { isDraggingTP = true },
+                                            onDragEnd = { 
+                                                val finalPrice = currentPosition.entryPrice - (tpOffset * pxToPrice)
+                                                onUpdate(currentPosition.copy(tp = finalPrice))
+                                                isDraggingTP = false
+                                            },
+                                            onDragCancel = { isDraggingTP = false },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                val deltaDp = with(density) { dragAmount.y.toDp().value }
+                                                tpOffset += deltaDp
+                                            }
+                                        )
+                                    }
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            ) {
+                                Text("TP", color = ComposeColor(0xFF089981), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // Lot size box
+                        Box(
+                            modifier = Modifier
+                                .height(24.dp)
+                                .width(28.dp)
+                                .clip(RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp))
+                                .background(if (position.type == "buy") ComposeColor(0xFF2962FF) else ComposeColor(0xFFF2A52C)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = position.volume.toInt().toString(),
+                                color = ComposeColor.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        if (position.isSelected) {
+                            // SL Box
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 2.dp)
+                                    .background(ComposeColor(0xFF131722).copy(alpha = 0.8f), RoundedCornerShape(2.dp))
+                                    .border(BorderStroke(1.dp, ComposeColor(0xFFF23645).copy(alpha = 0.5f)), RoundedCornerShape(2.dp))
+                                    .pointerInput(Unit) {
+                                        detectDragGestures(
+                                            onDragStart = { isDraggingSL = true },
+                                            onDragEnd = { 
+                                                val finalPrice = currentPosition.entryPrice - (slOffset * pxToPrice)
+                                                onUpdate(currentPosition.copy(sl = finalPrice))
+                                                isDraggingSL = false
+                                            },
+                                            onDragCancel = { isDraggingSL = false },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                val deltaDp = with(density) { dragAmount.y.toDp().value }
+                                                slOffset += deltaDp
+                                            }
+                                        )
+                                    }
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            ) {
+                                Text("SL", color = ComposeColor(0xFFF23645), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // PnL and Close button box
+                    Row(
+                        modifier = Modifier
+                            .height(24.dp)
+                            .clip(RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
+                            .background(ComposeColor(0xFF131722))
+                            .border(1.dp, if (position.type == "buy") ComposeColor(0xFF2962FF) else ComposeColor(0xFFF2A52C), RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
+                            .padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${if (pnl >= 0) "+" else ""}${String.format("%,.2f", pnl)} USD",
+                            color = pnlColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        // Vertical divider
+                        Box(modifier = Modifier.width(1.dp).fillMaxHeight().padding(vertical = 4.dp).background(ComposeColor(0xFF363A45)))
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = null,
+                            tint = ComposeColor(0xFF787B86),
+                            modifier = Modifier
+                                .size(14.dp)
+                                .clickable { onDelete() }
+                        )
+                    }
+                }
+                
+                // Blue Arrow under the box - Box with 0 height so it doesn't affect centering
+                Box(modifier = Modifier.height(0.dp), contentAlignment = Alignment.TopCenter) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = null,
+                        tint = ComposeColor(0xFF2962FF),
+                        modifier = Modifier
+                            .size(18.dp)
+                            .offset(y = (-4).dp)
+                    )
+                }
+            }
+            
+            Row(
+                modifier = Modifier.width(trailingContentWidth),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Connecting line with dot
+                Box(
+                    modifier = Modifier.width(dotBoxWidth),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(if (position.type == "buy") ComposeColor(0xFF2962FF) else ComposeColor(0xFFF2A52C))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(if (position.type == "buy") ComposeColor(0xFF2962FF) else ComposeColor(0xFFF2A52C))
+                    )
+                }
+                
+                // Price Tag on Scale
+                Box(
+                    modifier = Modifier
+                        .width(priceTagWidth)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(if (position.type == "buy") ComposeColor(0xFF2962FF) else ComposeColor(0xFFF2A52C))
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = formatPrice(position.entryPrice, symbol),
+                        color = ComposeColor.White,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
+
+        // TP Visuals (Green Area and Persistent Line)
+        if (showTP) {
+            val dragColor = ComposeColor(0xFF089981)
+            // Green Area - ONLY DURING DRAG
+            if (isDraggingTP) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(Math.abs(tpOffset).dp)
+                        .align(Alignment.Center)
+                        .offset(y = (tpOffset / 2).dp)
+                        .background(dragColor.copy(alpha = 0.15f))
+                )
+            }
+            // TP Line and Label
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.Center)
+                    .offset(y = tpOffset.dp)
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { isDraggingTP = true },
+                            onDragEnd = { 
+                                val finalPrice = currentPosition.entryPrice - (tpOffset * pxToPrice)
+                                onUpdate(currentPosition.copy(tp = finalPrice))
+                                isDraggingTP = false
+                            },
+                            onDragCancel = { isDraggingTP = false },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                val deltaDp = with(density) { dragAmount.y.toDp().value }
+                                tpOffset += deltaDp
+                            }
+                        )
+                    },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.weight(1f).height(1.dp).background(dragColor))
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(ComposeColor(0xFF131722))
+                        .border(1.dp, dragColor, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.size(18.dp).background(dragColor, RoundedCornerShape(2.dp)), contentAlignment = Alignment.Center) {
+                        Text(position.volume.toInt().toString(), color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    val targetPrice = position.entryPrice - (tpOffset * pxToPrice)
+                    val targetPnl = (targetPrice - position.entryPrice) * position.volume * (if (position.type == "buy") 1 else -1)
+                    
+                    Text("${if (targetPnl >= 0) "+" else ""}${String.format("%,.2f", targetPnl)} USD", color = dragColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.Default.Close, null, tint = ComposeColor(0xFF787B86), modifier = Modifier.size(14.dp).clickable { onUpdate(currentPosition.copy(tp = null)) })
+                }
+                
+                Row(
+                    modifier = Modifier.width(trailingContentWidth),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.width(dotBoxWidth), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(dragColor))
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(dragColor))
+                    }
+                    Box(
+                        modifier = Modifier.width(priceTagWidth).clip(RoundedCornerShape(2.dp)).background(dragColor).padding(horizontal = 4.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val targetPrice = position.entryPrice - (tpOffset * pxToPrice)
+                        Text(formatPrice(targetPrice, symbol), color = ComposeColor.White, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        // SL Visuals (Red Area and Persistent Line)
+        if (showSL) {
+            val dragColor = ComposeColor(0xFFF23645)
+            // Red Area - ONLY DURING DRAG
+            if (isDraggingSL) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(Math.abs(slOffset).dp)
+                        .align(Alignment.Center)
+                        .offset(y = (slOffset / 2).dp)
+                        .background(dragColor.copy(alpha = 0.15f))
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.Center)
+                    .offset(y = slOffset.dp)
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { isDraggingSL = true },
+                            onDragEnd = { 
+                                val finalPrice = currentPosition.entryPrice - (slOffset * pxToPrice)
+                                onUpdate(currentPosition.copy(sl = finalPrice))
+                                isDraggingSL = false
+                            },
+                            onDragCancel = { isDraggingSL = false },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                val deltaDp = with(density) { dragAmount.y.toDp().value }
+                                slOffset += deltaDp
+                            }
+                        )
+                    },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.weight(1f).height(1.dp).background(dragColor))
+                Row(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(ComposeColor(0xFF131722)).border(1.dp, dragColor, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(18.dp).background(dragColor, RoundedCornerShape(2.dp)), contentAlignment = Alignment.Center) {
+                        Text(position.volume.toInt().toString(), color = ComposeColor.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    val targetPrice = position.entryPrice - (slOffset * pxToPrice)
+                    val targetPnl = (targetPrice - position.entryPrice) * position.volume * (if (position.type == "buy") 1 else -1)
+                    
+                    Text("${if (targetPnl >= 0) "+" else ""}${String.format("%,.2f", targetPnl)} USD", color = dragColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.Default.Close, null, tint = ComposeColor(0xFF787B86), modifier = Modifier.size(14.dp).clickable { onUpdate(currentPosition.copy(sl = null)) })
+                }
+                
+                Row(
+                    modifier = Modifier.width(trailingContentWidth),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.width(dotBoxWidth), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(dragColor))
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(dragColor))
+                    }
+                    Box(
+                        modifier = Modifier.width(priceTagWidth).clip(RoundedCornerShape(2.dp)).background(dragColor).padding(horizontal = 4.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val targetPrice = position.entryPrice - (slOffset * pxToPrice)
+                        Text(formatPrice(targetPrice, symbol), color = ComposeColor.White, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        // Vertical connecting line (Drawn LAST with Canvas for precision)
+        // Show only when selected or dragging, and if TP or SL is present
+        if ((position.isSelected || isDraggingTP || isDraggingSL) && (showTP || showSL)) {
+            val minLineOffset = minOf(0f, if (showTP) tpOffset else 0f, if (showSL) slOffset else 0f)
+            val maxLineOffset = maxOf(0f, if (showTP) tpOffset else 0f, if (showSL) slOffset else 0f)
+            val lineColor = ComposeColor(0xFF2962FF)
+
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+            ) {
+                val x = size.width - verticalLineXOffset.toPx()
+                val centerY = size.height / 2
+                
+                // Main Vertical Line (DOTTED) - REDUCED SIZE
+                drawLine(
+                    color = lineColor,
+                    start = Offset(x, centerY + minLineOffset.dp.toPx()),
+                    end = Offset(x, centerY + maxLineOffset.dp.toPx()),
+                    strokeWidth = 1.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
+                )
+                
+                // Intersection circles - REDUCED SIZE
+                drawCircle(color = lineColor, radius = 3.dp.toPx(), center = Offset(x, centerY))
+                if (showTP) drawCircle(color = lineColor, radius = 3.dp.toPx(), center = Offset(x, centerY + tpOffset.dp.toPx()))
+                if (showSL) drawCircle(color = lineColor, radius = 3.dp.toPx(), center = Offset(x, centerY + slOffset.dp.toPx()))
+            }
+        }
     }
 }

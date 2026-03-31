@@ -34,9 +34,10 @@ fun SettingsModal(
     settings: ChartSettings,
     onUpdate: (ChartSettings) -> Unit,
     onTimeZoneClick: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    initialTab: String? = null
 ) {
-    var activeSubModal by remember { mutableStateOf<String?>(null) }
+    var activeSubModal by remember { mutableStateOf(initialTab) }
     var searchQuery by remember { mutableStateOf("") }
     var showSearchResults by remember { mutableStateOf(false) }
 

@@ -136,25 +136,19 @@ data class TradingSettings(
 
 data class AlertsSettings(
     val alertLines: Boolean = true,
-    val alertLinesColor: String = "#26a69a",
-    val onlyActiveAlerts: Boolean = true,
-    val alertVolume: Boolean = true,
-    val volumeLevel: Int = 80,
-    val hideToasts: Boolean = true
+    val alertLinesColor: String = "#FF0000",
+    val onlyActiveAlerts: Boolean = false,
+    val hideToasts: Boolean = false
 )
 
 data class EventsSettings(
-    val ideas: Boolean = false,
+    val ideas: Boolean = true,
     val ideasMode: String = "All ideas",
-    val sessionBreaks: Boolean = false,
-    val sessionBreaksColor: String = "#42a5f5",
     val economicEvents: Boolean = true,
-    val onlyFutureEvents: Boolean = true,
+    val onlyFutureEvents: Boolean = false,
     val eventsBreaks: Boolean = false,
-    val eventsBreaksColor: String = "#363a45",
-    val eventsBreaksThickness: Int = 1,
-    val eventsBreaksStyle: String = "Dashed",
-    val latestNews: Boolean = true,
+    val eventsBreaksColor: String = "#434651",
+    val latestNews: Boolean = false,
     val newsNotification: Boolean = false
 )
 
@@ -233,12 +227,15 @@ data class UserAlert(
 )
 
 data class Position(
-    val id: String,
+    val id: String = java.util.UUID.randomUUID().toString(),
     val symbol: String,
     val type: String, // "buy" or "sell"
     val entryPrice: Float,
     val volume: Float,
-    val time: Long
+    val time: Long,
+    val tp: Float? = null,
+    val sl: Float? = null,
+    val isSelected: Boolean = false
 )
 
 data class Indicator(

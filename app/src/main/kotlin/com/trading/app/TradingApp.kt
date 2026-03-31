@@ -144,6 +144,7 @@ fun TradingApp() {
     val history = remember { mutableStateListOf<ChartSnapshot>() }
     val redoStack = remember { mutableStateListOf<ChartSnapshot>() }
     val userAlerts = remember { mutableStateListOf<UserAlert>() }
+    val positions = remember { mutableStateListOf<Position>() }
 
     // Timezone list
     val timeZones = remember {
@@ -184,6 +185,8 @@ fun TradingApp() {
     var showGoToDateModal by remember { mutableStateOf(false) }
     var targetTimestamp by remember { mutableStateOf<Long?>(null) }
     var showSettingsModal by remember { mutableStateOf(false) }
+    var showChartSettingsBottomSheet by remember { mutableStateOf(false) }
+    var settingsInitialTab by remember { mutableStateOf<String?>(null) }
     var showToolSearchModal by remember { mutableStateOf(false) }
     var showAlertModal by remember { mutableStateOf(false) }
     var showCaptureModal by remember { mutableStateOf(false) }
@@ -374,10 +377,18 @@ fun TradingApp() {
                                 onFullscreenExit = { isFullscreen = false },
                                 scrollToTimestamp = targetTimestamp,
                                 onScrollDone = { targetTimestamp = null },
-                                onLongPress = { showSettingsModal = true },
-                                onSettingsClick = { showSettingsModal = true },
+                                onLongPress = { showChartSettingsBottomSheet = true },
+                                onSettingsClick = { showChartSettingsBottomSheet = true },
                                 selectedTimeZone = selectedTz.label,
-                                onQuoteUpdate = { currentLiveQuote = it }
+                                onQuoteUpdate = { currentLiveQuote = it },
+                                positions = positions,
+                                onPositionUpdate = { updated ->
+                                    val idx = positions.indexOfFirst { it.id == updated.id }
+                                    if (idx != -1) positions[idx] = updated
+                                },
+                                onPositionDelete = { id ->
+                                    positions.removeAll { it.id == id }
+                                }
                             )
 
                             if (showFloatingTradingButtons) {
@@ -386,9 +397,20 @@ fun TradingApp() {
                                     buyPrice = currentLiveQuote?.ask?.toString() ?: "0.00",
                                     lotSize = lotSize,
                                     onLotSizeChange = { lotSize = it },
-                                    onSellClick = { /* Handle Sell */ },
-                                    onBuyClick = { /* Handle Buy */ },
-                                    onMoreClick = { /* Handle More */ }
+                                    onSellClick = {
+                                        currentLiveQuote?.let { quote ->
+                                            positions.add(Position(symbol = symbol, type = "sell", entryPrice = quote.bid, volume = lotSize.toFloatOrNull() ?: 1f, time = System.currentTimeMillis()))
+                                        }
+                                    },
+                                    onBuyClick = {
+                                        currentLiveQuote?.let { quote ->
+                                            positions.add(Position(symbol = symbol, type = "buy", entryPrice = quote.ask, volume = lotSize.toFloatOrNull() ?: 1f, time = System.currentTimeMillis()))
+                                        }
+                                    },
+                                    onMoreClick = { 
+                                        settingsInitialTab = "Trading"
+                                        showSettingsModal = true 
+                                    }
                                 )
                             }
                         }
@@ -422,7 +444,7 @@ fun TradingApp() {
                             onTimeframeClick = { timeframe = it },
                             onStyleChange = { chartStyle = it },
                             onIndicatorClick = { showIndicatorModal = true },
-                            onSettingsClick = { showSettingsModal = true },
+                            onSettingsClick = { showChartSettingsBottomSheet = true },
                             onAnalysisClick = { refreshAnalysis() },
                             onUndo = { /* Undo logic */ },
                             onRedo = { /* Redo logic */ },
@@ -515,7 +537,7 @@ fun TradingApp() {
                     },
                     isBottomMenuVisible = isBottomPanelVisible,
                     onBottomMenuToggle = { isBottomPanelVisible = !isBottomPanelVisible },
-                    onSettingsClick = { showSettingsModal = true; showQuickActions = false },
+                    onSettingsClick = { showChartSettingsBottomSheet = true; showQuickActions = false },
                     onDrawingsClick = { isSidebarVisible = !isSidebarVisible; showQuickActions = false },
                     onChartTypeClick = { 
                         showChartTypeModal = true
@@ -570,6 +592,7 @@ fun TradingApp() {
         if (showSettingsModal) {
             SettingsModal(
                 settings = chartSettings,
+                initialTab = settingsInitialTab,
                 onUpdate = {
                     try {
                         chartSettings = it
@@ -580,7 +603,19 @@ fun TradingApp() {
                     }
                 },
                 onTimeZoneClick = { showTimeZoneModal = true },
-                onClose = { showSettingsModal = false }
+                onClose = { 
+                    showSettingsModal = false
+                    settingsInitialTab = null
+                }
+            )
+        }
+        if (showChartSettingsBottomSheet) {
+            ChartSettingsBottomSheet(
+                onDismissRequest = { showChartSettingsBottomSheet = false },
+                onMoreSettingsClick = {
+                    showChartSettingsBottomSheet = false
+                    showSettingsModal = true
+                }
             )
         }
         if (showToolSearchModal) {
