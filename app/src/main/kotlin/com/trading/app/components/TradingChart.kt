@@ -165,9 +165,12 @@ fun TradingChart(
     var seriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var showMarketStatus by remember { mutableStateOf(false) }
     
-    // High/Low/Bid/Ask lines state
-    val highPriceLineState = remember { mutableStateOf<PriceLine?>(null) }
-    val lowPriceLineState = remember { mutableStateOf<PriceLine?>(null) }
+    // High/Low lines state (Line and Label separate for color independence)
+    val highLineState = remember { mutableStateOf<PriceLine?>(null) }
+    val highLabelState = remember { mutableStateOf<PriceLine?>(null) }
+    val lowLineState = remember { mutableStateOf<PriceLine?>(null) }
+    val lowLabelState = remember { mutableStateOf<PriceLine?>(null) }
+    
     val bidPriceLineState = remember { mutableStateOf<PriceLine?>(null) }
     val askPriceLineState = remember { mutableStateOf<PriceLine?>(null) }
 
@@ -260,23 +263,28 @@ fun TradingChart(
         api.update(updatedCandle)
     }
 
-    // Manage High/Low Price Lines
+    // Manage High/Low Price Lines and Labels
     LaunchedEffect(candlestickData, currentQuoteState, seriesApi, 
         chartSettings.scales.highLowPriceLabels, 
         chartSettings.scales.highLowPriceLines,
-        chartSettings.scales.highLowMode, 
-        chartSettings.scales.highLowLineColor) {
+        chartSettings.scales.highLowLineColor,
+        chartSettings.scales.highLowLabelColor) {
         
         val api = seriesApi ?: return@LaunchedEffect
         val scales = chartSettings.scales
         
         // Remove existing lines
-        highPriceLineState.value?.let { api.removePriceLine(it) }
-        lowPriceLineState.value?.let { api.removePriceLine(it) }
-        highPriceLineState.value = null
-        lowPriceLineState.value = null
+        highLineState.value?.let { api.removePriceLine(it) }
+        highLabelState.value?.let { api.removePriceLine(it) }
+        lowLineState.value?.let { api.removePriceLine(it) }
+        lowLabelState.value?.let { api.removePriceLine(it) }
+        
+        highLineState.value = null
+        highLabelState.value = null
+        lowLineState.value = null
+        lowLabelState.value = null
 
-        if (candlestickData.isEmpty() || (!scales.highLowPriceLabels && !scales.highLowPriceLines)) return@LaunchedEffect
+        if (candlestickData.isEmpty()) return@LaunchedEffect
 
         var maxHigh = candlestickData.maxOf { it.high }
         var minLow = candlestickData.minOf { it.low }
@@ -289,31 +297,68 @@ fun TradingChart(
         val showLine = scales.highLowPriceLines
         val showLabel = scales.highLowPriceLabels
 
-        val color = try { IntColor(AndroidColor.parseColor(scales.highLowLineColor)) } catch (e: Exception) { IntColor(AndroidColor.WHITE) }
+        val lineColor = try { IntColor(AndroidColor.parseColor(scales.highLowLineColor)) } catch (e: Exception) { IntColor(AndroidColor.WHITE) }
+        val labelColor = try { IntColor(AndroidColor.parseColor(scales.highLowLabelColor)) } catch (e: Exception) { IntColor(AndroidColor.parseColor("#2962FF")) }
         
-        highPriceLineState.value = api.createPriceLine(
-            PriceLineOptions(
-                price = maxHigh,
-                color = color,
-                lineWidth = LineWidth.ONE,
-                lineStyle = LineStyle.DASHED,
-                lineVisible = showLine,
-                axisLabelVisible = showLabel,
-                title = "High"
+        // High Line
+        if (showLine) {
+            highLineState.value = api.createPriceLine(
+                PriceLineOptions(
+                    price = maxHigh,
+                    color = lineColor,
+                    lineWidth = LineWidth.ONE,
+                    lineStyle = LineStyle.DASHED,
+                    lineVisible = true,
+                    axisLabelVisible = false,
+                    title = "High"
+                )
             )
-        )
+        }
 
-        lowPriceLineState.value = api.createPriceLine(
-            PriceLineOptions(
-                price = minLow,
-                color = color,
-                lineWidth = LineWidth.ONE,
-                lineStyle = LineStyle.DASHED,
-                lineVisible = showLine,
-                axisLabelVisible = showLabel,
-                title = "Low"
+        // High Label
+        if (showLabel) {
+            highLabelState.value = api.createPriceLine(
+                PriceLineOptions(
+                    price = maxHigh,
+                    color = labelColor,
+                    lineWidth = LineWidth.ONE,
+                    lineStyle = LineStyle.DASHED,
+                    lineVisible = false,
+                    axisLabelVisible = true,
+                    title = "High"
+                )
             )
-        )
+        }
+
+        // Low Line
+        if (showLine) {
+            lowLineState.value = api.createPriceLine(
+                PriceLineOptions(
+                    price = minLow,
+                    color = lineColor,
+                    lineWidth = LineWidth.ONE,
+                    lineStyle = LineStyle.DASHED,
+                    lineVisible = true,
+                    axisLabelVisible = false,
+                    title = "Low"
+                )
+            )
+        }
+
+        // Low Label
+        if (showLabel) {
+            lowLabelState.value = api.createPriceLine(
+                PriceLineOptions(
+                    price = minLow,
+                    color = labelColor,
+                    lineWidth = LineWidth.ONE,
+                    lineStyle = LineStyle.DASHED,
+                    lineVisible = false,
+                    axisLabelVisible = true,
+                    title = "Low"
+                )
+            )
+        }
     }
 
     // Manage Bid/Ask Price Lines

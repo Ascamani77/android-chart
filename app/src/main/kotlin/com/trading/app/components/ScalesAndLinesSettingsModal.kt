@@ -219,28 +219,27 @@ fun ScalesAndLinesSettingsModal(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Spacer(modifier = Modifier.weight(1f))
-                        Box(
-                            modifier = Modifier
-                                .width(160.dp)
-                                .height(36.dp),
-                            contentAlignment = Alignment.CenterStart
+                        Row(
+                            modifier = Modifier.width(160.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(android.graphics.Color.parseColor(tempSettings.highLowLineColor)))
-                                    .border(1.dp, Color.White, RoundedCornerShape(4.dp))
-                                    .clickable {
-                                        colorPickerTarget = ColorPickerState(
-                                            title = "High/Low Line Color",
-                                            initialHex = tempSettings.highLowLineColor,
-                                            onAddClick = { showAdvancedPicker = true }
-                                        ) {
-                                            tempSettings = tempSettings.copy(highLowLineColor = it)
-                                        }
-                                    }
-                            )
+                            // Line Color Box
+                            privateColorBox(tempSettings.highLowLineColor, { 
+                                colorPickerTarget = ColorPickerState(
+                                    title = "High/Low Line Color", 
+                                    initialHex = tempSettings.highLowLineColor, 
+                                    onAddClick = { showAdvancedPicker = true }
+                                ) { tempSettings = tempSettings.copy(highLowLineColor = it) } 
+                            })
+                            // Label Color Box
+                            privateColorBox(tempSettings.highLowLabelColor, { 
+                                colorPickerTarget = ColorPickerState(
+                                    title = "High/Low Label Color", 
+                                    initialHex = tempSettings.highLowLabelColor, 
+                                    onAddClick = { showAdvancedPicker = true }
+                                ) { tempSettings = tempSettings.copy(highLowLabelColor = it) } 
+                            })
                         }
                     }
                     
