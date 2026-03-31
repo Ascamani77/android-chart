@@ -16,10 +16,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.trading.app.models.ChartSettings
+import com.trading.app.models.ScalesSettings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChartSettingsBottomSheet(
+    settings: ChartSettings,
+    onUpdate: (ChartSettings) -> Unit,
     onDismissRequest: () -> Unit,
     onMoreSettingsClick: () -> Unit,
     onResetScale: () -> Unit = {},
@@ -133,17 +137,29 @@ fun ChartSettingsBottomSheet(
                 }
             }
             "Labels" -> {
-                LabelsPage(onBack = { currentPage = "Main" })
+                LabelsPage(
+                    scales = settings.scales,
+                    onUpdate = { onUpdate(settings.copy(scales = it)) },
+                    onBack = { currentPage = "Main" }
+                )
             }
             "Lines" -> {
-                LinesPage(onBack = { currentPage = "Main" })
+                LinesPage(
+                    scales = settings.scales,
+                    onUpdate = { onUpdate(settings.copy(scales = it)) },
+                    onBack = { currentPage = "Main" }
+                )
             }
         }
     }
 }
 
 @Composable
-fun LabelsPage(onBack: () -> Unit) {
+fun LabelsPage(
+    scales: ScalesSettings,
+    onUpdate: (ScalesSettings) -> Unit,
+    onBack: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -182,26 +198,71 @@ fun LabelsPage(onBack: () -> Unit) {
         Spacer(modifier = Modifier.height(8.dp))
 
         // Options
-        LabelOption("Symbol name label")
-        LabelOption("Symbol last price label", isChecked = true)
-        LabelOption("Symbol previous day close price label")
-        LabelOption("Pre/post market price label", isChecked = true, enabled = false)
-        LabelOption("High and low price labels", isChecked = true)
-        LabelOption("Bid and ask labels")
-        LabelOption("Indicators and financials name labels")
-        LabelOption("Indicators and financials value labels", isChecked = true)
-        LabelOption("Countdown to bar close", isChecked = true)
+        LabelOption(
+            "Symbol name label", 
+            isChecked = scales.symbolNameLabel,
+            onClick = { onUpdate(scales.copy(symbolNameLabel = !scales.symbolNameLabel)) }
+        )
+        LabelOption(
+            "Symbol last price label", 
+            isChecked = scales.symbolLastPriceLabel,
+            onClick = { onUpdate(scales.copy(symbolLastPriceLabel = !scales.symbolLastPriceLabel)) }
+        )
+        LabelOption(
+            "Symbol previous day close price label", 
+            isChecked = scales.symbolPrevCloseLabel,
+            onClick = { onUpdate(scales.copy(symbolPrevCloseLabel = !scales.symbolPrevCloseLabel)) }
+        )
+        LabelOption(
+            "Pre/post market price label", 
+            isChecked = scales.prePostMarketPriceLabel,
+            enabled = true,
+            onClick = { onUpdate(scales.copy(prePostMarketPriceLabel = !scales.prePostMarketPriceLabel)) }
+        )
+        LabelOption(
+            "High and low price labels", 
+            isChecked = scales.highLowPriceLabels,
+            onClick = { onUpdate(scales.copy(highLowPriceLabels = !scales.highLowPriceLabels)) }
+        )
+        LabelOption(
+            "Bid and ask labels", 
+            isChecked = scales.bidAskLabels,
+            onClick = { onUpdate(scales.copy(bidAskLabels = !scales.bidAskLabels)) }
+        )
+        LabelOption(
+            "Indicators and financials name labels", 
+            isChecked = scales.indicatorsAndFinancialsNameLabels,
+            onClick = { onUpdate(scales.copy(indicatorsAndFinancialsNameLabels = !scales.indicatorsAndFinancialsNameLabels)) }
+        )
+        LabelOption(
+            "Indicators and financials value labels", 
+            isChecked = scales.indicatorsAndFinancialsValueLabels,
+            onClick = { onUpdate(scales.copy(indicatorsAndFinancialsValueLabels = !scales.indicatorsAndFinancialsValueLabels)) }
+        )
+        LabelOption(
+            "Countdown to bar close", 
+            isChecked = scales.countdown,
+            onClick = { onUpdate(scales.copy(countdown = !scales.countdown)) }
+        )
         
         Spacer(modifier = Modifier.height(8.dp))
         Divider(color = Color(0xFF2A2E39), thickness = 0.5.dp)
         Spacer(modifier = Modifier.height(8.dp))
         
-        LabelOption("No overlapping labels", isChecked = true)
+        LabelOption(
+            "No overlapping labels", 
+            isChecked = scales.noOverlappingLabels,
+            onClick = { onUpdate(scales.copy(noOverlappingLabels = !scales.noOverlappingLabels)) }
+        )
     }
 }
 
 @Composable
-fun LinesPage(onBack: () -> Unit) {
+fun LinesPage(
+    scales: ScalesSettings,
+    onUpdate: (ScalesSettings) -> Unit,
+    onBack: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -240,11 +301,31 @@ fun LinesPage(onBack: () -> Unit) {
         Spacer(modifier = Modifier.height(8.dp))
 
         // Options
-        LabelOption("Price line", isChecked = true)
-        LabelOption("Previous day close price line", isChecked = true)
-        LabelOption("Pre/post market price line", isChecked = true, enabled = false)
-        LabelOption("High and low price lines")
-        LabelOption("Bid and ask lines")
+        LabelOption(
+            "Price line", 
+            isChecked = scales.symbolLastPriceLabel,
+            onClick = { onUpdate(scales.copy(symbolLastPriceLabel = !scales.symbolLastPriceLabel)) }
+        )
+        LabelOption(
+            "Previous day close price line", 
+            isChecked = scales.symbolPrevCloseLabel,
+            onClick = { onUpdate(scales.copy(symbolPrevCloseLabel = !scales.symbolPrevCloseLabel)) }
+        )
+        LabelOption(
+            "Pre/post market price line", 
+            isChecked = scales.prePostMarketPriceLabel,
+            onClick = { onUpdate(scales.copy(prePostMarketPriceLabel = !scales.prePostMarketPriceLabel)) }
+        )
+        LabelOption(
+            "High and low price lines", 
+            isChecked = scales.highLowPriceLabels,
+            onClick = { onUpdate(scales.copy(highLowPriceLabels = !scales.highLowPriceLabels)) }
+        )
+        LabelOption(
+            "Bid and ask lines", 
+            isChecked = scales.bidAskLabels,
+            onClick = { onUpdate(scales.copy(bidAskLabels = !scales.bidAskLabels)) }
+        )
     }
 }
 

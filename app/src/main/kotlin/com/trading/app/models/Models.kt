@@ -59,7 +59,7 @@ data class ScalesSettings(
     val scalesPlacement: String = "Auto",
     val noOverlappingLabels: Boolean = false,
     val plusButton: Boolean = true,
-    val countdown: Boolean = true,
+    val countdown: Boolean = false, // Set to false by default as requested
     val symbolLabel: String = "Price",
     val symbolLineColor: String = "#FFFFFF",
     val symbolLastValueMode: String = "Value according to scale",
@@ -72,7 +72,16 @@ data class ScalesSettings(
     val dayOfWeekOnLabels: Boolean = true,
     val dateFormat: String = "Mon 29 Sep '97",
     val timeFormat: String = "24-hours",
-    val saveLeftEdge: Boolean = true
+    val saveLeftEdge: Boolean = true,
+    // Labels flags - all unselected by default
+    val symbolNameLabel: Boolean = false,
+    val symbolLastPriceLabel: Boolean = false,
+    val symbolPrevCloseLabel: Boolean = false,
+    val prePostMarketPriceLabel: Boolean = false,
+    val highLowPriceLabels: Boolean = false,
+    val bidAskLabels: Boolean = false,
+    val indicatorsAndFinancialsNameLabels: Boolean = false,
+    val indicatorsAndFinancialsValueLabels: Boolean = false
 )
 
 data class CanvasSettings(

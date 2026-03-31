@@ -34,7 +34,8 @@ fun BottomBar(
     onPairSelect: (String, String) -> Unit = { _, _ -> },
     backgroundColor: Color = Color(0xFF08090C),
     settings: ChartSettings = ChartSettings(),
-    currentQuote: SymbolQuote? = null // Pass the live quote down
+    currentQuote: SymbolQuote? = null,
+    selectedTzLabel: String = ""
 ) {
     val pairsScrollState = rememberScrollState()
     
@@ -58,11 +59,10 @@ fun BottomBar(
                 recentPairs.forEachIndexed { index, (symbol, timeframe) ->
                     val isActive = symbol == currentSymbol && timeframe == currentTimeframe
                     
-                    // Use live data if this is the active symbol, else use mock/saved data
                     val displayChange = if (isActive && currentQuote != null) {
                         String.format(Locale.US, "%+.2f%%", currentQuote.changePercent)
                     } else {
-                        "+2.4%" // Fallback for non-active symbols in history
+                        "+2.4%"
                     }
                     val isUp = !displayChange.startsWith("-")
 

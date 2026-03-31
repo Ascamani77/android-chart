@@ -335,13 +335,18 @@ fun TradingChart(
                             )
                         }
 
+                        val priceLineVisible = chartSettings.scales.symbolLastPriceLabel
+                        val lastValueVisible = chartSettings.scales.symbolLastPriceLabel
+
                         when (style) {
                             "bars" -> {
                                 api.addBarSeries(
                                     options = BarSeriesOptions(
                                         upColor = chartSettings.symbol.upColor.toIntColor(),
                                         downColor = chartSettings.symbol.downColor.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove)
+                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove),
+                                        priceLineVisible = priceLineVisible,
+                                        lastValueVisible = lastValueVisible
                                     ),
                                     onSeriesCreated = { api -> seriesApi = api }
                                 )
@@ -350,7 +355,9 @@ fun TradingChart(
                                 api.addLineSeries(
                                     options = LineSeriesOptions(
                                         color = chartSettings.symbol.upColor.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove)
+                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove),
+                                        priceLineVisible = priceLineVisible,
+                                        lastValueVisible = lastValueVisible
                                     ),
                                     onSeriesCreated = { api -> seriesApi = api }
                                 )
@@ -366,7 +373,9 @@ fun TradingChart(
                                         wickVisible = chartSettings.symbol.wickVisible,
                                         wickUpColor = chartSettings.symbol.wickColorUp.toIntColor(),
                                         wickDownColor = chartSettings.symbol.wickColorDown.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove)
+                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove),
+                                        priceLineVisible = priceLineVisible,
+                                        lastValueVisible = lastValueVisible
                                     ),
                                     onSeriesCreated = { api -> seriesApi = api }
                                 )
@@ -404,6 +413,20 @@ fun TradingChart(
                                 style = chartSettings.canvas.crosshairLineStyle.toLineStyle()
                             )
                         )
+                    }
+
+                    // Apply series-specific options
+                    val priceLineVisible = chartSettings.scales.symbolLastPriceLabel
+                    val lastValueVisible = chartSettings.scales.symbolLastPriceLabel
+                    
+                    seriesApi?.let { api ->
+                        when (style) {
+                            "bars" -> api.applyOptions(BarSeriesOptions(priceLineVisible = priceLineVisible, lastValueVisible = lastValueVisible))
+                            "line" -> api.applyOptions(LineSeriesOptions(priceLineVisible = priceLineVisible, lastValueVisible = lastValueVisible))
+                            "area" -> api.applyOptions(AreaSeriesOptions(priceLineVisible = priceLineVisible, lastValueVisible = lastValueVisible))
+                            "heikin_ashi", "candles" -> api.applyOptions(CandlestickSeriesOptions(priceLineVisible = priceLineVisible, lastValueVisible = lastValueVisible))
+                            else -> api.applyOptions(CandlestickSeriesOptions(priceLineVisible = priceLineVisible, lastValueVisible = lastValueVisible))
+                        }
                     }
                 }
             )

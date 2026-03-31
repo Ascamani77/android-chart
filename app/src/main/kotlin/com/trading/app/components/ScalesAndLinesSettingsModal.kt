@@ -5,9 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -133,6 +130,18 @@ fun ScalesAndLinesSettingsModal(
                     // PRICE LABELS & LINES
                     ScalesSectionHeader("PRICE LABELS & LINES")
                     
+                    ScalesCheckboxRow("Symbol name label", tempSettings.symbolNameLabel) { tempSettings = tempSettings.copy(symbolNameLabel = it) }
+                    ScalesCheckboxRow("Symbol last price label", tempSettings.symbolLastPriceLabel) { tempSettings = tempSettings.copy(symbolLastPriceLabel = it) }
+                    ScalesCheckboxRow("Symbol previous day close price label", tempSettings.symbolPrevCloseLabel) { tempSettings = tempSettings.copy(symbolPrevCloseLabel = it) }
+                    ScalesCheckboxRow("Pre/post market price label", tempSettings.prePostMarketPriceLabel) { tempSettings = tempSettings.copy(prePostMarketPriceLabel = it) }
+                    ScalesCheckboxRow("High and low price labels", tempSettings.highLowPriceLabels) { tempSettings = tempSettings.copy(highLowPriceLabels = it) }
+                    ScalesCheckboxRow("Bid and ask labels", tempSettings.bidAskLabels) { tempSettings = tempSettings.copy(bidAskLabels = it) }
+                    ScalesCheckboxRow("Indicators and financials name labels", tempSettings.indicatorsAndFinancialsNameLabels) { tempSettings = tempSettings.copy(indicatorsAndFinancialsNameLabels = it) }
+                    ScalesCheckboxRow("Indicators and financials value labels", tempSettings.indicatorsAndFinancialsValueLabels) { tempSettings = tempSettings.copy(indicatorsAndFinancialsValueLabels = it) }
+                    ScalesCheckboxRow("Countdown to bar close", tempSettings.countdown) { tempSettings = tempSettings.copy(countdown = it) }
+
+                    Divider(color = Color(0xFF2A2E39), modifier = Modifier.padding(vertical = 12.dp))
+
                     ScalesCheckboxRow("No overlapping labels", tempSettings.noOverlappingLabels) { tempSettings = tempSettings.copy(noOverlappingLabels = it) }
                     
                     Row(
@@ -152,8 +161,6 @@ fun ScalesAndLinesSettingsModal(
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(Icons.Outlined.HelpOutline, null, tint = Color(0xFF787B86), modifier = Modifier.size(16.dp))
                     }
-                    
-                    ScalesCheckboxRow("Countdown to bar close", tempSettings.countdown) { tempSettings = tempSettings.copy(countdown = it) }
 
                     SettingsLabelDropdownRow(
                         label = "Symbol",

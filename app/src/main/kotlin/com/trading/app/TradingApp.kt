@@ -611,6 +611,8 @@ fun TradingApp() {
         }
         if (showChartSettingsBottomSheet) {
             ChartSettingsBottomSheet(
+                settings = chartSettings,
+                onUpdate = { chartSettings = it },
                 onDismissRequest = { showChartSettingsBottomSheet = false },
                 onMoreSettingsClick = {
                     showChartSettingsBottomSheet = false
