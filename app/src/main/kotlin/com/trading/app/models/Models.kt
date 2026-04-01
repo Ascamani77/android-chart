@@ -71,25 +71,23 @@ data class ScalesSettings(
     val bidAskMode: String = "Value, line",
     val bidColor: String = "#2962FF",
     val askColor: String = "#F05252",
-    val dayOfWeekOnLabels: Boolean = true,
-    val dateFormat: String = "Mon 29 Sep '97",
-    val timeFormat: String = "24-hours",
-    val saveLeftEdge: Boolean = true,
-    // Labels flags - all unselected by default
-    val symbolNameLabel: Boolean = false,
-    val symbolLastPriceLabel: Boolean = false,
-    val symbolPrevCloseLabel: Boolean = false,
-    val prePostMarketPriceLabel: Boolean = false,
-    val highLowPriceLabels: Boolean = false,
     val bidAskLabels: Boolean = false,
     val indicatorsAndFinancialsNameLabels: Boolean = false,
     val indicatorsAndFinancialsValueLabels: Boolean = false,
-    // Lines flags
     val symbolLastPriceLine: Boolean = true,
     val symbolPrevCloseLine: Boolean = false,
     val prePostMarketPriceLine: Boolean = false,
     val highLowPriceLines: Boolean = true,
-    val bidAskLines: Boolean = false
+    val bidAskLines: Boolean = false,
+    val dayOfWeekOnLabels: Boolean = true,
+    val dateFormat: String = "Mon 29 Sep '97",
+    val timeFormat: String = "24-hours",
+    val saveLeftEdge: Boolean = true,
+    val symbolNameLabel: Boolean = false,
+    val symbolLastPriceLabel: Boolean = false,
+    val symbolPrevCloseLabel: Boolean = false,
+    val prePostMarketPriceLabel: Boolean = false,
+    val highLowPriceLabels: Boolean = false
 )
 
 data class CanvasSettings(
@@ -243,6 +241,15 @@ data class UserAlert(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+data class PartialOrder(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val tp: Float? = null,
+    val sl: Float? = null,
+    val volume: Float,
+    val tpOrderPrice: String = "Market",
+    val slOrderPrice: String = "Market"
+)
+
 data class Position(
     val id: String = java.util.UUID.randomUUID().toString(),
     val symbol: String,
@@ -252,7 +259,8 @@ data class Position(
     val time: Long,
     val tp: Float? = null,
     val sl: Float? = null,
-    val isSelected: Boolean = false
+    val isSelected: Boolean = false,
+    val partialOrders: List<PartialOrder> = emptyList()
 )
 
 data class Indicator(

@@ -149,7 +149,9 @@ fun TradingChart(
     onQuoteUpdate: (SymbolQuote) -> Unit = {},
     positions: List<Position> = emptyList(),
     onPositionUpdate: (Position) -> Unit = {},
-    onPositionDelete: (String) -> Unit = {}
+    onPositionDelete: (String) -> Unit = {},
+    onDoubleClick: (Float) -> Unit = {},
+    onChartClick: (Float) -> Unit = {}
 ) {
     var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
     var currentQuoteState by remember { mutableStateOf<SymbolQuote?>(null) }
@@ -265,39 +267,12 @@ fun TradingChart(
         
         api.subscribeClick { params ->
             val currentTime = System.currentTimeMillis()
+            val lastPrice = currentQuoteState?.lastPrice ?: 0f
+            
             if (currentTime - lastClickTime < 400) {
-                // Double click detected
-                // Since coordinateToPrice is complex to call from here, we'll hit-test positions
-                // near the current market price when a click happens near the right side or recent action.
-                // However, the best way is to check if we clicked near any position's entry price.
-
-                // For now, let's use the current quote's last price as the clicked price reference
-                // if the click happened (anywhere on the chart).
-                val lastPrice = currentQuoteState?.lastPrice ?: 0f
-                if (lastPrice != 0f) {
-                    val tolerance = lastPrice * 0.02f // 2% tolerance for the hit-test
-                    val targetPos = positions.find {
-                        it.symbol.equals(symbol, ignoreCase = true) &&
-                        Math.abs(it.entryPrice - lastPrice) < tolerance
-                    }
-
-                    targetPos?.let { pos ->
-                        if (pos.tp == null && pos.sl == null) {
-                            val uppercaseSymbol = symbol.uppercase()
-                            val isBitcoin = uppercaseSymbol.contains("BTC") || uppercaseSymbol.contains("BITCOIN")
-                            val isForex = uppercaseSymbol.length == 6 || uppercaseSymbol.contains("/")
-                            
-                            val defaultOffset = when {
-                                isBitcoin -> 200f // $200
-                                isForex -> 0.00200f // 20 pips
-                                else -> pos.entryPrice * 0.01f // 1%
-                            }
-                            val tp = if (pos.type.equals("buy", ignoreCase = true)) pos.entryPrice + defaultOffset else pos.entryPrice - defaultOffset
-                            val sl = if (pos.type.equals("buy", ignoreCase = true)) pos.entryPrice - defaultOffset else pos.entryPrice + defaultOffset
-                            onPositionUpdate(pos.copy(tp = tp, sl = sl))
-                        }
-                    }
-                }
+                onDoubleClick(lastPrice)
+            } else {
+                onChartClick(lastPrice)
             }
             lastClickTime = currentTime
         }
@@ -481,12 +456,13 @@ fun TradingChart(
         )
     }
 
-    // Manage Position Price Lines
+    // Manage Position Price Lines with real-time profit/loss counting
     val positionPriceLines = remember { mutableStateListOf<PriceLine>() }
-    // Using positions.toList() to ensure the effect re-runs when the list content changes
+    // Re-run effect when positions or current price changes
     val positionsSnapshot = positions.toList()
-    LaunchedEffect(positionsSnapshot, seriesApi, symbol) {
+    LaunchedEffect(positionsSnapshot, currentQuoteState, seriesApi, symbol) {
         val api = seriesApi ?: return@LaunchedEffect
+        val quote = currentQuoteState ?: return@LaunchedEffect
         
         // Remove previous position lines
         positionPriceLines.forEach { api.removePriceLine(it) }
@@ -494,6 +470,17 @@ fun TradingChart(
 
         positionsSnapshot.filter { it.symbol.equals(symbol, ignoreCase = true) }.forEach { position ->
             val color = if (position.type.equals("buy", ignoreCase = true)) "#2962FF" else "#F2A52C"
+            
+            // Calculate Profit/Loss
+            val isBuy = position.type.equals("buy", ignoreCase = true)
+            val pnl = if (isBuy) {
+                (quote.lastPrice - position.entryPrice) * position.volume
+            } else {
+                (position.entryPrice - quote.lastPrice) * position.volume
+            }
+            
+            val sign = if (pnl >= 0) "+" else ""
+            val pnlFormatted = String.format("%s%.2f", sign, pnl)
             
             // Entry Line
             positionPriceLines.add(
@@ -505,13 +492,21 @@ fun TradingChart(
                         lineStyle = LineStyle.SOLID,
                         lineVisible = true,
                         axisLabelVisible = true,
-                        title = "${position.type.uppercase()} ${position.volume}"
+                        title = "${position.type.uppercase()} ${position.volume} ($pnlFormatted)"
                     )
                 )
             )
 
             // TP Line
             position.tp?.let { tp ->
+                val tpPnl = if (isBuy) {
+                    (tp - position.entryPrice) * position.volume
+                } else {
+                    (position.entryPrice - tp) * position.volume
+                }
+                val tpSign = if (tpPnl >= 0) "+" else ""
+                val tpPnlFormatted = String.format("%s%.2f", tpSign, tpPnl)
+
                 positionPriceLines.add(
                     api.createPriceLine(
                         PriceLineOptions(
@@ -521,7 +516,7 @@ fun TradingChart(
                             lineStyle = LineStyle.DASHED,
                             lineVisible = true,
                             axisLabelVisible = true,
-                            title = "TP"
+                            title = "TP ($tpPnlFormatted)"
                         )
                     )
                 )
@@ -529,6 +524,14 @@ fun TradingChart(
 
             // SL Line
             position.sl?.let { sl ->
+                val slPnl = if (isBuy) {
+                    (sl - position.entryPrice) * position.volume
+                } else {
+                    (position.entryPrice - sl) * position.volume
+                }
+                val slSign = if (slPnl >= 0) "+" else ""
+                val slPnlFormatted = String.format("%s%.2f", slSign, slPnl)
+
                 positionPriceLines.add(
                     api.createPriceLine(
                         PriceLineOptions(
@@ -538,7 +541,7 @@ fun TradingChart(
                             lineStyle = LineStyle.DASHED,
                             lineVisible = true,
                             axisLabelVisible = true,
-                            title = "SL"
+                            title = "SL ($slPnlFormatted)"
                         )
                     )
                 )

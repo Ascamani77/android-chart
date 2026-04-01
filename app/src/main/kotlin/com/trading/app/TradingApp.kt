@@ -20,7 +20,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.google.ai.client.generativeai.GenerativeModel
 import com.trading.app.components.*
 import com.trading.app.models.*
 import com.google.gson.Gson
@@ -198,7 +197,6 @@ fun TradingApp() {
     var showChartTypeModal by remember { mutableStateOf(false) }
     var showFloatingTradingButtons by remember { mutableStateOf(false) }
     var showOrderModal by remember { mutableStateOf(false) }
-    var lotSize by remember { mutableStateOf("1") }
 
     // Quick Actions State
     var showQuickActions by remember { mutableStateOf(false) }
@@ -337,7 +335,7 @@ fun TradingApp() {
 
                     Column(modifier = Modifier.weight(1f)) {
                         Box(modifier = Modifier.weight(1f)) {
-                            TradingChart(
+                            TradingChart2(
                                 symbol = symbol,
                                 timeframe = timeframe,
                                 style = chartStyle,
@@ -385,35 +383,13 @@ fun TradingApp() {
                                 positions = positions,
                                 onPositionUpdate = { updated ->
                                     val idx = positions.indexOfFirst { it.id == updated.id }
-                                    if (idx != -1) positions[idx] = updated
+                                    if (idx != -1) positions[idx] = updated else positions.add(updated)
                                 },
                                 onPositionDelete = { id ->
                                     positions.removeAll { it.id == id }
-                                }
+                                },
+                                isTradingBarVisible = showFloatingTradingButtons
                             )
-
-                            if (showFloatingTradingButtons && chartSettings.trading.oneClickTrading) {
-                                FloatingTradingButtons(
-                                    sellPrice = currentLiveQuote?.bid?.toString() ?: "0.00",
-                                    buyPrice = currentLiveQuote?.ask?.toString() ?: "0.00",
-                                    lotSize = lotSize,
-                                    onLotSizeChange = { lotSize = it },
-                                    onSellClick = {
-                                        currentLiveQuote?.let { quote ->
-                                            positions.add(Position(symbol = symbol, type = "sell", entryPrice = quote.bid, volume = lotSize.toFloatOrNull() ?: 1f, time = System.currentTimeMillis()))
-                                        }
-                                    },
-                                    onBuyClick = {
-                                        currentLiveQuote?.let { quote ->
-                                            positions.add(Position(symbol = symbol, type = "buy", entryPrice = quote.ask, volume = lotSize.toFloatOrNull() ?: 1f, time = System.currentTimeMillis()))
-                                        }
-                                    },
-                                    onMoreClick = { 
-                                        settingsInitialTab = "Trading"
-                                        showSettingsModal = true 
-                                    }
-                                )
-                            }
                         }
 
                         if (!isFullscreen && isBottomPanelVisible) {
