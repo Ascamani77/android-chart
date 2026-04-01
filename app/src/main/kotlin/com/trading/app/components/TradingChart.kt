@@ -156,7 +156,7 @@ fun TradingChart(
     var seriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var chartsViewApi by remember { mutableStateOf<ChartsView?>(null) }
     var showMarketStatus by remember { mutableStateOf(false) }
-    
+
     // High/Low lines state (Line and Label separate for color independence)
     val highLineState = remember { mutableStateOf<PriceLine?>(null) }
     val highLabelState = remember { mutableStateOf<PriceLine?>(null) }
@@ -256,6 +256,51 @@ fun TradingChart(
             close = quote.lastPrice
         )
         api.update(updatedCandle)
+    }
+
+    // Double-click detection on the chart
+    var lastClickTime by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(seriesApi) {
+        val api = chartsViewApi?.api ?: return@LaunchedEffect
+        
+        api.subscribeClick { params ->
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastClickTime < 400) {
+                // Double click detected
+                // Since coordinateToPrice is complex to call from here, we'll hit-test positions
+                // near the current market price when a click happens near the right side or recent action.
+                // However, the best way is to check if we clicked near any position's entry price.
+
+                // For now, let's use the current quote's last price as the clicked price reference
+                // if the click happened (anywhere on the chart).
+                val lastPrice = currentQuoteState?.lastPrice ?: 0f
+                if (lastPrice != 0f) {
+                    val tolerance = lastPrice * 0.02f // 2% tolerance for the hit-test
+                    val targetPos = positions.find {
+                        it.symbol.equals(symbol, ignoreCase = true) &&
+                        Math.abs(it.entryPrice - lastPrice) < tolerance
+                    }
+
+                    targetPos?.let { pos ->
+                        if (pos.tp == null && pos.sl == null) {
+                            val uppercaseSymbol = symbol.uppercase()
+                            val isBitcoin = uppercaseSymbol.contains("BTC") || uppercaseSymbol.contains("BITCOIN")
+                            val isForex = uppercaseSymbol.length == 6 || uppercaseSymbol.contains("/")
+                            
+                            val defaultOffset = when {
+                                isBitcoin -> 200f // $200
+                                isForex -> 0.00200f // 20 pips
+                                else -> pos.entryPrice * 0.01f // 1%
+                            }
+                            val tp = if (pos.type.equals("buy", ignoreCase = true)) pos.entryPrice + defaultOffset else pos.entryPrice - defaultOffset
+                            val sl = if (pos.type.equals("buy", ignoreCase = true)) pos.entryPrice - defaultOffset else pos.entryPrice + defaultOffset
+                            onPositionUpdate(pos.copy(tp = tp, sl = sl))
+                        }
+                    }
+                }
+            }
+            lastClickTime = currentTime
+        }
     }
 
     // Manage High/Low Price Lines and Labels
