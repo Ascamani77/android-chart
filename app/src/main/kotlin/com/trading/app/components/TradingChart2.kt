@@ -88,6 +88,7 @@ fun TradingChart2(
     var lotSize by remember { mutableStateOf("1.0000") }
     var tpPrice by remember { mutableStateOf<Float?>(null) }
     var slPrice by remember { mutableStateOf<Float?>(null) }
+    var pendingPartialOrders by remember { mutableStateOf<List<PartialOrder>>(emptyList()) }
     
     var currentLiveQuote by remember { mutableStateOf<SymbolQuote?>(null) }
     var showModifyModal by remember { mutableStateOf(false) }
@@ -208,7 +209,8 @@ fun TradingChart2(
                                         volume = lotSize.toFloatOrNull() ?: 1f,
                                         time = System.currentTimeMillis(),
                                         tp = tpPrice,
-                                        sl = slPrice
+                                        sl = slPrice,
+                                        partialOrders = pendingPartialOrders
                                     ))
                                 }
                             },
@@ -264,7 +266,8 @@ fun TradingChart2(
                                         volume = lotSize.toFloatOrNull() ?: 1f,
                                         time = System.currentTimeMillis(),
                                         tp = tpPrice,
-                                        sl = slPrice
+                                        sl = slPrice,
+                                        partialOrders = pendingPartialOrders
                                     ))
                                 }
                             },
@@ -309,16 +312,18 @@ fun TradingChart2(
                 isBuy = true,
                 initialTp = tpPrice,
                 initialSl = slPrice,
-                initialPartialOrders = emptyList(),
+                initialPartialOrders = pendingPartialOrders,
                 allPositions = positions,
                 currentPrice = currentLiveQuote?.lastPrice ?: 0f,
                 onConfirm = { tp, sl, partials ->
                     tpPrice = tp
                     slPrice = sl
+                    pendingPartialOrders = partials
                     showModifyModal = false
                 },
                 onCancel = { showModifyModal = false },
-                onClosePosition = onPositionDelete
+                onClosePosition = onPositionDelete,
+                onPositionUpdate = onPositionUpdate
             )
         }
 
@@ -341,7 +346,8 @@ fun TradingChart2(
                     selectedPositionToModify = null
                 },
                 onCancel = { selectedPositionToModify = null },
-                onClosePosition = onPositionDelete
+                onClosePosition = onPositionDelete,
+                onPositionUpdate = onPositionUpdate
             )
         }
     }
@@ -362,7 +368,8 @@ fun ModifyTpSlModal(
     currentPrice: Float = 0f,
     onConfirm: (Float?, Float?, List<PartialOrder>) -> Unit,
     onCancel: () -> Unit,
-    onClosePosition: (String) -> Unit = {}
+    onClosePosition: (String) -> Unit = {},
+    onPositionUpdate: (Position) -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf("Close Position") }
     
@@ -385,10 +392,11 @@ fun ModifyTpSlModal(
     var partialSlPrice by remember { mutableStateOf("") }
 
     val primaryColor = Color(0xFF2962FF)
-    val backgroundColor = Color(0xFF131722)
+    val backgroundColor = Color.Black
     val boxBorderColor = Color.White.copy(alpha = 0.15f)
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val actualCurrentPrice = if (currentPrice > 0f) currentPrice else lastTradedPrice
 
     ModalBottomSheet(
         onDismissRequest = onCancel,
@@ -396,448 +404,458 @@ fun ModifyTpSlModal(
         dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF787B86), width = 40.dp, height = 4.dp) },
         containerColor = backgroundColor,
         scrimColor = Color.Black.copy(alpha = 0.5f),
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+        tonalElevation = 0.dp
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp).padding(horizontal = 16.dp)) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(if (isEditingPartial) "Modify Partial Order" else "Modify TP/SL", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                IconButton(onClick = if (isEditingPartial) { { isEditingPartial = false } } else onCancel, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.Close, null, tint = Color(0xFF787B86))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(
+                    width = 1.dp,
+                    color = Color(0xFF2A2E39),
+                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                )
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 32.dp).padding(horizontal = 16.dp)) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (isEditingPartial) "Modify Partial Order" else "Modify TP/SL", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    IconButton(onClick = if (isEditingPartial) { { isEditingPartial = false } } else onCancel, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, null, tint = Color(0xFF787B86))
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-            // Stats Row
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                StatItem("Entry Price", String.format("%,.2f", entryPrice))
-                StatItem("Qty", qty)
-                StatItem("Last Traded Price", String.format("%,.2f", lastTradedPrice))
-                StatItem("Liq. Price", "18,860.0", color = Color(0xFFF2A52C))
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            if (!isEditingPartial) {
-                // Tabs
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    TabItem("Close Position", selectedTab == "Close Position", primaryColor) { selectedTab = "Close Position" }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    TabItem("Entire Position", selectedTab == "Entire Position", primaryColor) { selectedTab = "Entire Position" }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    TabItem("Partial Position", selectedTab == "Partial Position", primaryColor, isNew = true) { selectedTab = "Partial Position" }
-                    Spacer(modifier = Modifier.weight(1f))
-                    Icon(Icons.Default.HelpOutline, null, tint = Color(0xFF787B86), modifier = Modifier.size(16.dp))
+                // Stats Row
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    StatItem("Entry Price", String.format("%,.2f", entryPrice))
+                    StatItem("Qty", qty)
+                    StatItem("Last Traded Price", String.format("%,.2f", lastTradedPrice))
+                    val liqPrice = if (isBuy) entryPrice * 0.8f else entryPrice * 1.2f
+                    StatItem("Liq. Price", String.format("%,.1f", liqPrice), color = Color(0xFFF2A52C))
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                when (selectedTab) {
-                    "Close Position" -> {
-                        var closeSubTab by remember { mutableStateOf("Live") }
-                        
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Row(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    "Live Trades (${allPositions.size})",
-                                    color = if (closeSubTab == "Live") Color.White else Color(0xFF787B86),
-                                    fontSize = 14.sp,
-                                    fontWeight = if (closeSubTab == "Live") FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.clickable { closeSubTab = "Live" }.padding(vertical = 4.dp)
-                                )
-                                Spacer(modifier = Modifier.width(20.dp))
-                                Text(
-                                    "Pending Trades",
-                                    color = if (closeSubTab == "Pending") Color.White else Color(0xFF787B86),
-                                    fontSize = 14.sp,
-                                    fontWeight = if (closeSubTab == "Pending") FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.clickable { closeSubTab = "Pending" }.padding(vertical = 4.dp)
-                                )
-                            }
+                if (!isEditingPartial) {
+                    // Tabs
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        TabItem("Close Position", selectedTab == "Close Position", primaryColor) { selectedTab = "Close Position" }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        TabItem("Entire Position", selectedTab == "Entire Position", primaryColor) { selectedTab = "Entire Position" }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        TabItem("Partial Position", selectedTab == "Partial Position", primaryColor, isNew = true) { selectedTab = "Partial Position" }
+                        Spacer(modifier = Modifier.weight(1f))
+                        Icon(Icons.Default.HelpOutline, null, tint = Color(0xFF787B86), modifier = Modifier.size(16.dp))
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    when (selectedTab) {
+                        "Close Position" -> {
+                            var closeSubTab by remember { mutableStateOf("Live") }
                             
-                            Spacer(modifier = Modifier.height(16.dp))
-                            
-                            if (closeSubTab == "Live") {
-                                if (allPositions.isEmpty()) {
-                                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
-                                        Text("No live trades", color = Color(0xFF787B86))
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        "Live Trades (${allPositions.size})",
+                                        color = if (closeSubTab == "Live") Color.White else Color(0xFF787B86),
+                                        fontSize = 14.sp,
+                                        fontWeight = if (closeSubTab == "Live") FontWeight.Bold else FontWeight.Normal,
+                                        modifier = Modifier.clickable { closeSubTab = "Live" }.padding(vertical = 4.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(20.dp))
+                                    Text(
+                                        "Pending Trades",
+                                        color = if (closeSubTab == "Pending") Color.White else Color(0xFF787B86),
+                                        fontSize = 14.sp,
+                                        fontWeight = if (closeSubTab == "Pending") FontWeight.Bold else FontWeight.Normal,
+                                        modifier = Modifier.clickable { closeSubTab = "Pending" }.padding(vertical = 4.dp)
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                if (closeSubTab == "Live") {
+                                    if (allPositions.isEmpty()) {
+                                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
+                                            Text("No live trades", color = Color(0xFF787B86))
+                                        }
+                                    } else {
+                                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
+                                            items(allPositions) { pos ->
+                                                val pnl = if (pos.type.lowercase() == "buy") (actualCurrentPrice - pos.entryPrice) * pos.volume else (pos.entryPrice - actualCurrentPrice) * pos.volume
+                                                val pnlColor = if (pnl >= 0) Color(0xFF089981) else Color(0xFFF23645)
+                                                
+                                                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Text(pos.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                                                Spacer(modifier = Modifier.width(6.dp))
+                                                                Text(
+                                                                    pos.type.uppercase(),
+                                                                    color = if (pos.type.lowercase() == "buy") Color(0xFF2962FF) else Color(0xFFF2A52C),
+                                                                    fontSize = 11.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    modifier = Modifier.background(
+                                                                        (if (pos.type.lowercase() == "buy") Color(0xFF2962FF) else Color(0xFFF2A52C)).copy(alpha = 0.1f),
+                                                                        RoundedCornerShape(2.dp)
+                                                                    ).padding(horizontal = 4.dp, vertical = 1.dp)
+                                                                )
+                                                            }
+                                                            Text("Qty: ${pos.volume} @ ${String.format("%,.2f", pos.entryPrice)}", color = Color(0xFF787B86), fontSize = 12.sp)
+                                                        }
+                                                        
+                                                        Column(horizontalAlignment = Alignment.End) {
+                                                            Text(
+                                                                "${if (pnl >= 0) "+" else ""}${String.format("%.2f", pnl)} USDT",
+                                                                color = pnlColor,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 15.sp
+                                                            )
+                                                            Button(
+                                                                onClick = { onClosePosition(pos.id) },
+                                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)),
+                                                                shape = RoundedCornerShape(4.dp),
+                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                                                modifier = Modifier.height(28.dp)
+                                                            ) {
+                                                                Text("Close", color = Color.White, fontSize = 12.sp)
+                                                            }
+                                                        }
+                                                    }
+                                                    Divider(color = boxBorderColor, modifier = Modifier.padding(top = 8.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Find current position's P&L
+                                    val currentPos = allPositions.find { 
+                                        it.symbol.equals(symbol, ignoreCase = true) && 
+                                        abs(it.entryPrice - entryPrice) < 0.001f && 
+                                        abs(it.volume - (qty.toFloatOrNull() ?: 0f)) < 0.001f 
+                                    }
+                                    
+                                    if (currentPos != null) {
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        val pnl = if (currentPos.type.lowercase() == "buy") (actualCurrentPrice - currentPos.entryPrice) * currentPos.volume else (currentPos.entryPrice - actualCurrentPrice) * currentPos.volume
+                                        
+                                        Button(
+                                            onClick = { 
+                                                onClosePosition(currentPos.id)
+                                                onCancel()
+                                            },
+                                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = if (pnl >= 0) Color(0xFF089981) else Color(0xFFF23645)),
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text(
+                                                text = "Close ${currentPos.symbol} with ${if (pnl >= 0) "profit" else "loss"} ${if (pnl >= 0) "+" else ""}${String.format("%.2f", pnl)} USDT",
+                                                color = Color.White,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    } else {
+                                        Spacer(modifier = Modifier.height(40.dp))
                                     }
                                 } else {
-                                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
-                                        items(allPositions) { pos ->
-                                            val pnl = if (pos.type.lowercase() == "buy") (currentPrice - pos.entryPrice) * pos.volume else (pos.entryPrice - currentPrice) * pos.volume
-                                            val pnlColor = if (pnl >= 0) Color(0xFF089981) else Color(0xFFF23645)
-                                            
-                                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                                                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                                    Column(modifier = Modifier.weight(1f)) {
-                                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                                            Text(pos.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                                            Spacer(modifier = Modifier.width(6.dp))
-                                                            Text(
-                                                                pos.type.uppercase(),
-                                                                color = if (pos.type.lowercase() == "buy") Color(0xFF2962FF) else Color(0xFFF2A52C),
-                                                                fontSize = 11.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                modifier = Modifier.background(
-                                                                    (if (pos.type.lowercase() == "buy") Color(0xFF2962FF) else Color(0xFFF2A52C)).copy(alpha = 0.1f),
-                                                                    RoundedCornerShape(2.dp)
-                                                                ).padding(horizontal = 4.dp, vertical = 1.dp)
-                                                            )
+                                    // Pending orders (Partials)
+                                    val pendingPartials = allPositions.flatMap { pos -> 
+                                        pos.partialOrders.map { Triple(pos, pos.symbol, it) }
+                                    }
+                                    
+                                    if (pendingPartials.isEmpty()) {
+                                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
+                                            Text("No pending partial orders", color = Color(0xFF787B86))
+                                        }
+                                    } else {
+                                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
+                                            items(pendingPartials) { (pos, sym, order) ->
+                                                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Text(sym, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                                            Text("Partial Order Qty: ${order.volume}", color = Color(0xFF787B86), fontSize = 12.sp)
+                                                            Row {
+                                                                if (order.tp != null) Text("TP: ${String.format("%,.2f", order.tp)}", color = Color(0xFF089981), fontSize = 11.sp, modifier = Modifier.padding(end = 8.dp))
+                                                                if (order.sl != null) Text("SL: ${String.format("%,.2f", order.sl)}", color = Color(0xFFF23645), fontSize = 11.sp)
+                                                            }
                                                         }
-                                                        Text("Qty: ${pos.volume} @ ${String.format("%,.2f", pos.entryPrice)}", color = Color(0xFF787B86), fontSize = 12.sp)
-                                                    }
-                                                    
-                                                    Column(horizontalAlignment = Alignment.End) {
-                                                        Text(
-                                                            "${if (pnl >= 0) "+" else ""}${String.format("%.2f", pnl)} USDT",
-                                                            color = pnlColor,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 15.sp
-                                                        )
                                                         Button(
-                                                            onClick = { onClosePosition(pos.id) },
+                                                            onClick = { 
+                                                                val updatedPartials = pos.partialOrders.filter { it.id != order.id }
+                                                                onPositionUpdate(pos.copy(partialOrders = updatedPartials))
+                                                            },
                                                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)),
                                                             shape = RoundedCornerShape(4.dp),
                                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                                                             modifier = Modifier.height(28.dp)
                                                         ) {
-                                                            Text("Close", color = Color.White, fontSize = 12.sp)
+                                                            Text("Cancel", color = Color.White, fontSize = 12.sp)
                                                         }
                                                     }
+                                                    Divider(color = boxBorderColor, modifier = Modifier.padding(top = 8.dp))
                                                 }
-                                                Divider(color = boxBorderColor, modifier = Modifier.padding(top = 8.dp))
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Find current position's P&L
-                                val currentPos = allPositions.find { 
-                                    it.symbol.equals(symbol, ignoreCase = true) && 
-                                    abs(it.entryPrice - entryPrice) < 0.001f && 
-                                    abs(it.volume - (qty.toFloatOrNull() ?: 0f)) < 0.001f 
-                                }
-                                
-                                if (currentPos != null) {
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    val pnl = if (currentPos.type.lowercase() == "buy") (currentPrice - currentPos.entryPrice) * currentPos.volume else (currentPos.entryPrice - currentPrice) * currentPos.volume
-                                    
-                                    Button(
-                                        onClick = { 
-                                            onClosePosition(currentPos.id)
-                                            onCancel()
-                                        },
-                                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (pnl >= 0) Color(0xFF089981) else Color(0xFFF23645)),
-                                        shape = RoundedCornerShape(6.dp)
-                                    ) {
-                                        Text(
-                                            text = "Close ${currentPos.symbol} with ${if (pnl >= 0) "profit" else "loss"} ${if (pnl >= 0) "+" else ""}${String.format("%.2f", pnl)} USDT",
-                                            color = Color.White,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                } else {
-                                    // If empty, add a small spacer to maintain some height consistency
-                                    Spacer(modifier = Modifier.height(40.dp))
-                                }
-                            } else {
-                                // Pending orders (TP/SL/Partials)
-                                val pendingOrders = allPositions.flatMap { pos -> 
-                                    pos.partialOrders.map { it.copy(tpOrderPrice = pos.symbol) } // Using tpOrderPrice as temporary symbol holder for display
-                                }
-                                
-                                if (pendingOrders.isEmpty()) {
-                                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
-                                        Text("No pending trades", color = Color(0xFF787B86))
-                                    }
-                                } else {
-                                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
-                                        items(pendingOrders) { order ->
-                                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                                                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                                    Column(modifier = Modifier.weight(1f)) {
-                                                        Text(order.tpOrderPrice, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                                        Text("Partial Order Qty: ${order.volume}", color = Color(0xFF787B86), fontSize = 12.sp)
-                                                        Row {
-                                                            if (order.tp != null) Text("TP: ${String.format("%,.2f", order.tp)}", color = Color(0xFF089981), fontSize = 11.sp, modifier = Modifier.padding(end = 8.dp))
-                                                            if (order.sl != null) Text("SL: ${String.format("%,.2f", order.sl)}", color = Color(0xFFF23645), fontSize = 11.sp)
-                                                        }
-                                                    }
-                                                    Button(
-                                                        onClick = { /* Cancel partial */ },
-                                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)),
-                                                        shape = RoundedCornerShape(4.dp),
-                                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                                                        modifier = Modifier.height(28.dp)
-                                                    ) {
-                                                        Text("Cancel", color = Color.White, fontSize = 12.sp)
-                                                    }
-                                                }
-                                                Divider(color = boxBorderColor, modifier = Modifier.padding(top = 8.dp))
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                    "Entire Position" -> {
-                        // Take Profit Section
-                        val tpVal = tpTriggerPrice.toFloatOrNull()
-                        val tpPnl = tpVal?.let { if (isBuy) (it - entryPrice) * (qty.toFloatOrNull() ?: 1f) else (entryPrice - it) * (qty.toFloatOrNull() ?: 1f) }
-                        val tpPnlText = tpPnl?.let { " (${if(it >= 0) "+" else ""}${String.format("%.2f", it)})" } ?: ""
+                        "Entire Position" -> {
+                            // Take Profit Section
+                            val tpVal = tpTriggerPrice.toFloatOrNull()
+                            val tpPnl = tpVal?.let { if (isBuy) (it - entryPrice) * (qty.toFloatOrNull() ?: 1f) else (entryPrice - it) * (qty.toFloatOrNull() ?: 1f) }
+                            val tpPnlText = tpPnl?.let { " (${if(it >= 0) "+" else ""}${String.format("%.2f", it)})" } ?: ""
 
-                        Text("Take Profit-Trigger by Price$tpPnlText", color = Color(0xFF787B86), fontSize = 14.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        PriceInputRow(
-                            value = tpTriggerPrice,
-                            onValueChange = { tpTriggerPrice = it },
-                            onIncrement = { 
-                                val current = tpTriggerPrice.toFloatOrNull() ?: lastTradedPrice
-                                tpTriggerPrice = formatPriceValue(current + tickSize)
-                            },
-                            onDecrement = {
-                                val current = tpTriggerPrice.toFloatOrNull() ?: lastTradedPrice
-                                tpTriggerPrice = formatPriceValue((current - tickSize).coerceAtLeast(0f))
-                            },
-                            selectedSource = tpSource,
-                            onSourceChange = { tpSource = it },
-                            primaryColor = primaryColor,
-                            borderColor = boxBorderColor
-                        )
+                            Text("Take Profit-Trigger by Price$tpPnlText", color = Color(0xFF787B86), fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            PriceInputRow(
+                                value = tpTriggerPrice,
+                                onValueChange = { tpTriggerPrice = it },
+                                onIncrement = { 
+                                    val current = tpTriggerPrice.toFloatOrNull() ?: actualCurrentPrice
+                                    tpTriggerPrice = formatPriceValue(current + tickSize)
+                                },
+                                onDecrement = {
+                                    val current = tpTriggerPrice.toFloatOrNull() ?: actualCurrentPrice
+                                    tpTriggerPrice = formatPriceValue((current - tickSize).coerceAtLeast(0f))
+                                },
+                                selectedSource = tpSource,
+                                onSourceChange = { tpSource = it },
+                                primaryColor = primaryColor,
+                                borderColor = boxBorderColor
+                            )
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            PercentageSelector(borderColor = boxBorderColor, onPercentSelect = { pct ->
+                                val target = if (isBuy) entryPrice * (1f + pct / 100f) else entryPrice * (1f - pct / 100f)
+                                tpTriggerPrice = formatPriceValue(target)
+                            })
+
+                            Spacer(modifier = Modifier.height(12.dp))
+                            SummaryText("Take Profit", tpTriggerPrice, entryPrice, qty.toFloatOrNull() ?: 1f, isBuy, isProfit = true)
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            // Stop Loss Section
+                            val slVal = slTriggerPrice.toFloatOrNull()
+                            val slPnl = slVal?.let { if (isBuy) (it - entryPrice) * (qty.toFloatOrNull() ?: 1f) else (entryPrice - it) * (qty.toFloatOrNull() ?: 1f) }
+                            val slPnlText = slPnl?.let { " (${if(it >= 0) "+" else ""}${String.format("%.2f", it)})" } ?: ""
+
+                            Text("Stop Loss-Trigger by Price$slPnlText", color = Color(0xFF787B86), fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            PriceInputRow(
+                                value = slTriggerPrice,
+                                onValueChange = { slTriggerPrice = it },
+                                onIncrement = { 
+                                    val current = slTriggerPrice.toFloatOrNull() ?: actualCurrentPrice
+                                    slTriggerPrice = formatPriceValue(current + tickSize)
+                                },
+                                onDecrement = {
+                                    val current = slTriggerPrice.toFloatOrNull() ?: actualCurrentPrice
+                                    slTriggerPrice = formatPriceValue((current - tickSize).coerceAtLeast(0f))
+                                },
+                                selectedSource = slSource,
+                                onSourceChange = { slSource = it },
+                                primaryColor = primaryColor,
+                                borderColor = boxBorderColor
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            PercentageSelector(borderColor = boxBorderColor, onPercentSelect = { pct ->
+                                val target = if (isBuy) entryPrice * (1f - pct / 100f) else entryPrice * (1f + pct / 100f)
+                                slTriggerPrice = formatPriceValue(target)
+                            })
+
+                            Spacer(modifier = Modifier.height(12.dp))
+                            SummaryText("Stop Loss", slTriggerPrice, entryPrice, qty.toFloatOrNull() ?: 1f, isBuy, isProfit = false)
+
+                        }
+                        "Partial Position" -> {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Sort by Order Time", color = Color(0xFF787B86), fontSize = 14.sp)
+                                        Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(16.dp))
+                                    }
+                                    Row {
+                                        Button(onClick = { partialOrders.clear() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)), shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                                            Text("Cancel All", color = Color.White, fontSize = 12.sp)
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Button(
+                                            onClick = { 
+                                                partialOrderId = null
+                                                partialQty = "0.001"
+                                                partialTpPrice = formatPriceValue(if (isBuy) entryPrice * 1.05f else entryPrice * 0.95f)
+                                                partialSlPrice = formatPriceValue(if (isBuy) entryPrice * 0.95f else entryPrice * 1.05f)
+                                                isEditingPartial = true
+                                            }, 
+                                            colors = ButtonDefaults.buttonColors(containerColor = primaryColor), 
+                                            shape = RoundedCornerShape(4.dp), 
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                        ) {
+                                            Text("Add", color = Color.White, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                    Text("Take Profit", color = Color(0xFF787B86), fontSize = 11.sp, modifier = Modifier.weight(1f))
+                                    Text("Stop Loss", color = Color(0xFF787B86), fontSize = 11.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                                    Text("TP Order Price", color = Color(0xFF787B86), fontSize = 11.sp, modifier = Modifier.weight(1f))
+                                    Text("Qty", color = Color(0xFF787B86), fontSize = 11.sp, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
+                                    Text("SL Order Price", color = Color(0xFF787B86), fontSize = 11.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+                                }
+                                
+                                Divider(color = boxBorderColor)
+                                
+                                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)) {
+                                    items(partialOrders) { order ->
+                                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                                            Row(modifier = Modifier.fillMaxWidth()) {
+                                                val tpPnl = order.tp?.let { if (isBuy) (it - entryPrice) * order.volume else (entryPrice - it) * order.volume }
+                                                val slPnl = order.sl?.let { if (isBuy) (it - entryPrice) * order.volume else (entryPrice - it) * order.volume }
+
+                                                Text(
+                                                    text = order.tp?.let { String.format("%,.1f(Last)%s", it, tpPnl?.let { pnl -> " (${if(pnl>=0) "+" else ""}${String.format("%.2f", pnl)})" } ?: "") } ?: "--",
+                                                    color = Color(0xFF089981),
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                Text(
+                                                    text = order.sl?.let { String.format("%s%,.1f(Last)", slPnl?.let { pnl -> "(${if(pnl>=0) "+" else ""}${String.format("%.2f", pnl)}) " } ?: "", it) } ?: "--",
+                                                    color = Color(0xFFF23645),
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.weight(1f),
+                                                    textAlign = TextAlign.End
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                                Text(order.tpOrderPrice, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                                Text(order.volume.toString(), color = Color.White, fontSize = 13.sp, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
+                                                Text(order.slOrderPrice, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Button(
+                                                    onClick = { 
+                                                        partialOrderId = order.id
+                                                        partialQty = order.volume.toString()
+                                                        partialTpPrice = order.tp?.let { formatPriceValue(it) } ?: ""
+                                                        partialSlPrice = order.sl?.let { formatPriceValue(it) } ?: ""
+                                                        isEditingPartial = true
+                                                    }, 
+                                                    modifier = Modifier.weight(1f).height(32.dp),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)),
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    contentPadding = PaddingValues(0.dp)
+                                                ) {
+                                                    Text("Modify", color = Color.White, fontSize = 12.sp)
+                                                }
+                                                Button(
+                                                    onClick = { partialOrders.remove(order) }, 
+                                                    modifier = Modifier.weight(1f).height(32.dp),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)),
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    contentPadding = PaddingValues(0.dp)
+                                                ) {
+                                                    Text("Cancel", color = Color.White, fontSize = 12.sp)
+                                                }
+                                            }
+                                        }
+                                        Divider(color = boxBorderColor)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text("Qty", color = Color(0xFF787B86), fontSize = 14.sp)
+                        Box(modifier = Modifier.fillMaxWidth().height(48.dp).padding(vertical = 4.dp).background(Color.Black, RoundedCornerShape(4.dp)).border(1.dp, boxBorderColor, RoundedCornerShape(4.dp)).padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
+                            BasicTextField(value = partialQty, onValueChange = { partialQty = it }, textStyle = TextStyle(color = Color.White, fontSize = 16.sp), modifier = Modifier.fillMaxWidth())
+                        }
                         
-                        Spacer(modifier = Modifier.height(8.dp))
-                        PercentageSelector(borderColor = boxBorderColor, onPercentSelect = { pct ->
-                            val target = if (isBuy) entryPrice * (1f + pct / 100f) else entryPrice * (1f - pct / 100f)
-                            tpTriggerPrice = formatPriceValue(target)
-                        })
-
-                        Spacer(modifier = Modifier.height(12.dp))
-                        SummaryText("Take Profit", tpTriggerPrice, entryPrice, qty.toFloatOrNull() ?: 1f, isBuy, isProfit = true)
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        // Stop Loss Section
-                        val slVal = slTriggerPrice.toFloatOrNull()
-                        val slPnl = slVal?.let { if (isBuy) (it - entryPrice) * (qty.toFloatOrNull() ?: 1f) else (entryPrice - it) * (qty.toFloatOrNull() ?: 1f) }
-                        val slPnlText = slPnl?.let { " (${if(it >= 0) "+" else ""}${String.format("%.2f", it)})" } ?: ""
-
-                        Text("Stop Loss-Trigger by Price$slPnlText", color = Color(0xFF787B86), fontSize = 14.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        PriceInputRow(
-                            value = slTriggerPrice,
-                            onValueChange = { slTriggerPrice = it },
-                            onIncrement = { 
-                                val current = slTriggerPrice.toFloatOrNull() ?: lastTradedPrice
-                                slTriggerPrice = formatPriceValue(current + tickSize)
-                            },
-                            onDecrement = {
-                                val current = slTriggerPrice.toFloatOrNull() ?: lastTradedPrice
-                                slTriggerPrice = formatPriceValue((current - tickSize).coerceAtLeast(0f))
-                            },
-                            selectedSource = slSource,
-                            onSourceChange = { slSource = it },
-                            primaryColor = primaryColor,
-                            borderColor = boxBorderColor
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-                        PercentageSelector(borderColor = boxBorderColor, onPercentSelect = { pct ->
-                            val target = if (isBuy) entryPrice * (1f - pct / 100f) else entryPrice * (1f + pct / 100f)
-                            slTriggerPrice = formatPriceValue(target)
-                        })
-
-                        Spacer(modifier = Modifier.height(12.dp))
-                        SummaryText("Stop Loss", slTriggerPrice, entryPrice, qty.toFloatOrNull() ?: 1f, isBuy, isProfit = false)
-
-                    }
-                    "Partial Position" -> {
-                        // Partial Position List design
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Sort by Order Time", color = Color(0xFF787B86), fontSize = 14.sp)
-                                    Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(16.dp))
-                                }
-                                Row {
-                                    Button(onClick = { partialOrders.clear() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)), shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
-                                        Text("Cancel All", color = Color.White, fontSize = 12.sp)
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Button(
-                                        onClick = { 
-                                            partialOrderId = null
-                                            partialQty = "0.001"
-                                            partialTpPrice = formatPriceValue(if (isBuy) entryPrice * 1.1f else entryPrice * 0.9f)
-                                            partialSlPrice = formatPriceValue(if (isBuy) entryPrice * 0.9f else entryPrice * 1.1f)
-                                            isEditingPartial = true
-                                        }, 
-                                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor), 
-                                        shape = RoundedCornerShape(4.dp), 
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                                    ) {
-                                        Text("Add", color = Color.White, fontSize = 12.sp)
-                                    }
-                                }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Take Profit Price", color = Color(0xFF787B86), fontSize = 14.sp)
+                        PriceInputRow(value = partialTpPrice, onValueChange = { partialTpPrice = it }, onIncrement = { partialTpPrice = formatPriceValue((partialTpPrice.toFloatOrNull() ?: entryPrice) + tickSize) }, onDecrement = { partialTpPrice = formatPriceValue((partialTpPrice.toFloatOrNull() ?: entryPrice) - tickSize) }, selectedSource = "Last", onSourceChange = {}, primaryColor = primaryColor, borderColor = boxBorderColor)
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Stop Loss Price", color = Color(0xFF787B86), fontSize = 14.sp)
+                        PriceInputRow(value = partialSlPrice, onValueChange = { partialSlPrice = it }, onIncrement = { partialSlPrice = formatPriceValue((partialSlPrice.toFloatOrNull() ?: entryPrice) + tickSize) }, onDecrement = { partialSlPrice = formatPriceValue((partialSlPrice.toFloatOrNull() ?: entryPrice) - tickSize) }, selectedSource = "Last", onSourceChange = {}, primaryColor = primaryColor, borderColor = boxBorderColor)
+                        
+                        Spacer(modifier = Modifier.height(32.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                            Button(
+                                onClick = {
+                                    val newOrder = PartialOrder(
+                                        id = partialOrderId ?: java.util.UUID.randomUUID().toString(),
+                                        volume = partialQty.toFloatOrNull() ?: 0.001f,
+                                        tp = partialTpPrice.toFloatOrNull(),
+                                        sl = partialSlPrice.toFloatOrNull()
+                                    )
+                                    val index = partialOrders.indexOfFirst { it.id == partialOrderId }
+                                    if (index != -1) partialOrders[index] = newOrder else partialOrders.add(newOrder)
+                                    isEditingPartial = false
+                                },
+                                modifier = Modifier.width(110.dp).height(38.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text("Save", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
-                            
-                            Spacer(modifier = Modifier.height(16.dp))
-                            
-                            // Header for list
-                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                                Text("Take Profit", color = Color(0xFF787B86), fontSize = 11.sp, modifier = Modifier.weight(1f))
-                                Text("Stop Loss", color = Color(0xFF787B86), fontSize = 11.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-                            }
-                            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-                                Text("TP Order Price", color = Color(0xFF787B86), fontSize = 11.sp, modifier = Modifier.weight(1f))
-                                Text("Qty", color = Color(0xFF787B86), fontSize = 11.sp, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
-                                Text("SL Order Price", color = Color(0xFF787B86), fontSize = 11.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-                            }
-                            
-                            Divider(color = boxBorderColor)
-                            
-                            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)) {
-                                items(partialOrders) { order ->
-                                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-                                        Row(modifier = Modifier.fillMaxWidth()) {
-                                            val tpPnl = order.tp?.let { if (isBuy) (it - entryPrice) * order.volume else (entryPrice - it) * order.volume }
-                                            val slPnl = order.sl?.let { if (isBuy) (it - entryPrice) * order.volume else (entryPrice - it) * order.volume }
-
-                                            Text(
-                                                text = order.tp?.let { String.format("%,.1f(Last)%s", it, tpPnl?.let { pnl -> " (${if(pnl>=0) "+" else ""}${String.format("%.2f", pnl)})" } ?: "") } ?: "--",
-                                                color = Color(0xFF089981),
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                            Text(
-                                                text = order.sl?.let { String.format("%s%,.1f(Last)", slPnl?.let { pnl -> "(${if(pnl>=0) "+" else ""}${String.format("%.2f", pnl)}) " } ?: "", it) } ?: "--",
-                                                color = Color(0xFFF23645),
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.weight(1f),
-                                                textAlign = TextAlign.End
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                            Text(order.tpOrderPrice, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                                            Text(order.volume.toString(), color = Color.White, fontSize = 13.sp, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
-                                            Text(order.slOrderPrice, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-                                        }
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            Button(
-                                                onClick = { 
-                                                    partialOrderId = order.id
-                                                    partialQty = order.volume.toString()
-                                                    partialTpPrice = order.tp?.let { formatPriceValue(it) } ?: ""
-                                                    partialSlPrice = order.sl?.let { formatPriceValue(it) } ?: ""
-                                                    isEditingPartial = true
-                                                }, 
-                                                modifier = Modifier.weight(1f).height(32.dp),
-                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)),
-                                                shape = RoundedCornerShape(4.dp),
-                                                contentPadding = PaddingValues(0.dp)
-                                            ) {
-                                                Text("Modify", color = Color.White, fontSize = 12.sp)
-                                            }
-                                            Button(
-                                                onClick = { partialOrders.remove(order) }, 
-                                                modifier = Modifier.weight(1f).height(32.dp),
-                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)),
-                                                shape = RoundedCornerShape(4.dp),
-                                                contentPadding = PaddingValues(0.dp)
-                                            ) {
-                                                Text("Cancel", color = Color.White, fontSize = 12.sp)
-                                            }
-                                        }
-                                    }
-                                    Divider(color = boxBorderColor)
-                                }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Button(
+                                onClick = { isEditingPartial = false },
+                                modifier = Modifier.width(110.dp).height(38.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text("Back", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
-            } else {
-                // Editor view for adding or modifying a partial order
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("Qty", color = Color(0xFF787B86), fontSize = 14.sp)
-                    Box(modifier = Modifier.fillMaxWidth().height(48.dp).padding(vertical = 4.dp).background(Color.Black, RoundedCornerShape(4.dp)).border(1.dp, boxBorderColor, RoundedCornerShape(4.dp)).padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
-                        BasicTextField(value = partialQty, onValueChange = { partialQty = it }, textStyle = TextStyle(color = Color.White, fontSize = 16.sp), modifier = Modifier.fillMaxWidth())
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Take Profit Price", color = Color(0xFF787B86), fontSize = 14.sp)
-                    PriceInputRow(value = partialTpPrice, onValueChange = { partialTpPrice = it }, onIncrement = { partialTpPrice = formatPriceValue((partialTpPrice.toFloatOrNull() ?: entryPrice) + tickSize) }, onDecrement = { partialTpPrice = formatPriceValue((partialTpPrice.toFloatOrNull() ?: entryPrice) - tickSize) }, selectedSource = "Last", onSourceChange = {}, primaryColor = primaryColor, borderColor = boxBorderColor)
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Stop Loss Price", color = Color(0xFF787B86), fontSize = 14.sp)
-                    PriceInputRow(value = partialSlPrice, onValueChange = { partialSlPrice = it }, onIncrement = { partialSlPrice = formatPriceValue((partialSlPrice.toFloatOrNull() ?: entryPrice) + tickSize) }, onDecrement = { partialSlPrice = formatPriceValue((partialSlPrice.toFloatOrNull() ?: entryPrice) - tickSize) }, selectedSource = "Last", onSourceChange = {}, primaryColor = primaryColor, borderColor = boxBorderColor)
-                    
+
+                if (!isEditingPartial && selectedTab != "Close Position") {
                     Spacer(modifier = Modifier.height(32.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                         Button(
-                            onClick = {
-                                val newOrder = PartialOrder(
-                                    id = partialOrderId ?: java.util.UUID.randomUUID().toString(),
-                                    volume = partialQty.toFloatOrNull() ?: 0.001f,
-                                    tp = partialTpPrice.toFloatOrNull(),
-                                    sl = partialSlPrice.toFloatOrNull()
-                                )
-                                val index = partialOrders.indexOfFirst { it.id == partialOrderId }
-                                if (index != -1) partialOrders[index] = newOrder else partialOrders.add(newOrder)
-                                isEditingPartial = false
-                            },
+                            onClick = { onConfirm(tpTriggerPrice.toFloatOrNull(), slTriggerPrice.toFloatOrNull(), partialOrders.toList()) },
                             modifier = Modifier.width(110.dp).height(38.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
-                            shape = RoundedCornerShape(6.dp)
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(0.dp)
                         ) {
-                            Text("Save", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("Confirm", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Button(
-                            onClick = { isEditingPartial = false },
+                            onClick = onCancel,
                             modifier = Modifier.width(110.dp).height(38.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)),
-                            shape = RoundedCornerShape(6.dp)
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(0.dp)
                         ) {
-                            Text("Back", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("Cancel", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
-                    }
-                }
-            }
-
-            if (!isEditingPartial && selectedTab != "Close Position") {
-                Spacer(modifier = Modifier.height(32.dp))
-                // Action Buttons (Positioned at middle)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                    Button(
-                        onClick = { onConfirm(tpTriggerPrice.toFloatOrNull(), slTriggerPrice.toFloatOrNull(), partialOrders.toList()) },
-                        modifier = Modifier.width(110.dp).height(38.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Text("Confirm", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Button(
-                        onClick = onCancel,
-                        modifier = Modifier.width(110.dp).height(38.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2E39)),
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Text("Cancel", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -964,15 +982,19 @@ fun PercentageSelector(borderColor: Color, onPercentSelect: (Int) -> Unit) {
 fun SummaryText(type: String, targetPrice: String, entryPrice: Float, volume: Float, isBuy: Boolean, isProfit: Boolean) {
     val target = targetPrice.toFloatOrNull() ?: entryPrice
     val diff = if (isBuy) {
-        if (isProfit) target - entryPrice else entryPrice - target
+        target - entryPrice
     } else {
-        if (isProfit) entryPrice - target else target - entryPrice
+        entryPrice - target
     }
-    val amount = diff * volume
-    val roi = if (entryPrice != 0f) (diff / entryPrice) * 100f else 0f
+    
+    val actualIsProfit = diff >= 0
+    val amount = abs(diff * volume)
+    val roi = if (entryPrice != 0f) (abs(diff) / entryPrice) * 100f else 0f
+    
+    val profitLossText = if (actualIsProfit) "profit" else "loss"
     
     Text(
-        text = "Last Traded Price to ${if (targetPrice.isEmpty()) "..." else targetPrice} will trigger market $type order; your expected ${if (isProfit) "profit" else "loss"} will be ${String.format("%.4f", abs(amount))} USDT (ROI: ${String.format("%.2f", roi)}%)",
+        text = "Last Traded Price to ${if (targetPrice.isEmpty()) "..." else targetPrice} will trigger market $type order; your expected $profitLossText will be ${String.format("%.4f", amount)} USDT (ROI: ${String.format("%.2f", roi)}%)",
         color = Color(0xFF787B86),
         fontSize = 12.sp,
         lineHeight = 16.sp,

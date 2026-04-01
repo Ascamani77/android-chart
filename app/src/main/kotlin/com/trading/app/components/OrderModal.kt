@@ -130,9 +130,18 @@ fun OrderModal(
         dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF787B86), width = 40.dp, height = 4.dp) },
         containerColor = Color.Black,
         scrimColor = Color.Black.copy(alpha = 0.5f),
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+        tonalElevation = 0.dp
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(
+                    width = 1.dp,
+                    color = Color(0xFF2A2E39),
+                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                )
+        ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Header
                 Row(
