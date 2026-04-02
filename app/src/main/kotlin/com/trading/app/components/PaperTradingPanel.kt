@@ -34,7 +34,7 @@ fun PaperTradingPanel(
     backgroundColor: Color = Color(0xFF08090C)
 ) {
     var activeTab by remember { mutableStateOf("Positions") }
-    val tabs = listOf("Positions", "Orders", "Order History", "Balance History")
+    val tabs = listOf("Positions", "Orders", "Order History", "Balance History", "Trading Journal")
     val labelColor = Color(0xFF787B86)
     
     val horizontalMargin = 16.dp
@@ -106,12 +106,15 @@ fun PaperTradingPanel(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Navbar: 4 items, Evenly spaced (SpaceBetween), 14sp font
-        Column(modifier = Modifier.padding(horizontal = horizontalMargin)) {
+        // Navbar: Items, Scrollable row, 14sp font
+        Column {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = horizontalMargin),
                 verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 tabs.forEach { tab ->
                     val isSelected = activeTab == tab
@@ -147,7 +150,7 @@ fun PaperTradingPanel(
                     }
                 }
             }
-            Divider(color = Color(0xFF2A2E39), thickness = 2.dp) // Thicker divider
+            Divider(modifier = Modifier.padding(horizontal = horizontalMargin), color = Color(0xFF2A2E39), thickness = 2.dp)
         }
 
         // Content

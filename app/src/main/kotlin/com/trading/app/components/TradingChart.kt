@@ -196,7 +196,7 @@ fun TradingChart(
 
     val mt5Service = remember {
         Mt5Service(
-            pcIpAddress = "172.26.23.133", 
+            pcIpAddress = "10.222.138.133",
             port = 8081,
             onHistoryUpdate = { receivedSymbol, history ->
                 if (receivedSymbol.isEmpty() || receivedSymbol.equals(currentSymbol.value, ignoreCase = true)) {
@@ -788,12 +788,13 @@ fun TradingChart(
 
             currentQuoteState?.let { quote ->
                 val color = if (quote.change >= 0) ComposeColor(0xFF089981) else ComposeColor(0xFFF05252)
+                val statusFontSize = 16.sp
                 
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                     Text(
                         text = formatPrice(quote.lastPrice, symbol),
-                        color = ComposeColor(0xFFD1D4DC),
-                        fontSize = 16.sp,
+                        color = color,
+                        fontSize = statusFontSize,
                         fontWeight = FontWeight.Medium
                     )
                     if (chartSettings.statusLine.barChangeValues) {
@@ -802,7 +803,7 @@ fun TradingChart(
                         Text(
                             text = String.format("%s%s (%+.2f%%)", sign, formatPrice(quote.change, symbol), quote.changePercent),
                             color = color,
-                            fontSize = 16.sp,
+                            fontSize = statusFontSize,
                             fontWeight = FontWeight.Medium
                         )
                     }

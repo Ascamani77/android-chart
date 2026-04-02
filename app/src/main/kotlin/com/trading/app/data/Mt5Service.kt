@@ -9,7 +9,7 @@ import okhttp3.*
 import org.json.JSONObject
 
 class Mt5Service(
-    private val pcIpAddress: String = "172.26.23.133",
+    private val pcIpAddress: String = "10.222.138.133",
     private val port: Int = 8081,
     private val onHistoryUpdate: (String, List<CandlestickData>) -> Unit,
     private val onQuoteUpdate: (SymbolQuote) -> Unit
