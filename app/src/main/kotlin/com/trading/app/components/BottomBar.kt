@@ -43,7 +43,6 @@ fun BottomBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(backgroundColor)
-            .navigationBarsPadding()
     ) {
         Divider(modifier = Modifier.fillMaxWidth().height(1.dp), color = Color(0xFF2A2E39))
 
@@ -77,7 +76,7 @@ fun BottomBar(
 
                     Box(
                         modifier = Modifier
-                            .padding(start = if (index == 0) 0.dp else 4.dp, end = 4.dp)
+                            .padding(start = if (index == 0) 0.dp else 2.8.dp, end = 2.8.dp)
                             .clip(RoundedCornerShape(4.dp))
                             .background(if (isActive) Color(0xFF1E222D) else Color.Transparent)
                             .border(

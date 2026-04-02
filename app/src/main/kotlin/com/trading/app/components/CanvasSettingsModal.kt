@@ -388,6 +388,24 @@ fun CanvasSettingsModal(
                         }
                     }
 
+                    // Swap Settings
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Swap Header/Footer", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = tempSettings.swapHeaderAndFooter,
+                            onCheckedChange = { tempSettings = tempSettings.copy(swapHeaderAndFooter = it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF2962FF),
+                                uncheckedThumbColor = Color(0xFF787B86),
+                                uncheckedTrackColor = Color(0xFF1E222D)
+                            )
+                        )
+                    }
+
                     // BUTTONS
                     CanvasSectionHeader("BUTTONS VISIBILITY")
                     Row(

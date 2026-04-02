@@ -310,7 +310,7 @@ fun TradingApp() {
 
     Surface(modifier = Modifier.fillMaxSize(), color = appBackgroundColor) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 Row(modifier = Modifier.weight(1f)) {
                     if (!isFullscreen && isSidebarVisible) {
                         Sidebar(
@@ -406,72 +406,85 @@ fun TradingApp() {
 
                 if (!isFullscreen) {
                     val isHeaderHidden = !chartSettings.canvas.headerVisible || (chartSettings.canvas.headerVisibility == "Auto-hide" && !isSidebarVisible)
-                    AnimatedVisibility(
-                        visible = !isHeaderHidden,
-                        enter = expandVertically(),
-                        exit = shrinkVertically()
-                    ) {
-                        Header(
-                            symbol = symbol,
-                            timeframe = timeframe,
-                            chartStyle = chartStyle,
-                            onSymbolClick = { showSymbolSearch = true },
-                            onTimeframeClick = { timeframe = it },
-                            onStyleChange = { chartStyle = it },
-                            onIndicatorClick = { showIndicatorModal = true },
-                            onSettingsClick = { showChartSettingsBottomSheet = true },
-                            onAnalysisClick = { refreshAnalysis() },
-                            onUndo = { /* Undo logic */ },
-                            onRedo = { /* Redo logic */ },
-                            canUndo = history.isNotEmpty(),
-                            canRedo = redoStack.isNotEmpty(),
-                            onToolSearchClick = { showToolSearchModal = true },
-                            onRightPanelToggle = { },
-                            isRightPanelVisible = false,
-                            onDownloadChart = { showCaptureModal = true },
-                            backgroundColor = appBackgroundColor,
-                            settings = chartSettings,
-                            isAtBottom = true,
-                            onGoToClick = { showGoToDateModal = true },
-                            onNewsClick = { showNewsPage = true },
-                            onChatClick = { /* activeTab = "Chat"; isBottomPanelVisible = true */ },
-                            onDrawingClick = { showDrawingsModal = true },
-                            onMoreClick = { showAnalysisHubModal = true },
-                            onTradeClick = { 
-                                if (chartSettings.trading.oneClickTrading) {
-                                    showFloatingTradingButtons = !showFloatingTradingButtons
-                                } else {
-                                    showOrderModal = true
+                    
+                    val renderHeader = @Composable {
+                        AnimatedVisibility(
+                            visible = !isHeaderHidden,
+                            enter = expandVertically(),
+                            exit = shrinkVertically()
+                        ) {
+                            Header(
+                                symbol = symbol,
+                                timeframe = timeframe,
+                                chartStyle = chartStyle,
+                                onSymbolClick = { showSymbolSearch = true },
+                                onTimeframeClick = { timeframe = it },
+                                onStyleChange = { chartStyle = it },
+                                onIndicatorClick = { showIndicatorModal = true },
+                                onSettingsClick = { showChartSettingsBottomSheet = true },
+                                onAnalysisClick = { refreshAnalysis() },
+                                onUndo = { /* Undo logic */ },
+                                onRedo = { /* Redo logic */ },
+                                canUndo = history.isNotEmpty(),
+                                canRedo = redoStack.isNotEmpty(),
+                                onToolSearchClick = { showToolSearchModal = true },
+                                onRightPanelToggle = { },
+                                isRightPanelVisible = false,
+                                onDownloadChart = { showCaptureModal = true },
+                                backgroundColor = appBackgroundColor,
+                                settings = chartSettings,
+                                isAtBottom = true,
+                                onGoToClick = { showGoToDateModal = true },
+                                onNewsClick = { showNewsPage = true },
+                                onChatClick = { /* activeTab = "Chat"; isBottomPanelVisible = true */ },
+                                onDrawingClick = { showDrawingsModal = true },
+                                onMoreClick = { showAnalysisHubModal = true },
+                                onTradeClick = { 
+                                    if (chartSettings.trading.oneClickTrading) {
+                                        showFloatingTradingButtons = !showFloatingTradingButtons
+                                    } else {
+                                        showOrderModal = true
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
-                }
 
-                if (!isFullscreen && isTimezonePaneVisible) {
-                    BottomBar(
-                        onRangeClick = { handleRangeChange(it) },
-                        onGoToClick = { showGoToDateModal = true },
-                        onTabClick = {
-                            if (activeTab == it && isBottomPanelVisible) {
-                                isBottomPanelVisible = false
-                            } else {
-                                activeTab = it
-                                isBottomPanelVisible = true
-                            }
-                        },
-                        activeTab = if (isBottomPanelVisible) activeTab else null,
-                        recentPairs = recentPairs,
-                        currentSymbol = symbol,
-                        currentTimeframe = timeframe,
-                        onPairSelect = { s: String, t: String ->
-                            symbol = s
-                            timeframe = t
-                        },
-                        backgroundColor = appBackgroundColor,
-                        settings = chartSettings,
-                        currentQuote = currentLiveQuote
-                    )
+                    val renderBottomBar = @Composable {
+                        if (isTimezonePaneVisible) {
+                            BottomBar(
+                                onRangeClick = { handleRangeChange(it) },
+                                onGoToClick = { showGoToDateModal = true },
+                                onTabClick = {
+                                    if (activeTab == it && isBottomPanelVisible) {
+                                        isBottomPanelVisible = false
+                                    } else {
+                                        activeTab = it
+                                        isBottomPanelVisible = true
+                                    }
+                                },
+                                activeTab = if (isBottomPanelVisible) activeTab else null,
+                                recentPairs = recentPairs,
+                                currentSymbol = symbol,
+                                currentTimeframe = timeframe,
+                                onPairSelect = { s: String, t: String ->
+                                    symbol = s
+                                    timeframe = t
+                                },
+                                backgroundColor = appBackgroundColor,
+                                settings = chartSettings,
+                                currentQuote = currentLiveQuote
+                            )
+                        }
+                    }
+
+                    if (chartSettings.canvas.swapHeaderAndFooter) {
+                        renderBottomBar()
+                        renderHeader()
+                    } else {
+                        renderHeader()
+                        renderBottomBar()
+                    }
                 }
             }
 

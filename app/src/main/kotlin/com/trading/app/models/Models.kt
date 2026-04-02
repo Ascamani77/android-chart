@@ -125,7 +125,8 @@ data class CanvasSettings(
     val marginRight: Int = 10,
     val fullChartColor: String = "Default", // Options: "Default", "Pure Black", "Dark Blue", "OLED Black"
     val headerVisible: Boolean = true,
-    val headerVisibility: String = "Always visible" // Options: "Always visible", "Auto-hide"
+    val headerVisibility: String = "Always visible", // Options: "Always visible", "Auto-hide"
+    val swapHeaderAndFooter: Boolean = false
 )
 
 data class TradingSettings(
