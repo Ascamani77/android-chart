@@ -2,6 +2,7 @@ package com.trading.app.data
 
 import android.content.Context
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import com.trading.app.models.OHLCData
 import com.tradingview.lightweightcharts.api.series.models.CandlestickData
@@ -9,7 +10,9 @@ import com.tradingview.lightweightcharts.api.series.models.Time
 import java.io.File
 
 class ChartCache(private val context: Context) {
-    private val gson = Gson()
+    private val gson = GsonBuilder()
+        .serializeSpecialFloatingPointValues()
+        .create()
     private val cacheDir = File(context.cacheDir, "chart_data")
 
     init {
@@ -20,7 +23,7 @@ class ChartCache(private val context: Context) {
 
     private fun getCacheFile(symbol: String, timeframe: String): File {
         // Replace symbols that might be invalid in filenames
-        val safeSymbol = symbol.replace("/", "_").replace(" ", "_").replace(":", "_")
+        val safeSymbol = symbol.replace("/", "_").replace(" ", "_").replace(":", "_").replace("!", "_").replace("*", "_")
         return File(cacheDir, "${safeSymbol}_${timeframe}.json")
     }
 

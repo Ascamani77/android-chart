@@ -17,10 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.trading.app.data.ChartCache
 import com.trading.app.data.Mt5Service
 import com.trading.app.models.ChartSettings
 import com.trading.app.models.Drawing
@@ -153,6 +155,9 @@ fun TradingChart(
     onDoubleClick: (Float) -> Unit = {},
     onChartClick: (Float) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val chartCache = remember { ChartCache(context) }
+
     var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
     var currentQuoteState by remember { mutableStateOf<SymbolQuote?>(null) }
     var seriesApi by remember { mutableStateOf<SeriesApi?>(null) }
@@ -170,6 +175,7 @@ fun TradingChart(
 
     val updatedOnQuoteUpdate = rememberUpdatedState(onQuoteUpdate)
     val currentSymbol = rememberUpdatedState(symbol)
+    val currentTimeframe = rememberUpdatedState(timeframe)
 
     // Range-based H/L state
     var visibleRangeHighLow by remember { mutableStateOf<Pair<Float, Float>?>(null) }
@@ -195,6 +201,8 @@ fun TradingChart(
         else -> LineStyle.SOLID
     }
 
+    val positionPriceLines = remember { mutableStateListOf<PriceLine>() }
+
     val mt5Service = remember {
         Mt5Service(
             pcIpAddress = "172.26.23.133", 
@@ -202,6 +210,7 @@ fun TradingChart(
             onHistoryUpdate = { receivedSymbol, history ->
                 if (receivedSymbol.isEmpty() || receivedSymbol.equals(currentSymbol.value, ignoreCase = true)) {
                     candlestickData = history
+                    chartCache.saveHistory(receivedSymbol.ifEmpty { currentSymbol.value }, currentTimeframe.value, history)
                 }
             },
             onQuoteUpdate = { quote ->
@@ -226,7 +235,19 @@ fun TradingChart(
     }
 
     LaunchedEffect(symbol, timeframe) {
-        candlestickData = emptyList()
+        // Fix potential crash by clearing OLD chart series and lines before switching
+        seriesApi = null
+        chartsViewApi = null
+        highLineState.value = null
+        highLabelState.value = null
+        lowLineState.value = null
+        lowLabelState.value = null
+        bidPriceLineState.value = null
+        askPriceLineState.value = null
+        positionPriceLines.clear()
+        
+        // Load from cache to see candles immediately (even without connection)
+        candlestickData = chartCache.loadHistory(symbol, timeframe)
         currentQuoteState = null
         mt5Service.subscribe(symbol, timeframe)
     }
@@ -290,11 +311,11 @@ fun TradingChart(
         val api = seriesApi ?: return@LaunchedEffect
         val scales = chartSettings.scales
         
-        // Remove existing lines
-        highLineState.value?.let { api.removePriceLine(it) }
-        highLabelState.value?.let { api.removePriceLine(it) }
-        lowLineState.value?.let { api.removePriceLine(it) }
-        lowLabelState.value?.let { api.removePriceLine(it) }
+        // Remove existing lines only if they belong to the CURRENT series API
+        highLineState.value?.let { try { api.removePriceLine(it) } catch (e: Exception) {} }
+        highLabelState.value?.let { try { api.removePriceLine(it) } catch (e: Exception) {} }
+        lowLineState.value?.let { try { api.removePriceLine(it) } catch (e: Exception) {} }
+        lowLabelState.value?.let { try { api.removePriceLine(it) } catch (e: Exception) {} }
         
         highLineState.value = null
         highLabelState.value = null
@@ -421,8 +442,8 @@ fun TradingChart(
         val quote = currentQuoteState ?: return@LaunchedEffect
         val scales = chartSettings.scales
         
-        bidPriceLineState.value?.let { api.removePriceLine(it) }
-        askPriceLineState.value?.let { api.removePriceLine(it) }
+        bidPriceLineState.value?.let { try { api.removePriceLine(it) } catch (e: Exception) {} }
+        askPriceLineState.value?.let { try { api.removePriceLine(it) } catch (e: Exception) {} }
         bidPriceLineState.value = null
         askPriceLineState.value = null
 
@@ -457,15 +478,14 @@ fun TradingChart(
     }
 
     // Manage Position Price Lines with real-time profit/loss counting
-    val positionPriceLines = remember { mutableStateListOf<PriceLine>() }
     // Re-run effect when positions or current price changes
     val positionsSnapshot = positions.toList()
     LaunchedEffect(positionsSnapshot, currentQuoteState, seriesApi, symbol) {
         val api = seriesApi ?: return@LaunchedEffect
         val quote = currentQuoteState ?: return@LaunchedEffect
         
-        // Remove previous position lines
-        positionPriceLines.forEach { api.removePriceLine(it) }
+        // Remove previous position lines safely
+        positionPriceLines.forEach { try { api.removePriceLine(it) } catch (e: Exception) {} }
         positionPriceLines.clear()
 
         positionsSnapshot.filter { it.symbol.equals(symbol, ignoreCase = true) }.forEach { position ->
