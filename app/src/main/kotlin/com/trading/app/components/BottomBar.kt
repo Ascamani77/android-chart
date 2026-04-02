@@ -78,12 +78,12 @@ fun BottomBar(
                     Box(
                         modifier = Modifier
                             .padding(start = if (index == 0) 0.dp else 4.dp, end = 4.dp)
-                            .clip(RoundedCornerShape(18.dp))
+                            .clip(RoundedCornerShape(4.dp))
                             .background(if (isActive) Color(0xFF1E222D) else Color.Transparent)
                             .border(
                                 width = 1.dp,
                                 color = if (isActive) Color(0xFF363A45) else Color(0xFF2A2E39),
-                                shape = RoundedCornerShape(18.dp)
+                                shape = RoundedCornerShape(4.dp)
                             )
                             .clickable { onPairSelect(symbol, timeframe) }
                             .padding(horizontal = 10.dp, vertical = 6.dp)

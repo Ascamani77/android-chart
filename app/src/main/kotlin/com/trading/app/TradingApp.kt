@@ -114,11 +114,9 @@ fun TradingApp() {
 
     LaunchedEffect(symbol, timeframe) {
         val newPair = symbol to timeframe
-        val existingIndex = recentPairs.indexOfFirst { it.first == symbol && it.second == timeframe }
-        if (existingIndex != 0) {
-            if (existingIndex != -1) {
-                recentPairs.removeAt(existingIndex)
-            }
+        val exists = recentPairs.any { it.first == symbol && it.second == timeframe }
+        // Only add to history if it's a new pair. Don't reorder existing ones to avoid UI jumping.
+        if (!exists) {
             recentPairs.add(0, newPair)
             if (recentPairs.size > 10) {
                 recentPairs.removeAt(recentPairs.size - 1)
