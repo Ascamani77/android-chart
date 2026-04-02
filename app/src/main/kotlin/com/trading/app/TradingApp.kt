@@ -91,6 +91,7 @@ fun TradingApp() {
     // Currency State
     var selectedCurrency by remember { mutableStateOf("USD") }
     var showCurrencyModal by remember { mutableStateOf(false) }
+    var showPaperTradingPanel by remember { mutableStateOf(false) }
 
     // UI visibility state
     var isSidebarVisible by remember { mutableStateOf(chartSettings.quickActions.isSidebarVisible) }
@@ -445,7 +446,8 @@ fun TradingApp() {
                                     } else {
                                         showOrderModal = true
                                     }
-                                }
+                                },
+                                onCurrencyClick = { showPaperTradingPanel = true }
                             )
                         }
                     }
@@ -491,6 +493,16 @@ fun TradingApp() {
             // News Page Overlay
             if (showNewsPage) {
                 NewsPage(onBack = { showNewsPage = false })
+            }
+
+            // Paper Trading Panel Overlay
+            if (showPaperTradingPanel) {
+                PaperTradingPanel(
+                    onClose = { showPaperTradingPanel = false },
+                    positions = positions,
+                    currentPrice = currentLiveQuote?.lastPrice ?: 0f,
+                    backgroundColor = appBackgroundColor
+                )
             }
 
             // Backdrop for Quick Actions

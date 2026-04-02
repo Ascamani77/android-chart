@@ -49,7 +49,8 @@ fun Header(
     onChatClick: () -> Unit = {},
     onDrawingClick: () -> Unit = {},
     onMoreClick: () -> Unit = {},
-    onTradeClick: () -> Unit = {}
+    onTradeClick: () -> Unit = {},
+    onCurrencyClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     var showTimeframeMenu by remember { mutableStateOf(false) }
@@ -188,6 +189,18 @@ fun Header(
                         TimeframeItem("10 ranges", "10r", timeframe, onTimeframeClick) { showTimeframeMenu = false }
                         TimeframeItem("100 ranges", "100r", timeframe, onTimeframeClick) { showTimeframeMenu = false }
                     }
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                // Currency Exchange Icon
+                IconButton(onClick = onCurrencyClick, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        Icons.Default.CurrencyExchange,
+                        contentDescription = "Currency",
+                        tint = secondaryWhite,
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
             }
 
