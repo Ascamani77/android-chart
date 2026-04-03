@@ -22,7 +22,7 @@ fun CancelledOrderItem(order: Order) {
 
             HistoryDetailRow("Side", if (isBuy) "Buy" else "Sell", if (isBuy) Color(0xFF2962FF) else Color(0xFFF23645))
             HistoryDetailRow("Type", order.orderType)
-            HistoryDetailRow("Qty", order.volume.toInt().toString())
+            HistoryDetailRow("Qty", String.format(Locale.US, "%.2f", order.volume))
             
             if (order.orderType.lowercase().contains("stop") || order.orderType.lowercase().contains("limit")) {
                 val label = if (order.orderType.lowercase().contains("stop")) "Stop Price" else "Limit Price"
@@ -36,6 +36,8 @@ fun CancelledOrderItem(order: Order) {
             HistoryDetailRow("Closing Time", closingTimeStr)
             
             HistoryDetailRow("Order ID", order.id)
+            HistoryDetailRow("Leverage", order.leverage)
+            HistoryDetailRow("Margin", String.format(Locale.US, "%.2f USD", order.margin))
         }
     }
 }

@@ -25,6 +25,8 @@ import com.trading.app.data.Mt5Service
 import com.trading.app.models.ChartSettings
 import com.trading.app.models.Drawing
 import com.trading.app.models.Position
+import com.trading.app.models.Order
+import com.trading.app.models.BalanceRecord
 import com.trading.app.models.SymbolInfo
 import com.tradingview.lightweightcharts.api.interfaces.SeriesApi
 import com.tradingview.lightweightcharts.api.series.common.PriceLine
@@ -151,6 +153,10 @@ fun TradingChart(
     onPositionUpdate: (Position) -> Unit = {},
     onPositionDelete: (String) -> Unit = {},
     onAccountUpdate: (Mt5Service.AccountInfo) -> Unit = {},
+    onPositionsUpdate: (List<Position>) -> Unit = {},
+    onOrdersUpdate: (List<Order>) -> Unit = {},
+    onHistoryOrdersUpdate: (List<Order>) -> Unit = {},
+    onBalanceHistoryUpdate: (List<com.trading.app.models.BalanceRecord>) -> Unit = {},
     onDoubleClick: (Float) -> Unit = {}
 ) {
     var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
@@ -220,7 +226,11 @@ fun TradingChart(
             },
             onAccountUpdate = { accountInfo ->
                 onAccountUpdate(accountInfo)
-            }
+            },
+            onPositionsUpdate = { onPositionsUpdate(it) },
+            onOrdersUpdate = { onOrdersUpdate(it) },
+            onHistoryOrdersUpdate = { onHistoryOrdersUpdate(it) },
+            onBalanceHistoryUpdate = { onBalanceHistoryUpdate(it) }
         )
     }
 

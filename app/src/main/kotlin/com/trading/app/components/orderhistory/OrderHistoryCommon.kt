@@ -40,42 +40,8 @@ fun OrderItemHeader(order: Order, labelColor: Color = Color(0xFF787B86)) {
 
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Symbol Icon
-                if (symbolUpper.contains("META")) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF0064E0)), 
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.AllInclusive, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                    }
-                } else if (symbolUpper.contains("GOLD") || symbolUpper.contains("XAU")) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFEBC147)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                                Box(modifier = Modifier.size(width = 6.dp, height = 3.dp).background(Color.White))
-                                Box(modifier = Modifier.size(width = 6.dp, height = 3.dp).background(Color.White))
-                            }
-                            Spacer(modifier = Modifier.height(1.dp))
-                            Box(modifier = Modifier.size(width = 8.dp, height = 3.dp).background(Color.White))
-                        }
-                    }
-                } else {
-                    Icon(Icons.Default.Circle, null, tint = Color(0xFF2962FF), modifier = Modifier.size(32.dp))
-                }
-                
-                Spacer(modifier = Modifier.width(12.dp))
-                
                 // Ticker Box
-                val isBlueBox = symbolUpper.contains("PEPPERSTONE") || symbolUpper.contains("XAU")
+                val isBlueBox = symbolUpper.contains("EXNESS") || symbolUpper.contains("XAU")
                 val boxBg = if (isBlueBox) Color(0xFF2962FF) else Color(0xFF2A2E39)
                 Box(
                     modifier = Modifier
@@ -83,8 +49,9 @@ fun OrderItemHeader(order: Order, labelColor: Color = Color(0xFF787B86)) {
                         .background(boxBg)
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
+                    val displaySymbol = symbolUpper.replace("PEPPERSTONE", "EXNESS")
                     Text(
-                        text = symbolUpper, 
+                        text = displaySymbol, 
                         color = Color.White, 
                         fontSize = 13.sp, 
                         fontWeight = FontWeight.Bold
@@ -120,7 +87,7 @@ fun OrderItemHeader(order: Order, labelColor: Color = Color(0xFF787B86)) {
                     text = description, 
                     color = labelColor, 
                     fontSize = 13.sp, 
-                    modifier = Modifier.padding(top = 4.dp, start = 44.dp)
+                    modifier = Modifier.padding(top = 4.dp, start = 0.dp)
                 )
             }
         }

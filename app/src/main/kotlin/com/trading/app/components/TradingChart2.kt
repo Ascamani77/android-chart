@@ -34,6 +34,8 @@ import com.trading.app.models.ChartSettings
 import com.trading.app.models.Drawing
 import com.trading.app.models.PartialOrder
 import com.trading.app.models.Position
+import com.trading.app.models.Order
+import com.trading.app.models.BalanceRecord
 import com.trading.app.data.Mt5Service
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -85,6 +87,10 @@ fun TradingChart2(
     onPositionUpdate: (Position) -> Unit,
     onPositionDelete: (String) -> Unit,
     onAccountUpdate: (Mt5Service.AccountInfo) -> Unit = {},
+    onPositionsUpdate: (List<Position>) -> Unit = {},
+    onOrdersUpdate: (List<Order>) -> Unit = {},
+    onHistoryOrdersUpdate: (List<Order>) -> Unit = {},
+    onBalanceHistoryUpdate: (List<BalanceRecord>) -> Unit = {},
     isTradingBarVisible: Boolean = false
 ) {
     var lotSize by remember { mutableStateOf("1.0000") }
@@ -144,6 +150,10 @@ fun TradingChart2(
                 onQuoteUpdate(it)
             },
             onAccountUpdate = onAccountUpdate,
+            onPositionsUpdate = onPositionsUpdate,
+            onOrdersUpdate = onOrdersUpdate,
+            onHistoryOrdersUpdate = onHistoryOrdersUpdate,
+            onBalanceHistoryUpdate = onBalanceHistoryUpdate,
             positions = positions,
             onPositionUpdate = onPositionUpdate,
             onPositionDelete = onPositionDelete,

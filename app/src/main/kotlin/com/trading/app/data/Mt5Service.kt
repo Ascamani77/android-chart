@@ -13,7 +13,11 @@ class Mt5Service(
     private val port: Int = 8081,
     private val onHistoryUpdate: (String, List<CandlestickData>) -> Unit,
     private val onQuoteUpdate: (SymbolQuote) -> Unit,
-    private val onAccountUpdate: (AccountInfo) -> Unit = {}
+    private val onAccountUpdate: (AccountInfo) -> Unit = {},
+    private val onPositionsUpdate: (List<com.trading.app.models.Position>) -> Unit = {},
+    private val onOrdersUpdate: (List<com.trading.app.models.Order>) -> Unit = {},
+    private val onHistoryOrdersUpdate: (List<com.trading.app.models.Order>) -> Unit = {},
+    private val onBalanceHistoryUpdate: (List<com.trading.app.models.BalanceRecord>) -> Unit = {}
 ) {
     private val client = OkHttpClient()
     private var webSocket: WebSocket? = null
@@ -33,6 +37,14 @@ class Mt5Service(
 
     companion object {
         private const val TAG = "MT5_BRIDGE"
+    }
+
+    private fun cleanSymbol(symbol: String): String {
+        return if (symbol.endsWith("m", ignoreCase = true)) {
+            symbol.dropLast(1)
+        } else {
+            symbol
+        }
     }
 
     fun connect() {
@@ -58,7 +70,7 @@ class Mt5Service(
                     val type = root.optString("type")
                     
                     if (type == "history") {
-                        val symbol = root.optString("symbol", root.optString("name", ""))
+                        val symbol = cleanSymbol(root.optString("symbol", root.optString("name", "")))
                         val dataArray = root.optJSONArray("data") ?: return
                         
                         val history = mutableListOf<CandlestickData>()
@@ -78,10 +90,10 @@ class Mt5Service(
                         Log.d(TAG, "Parsed ${history.size} candles for $symbol")
                         onHistoryUpdate(symbol, history)
                     } else if (type == "tick") {
-                        val symbol = root.optString("symbol", root.optString("name", ""))
+                        val symbol = cleanSymbol(root.optString("symbol", root.optString("name", "")))
                         val quote = gson.fromJson(text, SymbolQuote::class.java)
                         // Ensure name is set
-                        val finalQuote = if (quote.name.isNullOrEmpty()) quote.copy(name = symbol) else quote
+                        val finalQuote = (if (quote.name.isNullOrEmpty()) quote.copy(name = symbol) else quote).copy(name = symbol)
                         onQuoteUpdate(finalQuote)
                     } else if (type == "account") {
                         val accountInfo = AccountInfo(
@@ -95,6 +107,80 @@ class Mt5Service(
                             marginBuffer = root.optDouble("marginBuffer", 0.0)
                         )
                         onAccountUpdate(accountInfo)
+                    } else if (type == "positions") {
+                        val dataArray = root.optJSONArray("data") ?: return
+                        val positions = mutableListOf<com.trading.app.models.Position>()
+                        for (i in 0 until dataArray.length()) {
+                            val obj = dataArray.getJSONObject(i)
+                            positions.add(com.trading.app.models.Position(
+                                id = obj.optString("id", obj.optString("ticket")),
+                                symbol = cleanSymbol(obj.optString("symbol")),
+                                type = obj.optString("type"),
+                                entryPrice = obj.optDouble("entryPrice", obj.optDouble("price_open")).toFloat(),
+                                volume = obj.optDouble("volume", obj.optDouble("volume_current")).toFloat(),
+                                time = obj.optLong("time", obj.optLong("time_setup")),
+                                tp = if (obj.has("tp")) obj.optDouble("tp").toFloat() else null,
+                                sl = if (obj.has("sl")) obj.optDouble("sl").toFloat() else null,
+                                leverage = obj.optString("leverage", "1:100"),
+                                margin = obj.optDouble("margin", 0.0).toFloat()
+                            ))
+                        }
+                        onPositionsUpdate(positions)
+                    } else if (type == "orders") {
+                        val dataArray = root.optJSONArray("data") ?: return
+                        val orders = mutableListOf<com.trading.app.models.Order>()
+                        for (i in 0 until dataArray.length()) {
+                            val obj = dataArray.getJSONObject(i)
+                            orders.add(com.trading.app.models.Order(
+                                id = obj.optString("id", obj.optString("ticket")),
+                                symbol = cleanSymbol(obj.optString("symbol")),
+                                type = obj.optString("type"), // buy/sell
+                                orderType = obj.optString("orderType", obj.optString("type_name")), // Limit/Stop/Market
+                                status = obj.optString("status", "Working"),
+                                price = obj.optDouble("price", obj.optDouble("price_open")).toFloat(),
+                                volume = obj.optDouble("volume", obj.optDouble("volume_initial")).toFloat(),
+                                time = obj.optLong("time", obj.optLong("time_setup")),
+                                leverage = obj.optString("leverage", "1:100"),
+                                tp = if (obj.has("tp")) obj.optDouble("tp").toFloat() else null,
+                                sl = if (obj.has("sl")) obj.optDouble("sl").toFloat() else null
+                            ))
+                        }
+                        onOrdersUpdate(orders)
+                    } else if (type == "order_history") {
+                        val dataArray = root.optJSONArray("data") ?: return
+                        val history = mutableListOf<com.trading.app.models.Order>()
+                        for (i in 0 until dataArray.length()) {
+                            val obj = dataArray.getJSONObject(i)
+                            history.add(com.trading.app.models.Order(
+                                id = obj.optString("id", obj.optString("ticket")),
+                                symbol = cleanSymbol(obj.optString("symbol")),
+                                type = obj.optString("type"),
+                                orderType = obj.optString("orderType", obj.optString("type_name")),
+                                status = obj.optString("status", "Filled"), // Filled/Cancelled/Rejected
+                                price = obj.optDouble("price", obj.optDouble("price_open")).toFloat(),
+                                volume = obj.optDouble("volume", obj.optDouble("volume_initial")).toFloat(),
+                                time = obj.optLong("time", obj.optLong("time_setup")),
+                                closingTime = obj.optLong("closingTime", obj.optLong("time_done")),
+                                averagePrice = obj.optDouble("averagePrice", obj.optDouble("price_current")).toFloat(),
+                                leverage = obj.optString("leverage", "1:100")
+                            ))
+                        }
+                        onHistoryOrdersUpdate(history)
+                    } else if (type == "balance_history") {
+                        val dataArray = root.optJSONArray("data") ?: return
+                        val balanceHistory = mutableListOf<com.trading.app.models.BalanceRecord>()
+                        for (i in 0 until dataArray.length()) {
+                            val obj = dataArray.getJSONObject(i)
+                            balanceHistory.add(com.trading.app.models.BalanceRecord(
+                                id = obj.optString("id", obj.optString("ticket")),
+                                time = obj.optLong("time"),
+                                balanceBefore = obj.optDouble("balanceBefore"),
+                                balanceAfter = obj.optDouble("balanceAfter"),
+                                realizedPnl = obj.optDouble("realizedPnl", obj.optDouble("profit")),
+                                action = obj.optString("action", "Trade")
+                            ))
+                        }
+                        onBalanceHistoryUpdate(balanceHistory)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Parse error: ${e.message}")

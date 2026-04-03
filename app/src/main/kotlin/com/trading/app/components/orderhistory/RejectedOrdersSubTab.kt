@@ -22,7 +22,7 @@ fun RejectedOrderItem(order: Order) {
 
             HistoryDetailRow("Side", if (isBuy) "Buy" else "Sell", if (isBuy) Color(0xFF2962FF) else Color(0xFFF23645))
             HistoryDetailRow("Type", order.orderType)
-            HistoryDetailRow("Qty", order.volume.toInt().toString())
+            HistoryDetailRow("Qty", String.format(Locale.US, "%.2f", order.volume))
             
             val placingTimeStr = dateFormat.format(Date(order.time))
             HistoryDetailRow("Placing Time", placingTimeStr)
@@ -32,6 +32,7 @@ fun RejectedOrderItem(order: Order) {
             
             HistoryDetailRow("Order ID", order.id)
             HistoryDetailRow("Leverage", order.leverage)
+            HistoryDetailRow("Margin", String.format(Locale.US, "%.2f USD", order.margin))
         }
     }
 }

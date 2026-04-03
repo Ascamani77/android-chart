@@ -46,8 +46,12 @@ fun OrdersTab(
             subTabs.forEach { subTab ->
                 val isSelected = activeSubTab.equals(subTab, ignoreCase = true)
                 val count = when (subTab) {
-                    "All" -> 1
-                    "Filled" -> 1
+                    "All" -> orders.size
+                    "Working" -> orders.count { it.status.equals("Working", ignoreCase = true) }
+                    "Inactive" -> orders.count { it.status.equals("Inactive", ignoreCase = true) }
+                    "Filled" -> orders.count { it.status.equals("Filled", ignoreCase = true) }
+                    "Cancelled" -> orders.count { it.status.equals("Cancelled", ignoreCase = true) }
+                    "Rejected" -> orders.count { it.status.equals("Rejected", ignoreCase = true) }
                     else -> 0
                 }
                 val displayText = if (count > 0) "$subTab $count" else subTab
@@ -67,22 +71,15 @@ fun OrdersTab(
         }
         Divider(color = Color(0xFF2A2E39), thickness = 1.dp)
 
-        // Mock order for demonstration
-        val mockOrder = Order(
-            symbol = "PEPPERSTONE:XAUUSD",
-            type = "sell",
-            orderType = "Market",
-            status = "Filled",
-            price = 4654.77f,
-            averagePrice = 4654.77f,
-            volume = 1f,
-            time = 1712066912000L // 2026-04-02 17:08:32
-        )
+        val filteredOrders = when (activeSubTab) {
+            "All" -> orders
+            else -> orders.filter { it.status.equals(activeSubTab, ignoreCase = true) }
+        }
 
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            item {
+            items(filteredOrders) { order ->
                 OrderItemComponent(
-                    order = mockOrder,
+                    order = order,
                     showStatus = activeSubTab.equals("All", ignoreCase = true)
                 )
                 Divider(color = Color(0xFF2A2E39), thickness = 1.dp)
@@ -96,17 +93,15 @@ private fun OrderItemComponent(order: Order, showStatus: Boolean) {
     val labelColor = Color(0xFF787B86)
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Circle, null, tint = Color(0xFFEBC147), modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.width(8.dp))
             Box(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF2962FF)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                Text(text = "PEPPERSTONE:${order.symbol.uppercase().split(":").last()}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(text = "EXNESS:${order.symbol.uppercase().split(":").last()}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.weight(1f))
             Icon(Icons.Default.DragHandle, null, tint = Color(0xFF2A2E39), modifier = Modifier.size(18.dp))
         }
-        Text(text = "GOLD VS US DOLLAR", color = labelColor, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, start = 32.dp))
+        Text(text = "GOLD VS US DOLLAR", color = labelColor, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, start = 0.dp))
         Spacer(modifier = Modifier.height(16.dp))
-        Column(modifier = Modifier.padding(start = 32.dp)) {
+        Column(modifier = Modifier.padding(start = 0.dp)) {
             val isBuy = order.type.equals("buy", ignoreCase = true)
             OrderDetailRow("Side", if (isBuy) "Buy" else "Sell", if (isBuy) Color(0xFF2962FF) else Color(0xFFF23645))
             OrderDetailRow("Type", order.orderType)
@@ -127,10 +122,10 @@ private fun OrderItemComponent(order: Order, showStatus: Boolean) {
 
             val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
             OrderDetailRow("Placing Time", dateFormat.format(java.util.Date(order.time)))
-            OrderDetailRow("Order ID", order.id.filter { it.isDigit() }.take(10).ifEmpty { "2934146682" })
-            OrderDetailRow("Expiry", "2026-05-02 17:08:32") // Mocked for screenshot
-            OrderDetailRow("Leverage", "500:1")
-            OrderDetailRow("Margin", "9.31 USD")
+            OrderDetailRow("Order ID", order.id)
+            OrderDetailRow("Expiry", order.expiry?.let { dateFormat.format(java.util.Date(it)) } ?: "—")
+            OrderDetailRow("Leverage", order.leverage)
+            OrderDetailRow("Margin", String.format(Locale.US, "%.2f USD", order.margin))
         }
     }
 }

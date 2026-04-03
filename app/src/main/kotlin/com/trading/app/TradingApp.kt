@@ -142,17 +142,16 @@ fun TradingApp() {
     val drawings = remember { mutableStateListOf<Drawing>() }
     val history = remember { mutableStateListOf<ChartSnapshot>() }
     val redoStack = remember { mutableStateListOf<ChartSnapshot>() }
-    val userAlerts = remember { mutableStateListOf<UserAlert>() }
+    val userAlerts = remember { mutableStateOf(emptyList<UserAlert>()) }
     val positions = remember { mutableStateListOf<Position>() }
     val orders = remember { mutableStateListOf<Order>() }
+    val orderHistory = remember { mutableStateListOf<Order>() }
+    val balanceHistory = remember { mutableStateListOf<BalanceRecord>() }
     var mt5AccountInfo by remember { mutableStateOf<Mt5Service.AccountInfo?>(null) }
 
-    // Add some dummy orders for preview
+    // MT5 data is now live from mt5_bridge.py
     LaunchedEffect(Unit) {
-        if (orders.isEmpty()) {
-            orders.add(Order(symbol = "BTCUSD", type = "buy", orderType = "Limit", status = "Working", price = 62100f, volume = 0.5f, time = System.currentTimeMillis()))
-            orders.add(Order(symbol = "ETHUSD", type = "sell", orderType = "Stop", status = "Inactive", price = 3400f, volume = 10f, time = System.currentTimeMillis()))
-        }
+        // Dummy data removed to show live MT5 data
     }
 
     // Timezone list
@@ -399,6 +398,22 @@ fun TradingApp() {
                                     positions.removeAll { it.id == id }
                                 },
                                 onAccountUpdate = { mt5AccountInfo = it },
+                                onPositionsUpdate = { newPositions ->
+                                    positions.clear()
+                                    positions.addAll(newPositions)
+                                },
+                                onOrdersUpdate = { newOrders ->
+                                    orders.clear()
+                                    orders.addAll(newOrders)
+                                },
+                                onHistoryOrdersUpdate = { newHistory ->
+                                    orderHistory.clear()
+                                    orderHistory.addAll(newHistory)
+                                },
+                                onBalanceHistoryUpdate = { newBalanceHistory ->
+                                    balanceHistory.clear()
+                                    balanceHistory.addAll(newBalanceHistory)
+                                },
                                 isTradingBarVisible = showFloatingTradingButtons
                             )
                         }
@@ -514,6 +529,8 @@ fun TradingApp() {
                     onClose = { showPaperTradingPanel = false },
                     positions = positions,
                     orders = orders,
+                    orderHistory = orderHistory,
+                    balanceHistory = balanceHistory,
                     currentPrice = currentLiveQuote?.lastPrice ?: 0f,
                     accountInfo = mt5AccountInfo,
                     backgroundColor = appBackgroundColor
@@ -650,7 +667,7 @@ fun TradingApp() {
         if (showAlertModal) {
             AlertModal(
                 symbol = symbol,
-                onAlertCreate = { userAlerts.add(it) },
+                onAlertCreate = { userAlerts.value = userAlerts.value + it },
                 onClose = { showAlertModal = false }
             )
         }

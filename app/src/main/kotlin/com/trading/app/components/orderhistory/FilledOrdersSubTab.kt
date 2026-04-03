@@ -22,13 +22,12 @@ fun FilledOrderItem(order: Order) {
 
             HistoryDetailRow("Side", if (isBuy) "Buy" else "Sell", if (isBuy) Color(0xFF2962FF) else Color(0xFFF23645))
             HistoryDetailRow("Type", order.orderType)
-            HistoryDetailRow("Qty", order.volume.toInt().toString())
+            HistoryDetailRow("Qty", String.format(Locale.US, "%.2f", order.volume))
             
             if (order.orderType.lowercase().contains("limit") || order.orderType.lowercase().contains("stop")) {
                 val label = if (order.orderType.lowercase().contains("stop")) "Stop Price" else "Limit Price"
                 HistoryDetailRow(label, String.format(Locale.US, "%,.2f", order.price))
             } else if (order.orderType.lowercase() == "market") {
-                // For filled market orders, show the fill price as Limit Price or similar if needed
                 HistoryDetailRow("Limit Price", String.format(Locale.US, "%,.2f", if (order.averagePrice > 0) order.averagePrice else order.price))
             }
             
@@ -40,7 +39,7 @@ fun FilledOrderItem(order: Order) {
             
             HistoryDetailRow("Order ID", order.id)
             HistoryDetailRow("Leverage", order.leverage)
-            HistoryDetailRow("Margin", if (order.symbol.contains("XAU", ignoreCase = true)) "10.00 USD" else "9.31 USD")
+            HistoryDetailRow("Margin", String.format(Locale.US, "%.2f USD", order.margin))
         }
     }
 }

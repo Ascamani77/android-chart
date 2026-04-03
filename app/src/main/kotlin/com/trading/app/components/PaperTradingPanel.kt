@@ -25,6 +25,8 @@ fun PaperTradingPanel(
     onClose: () -> Unit,
     positions: List<Position> = emptyList(),
     orders: List<Order> = emptyList(),
+    orderHistory: List<Order> = emptyList(),
+    balanceHistory: List<com.trading.app.models.BalanceRecord> = emptyList(),
     currentPrice: Float = 0f,
     balance: Double = 102789.72,
     accountInfo: Mt5Service.AccountInfo? = null,
@@ -137,10 +139,11 @@ fun PaperTradingPanel(
                     val count = when (tab) {
                         "Positions" -> if (positions.isNotEmpty()) positions.size else null
                         "Orders" -> {
-                            val activeOrdersCount = orders.count { it.status.lowercase() == "working" || it.status.lowercase() == "inactive" }
+                            val activeOrdersCount = orders.size
                             if (activeOrdersCount > 0) activeOrdersCount else null
                         }
-                        "Order History" -> if (orders.isNotEmpty()) orders.size else null
+                        "Order History" -> if (orderHistory.isNotEmpty()) orderHistory.size else null
+                        "Balance History" -> if (balanceHistory.isNotEmpty()) balanceHistory.size else null
                         else -> null
                     }
                     
@@ -193,8 +196,8 @@ fun PaperTradingPanel(
             when (activeTab) {
                 "Positions" -> PositionsTab(positions, currentPrice)
                 "Orders" -> OrdersTab(orders)
-                "Order History" -> OrderHistoryTab(orders)
-                "Balance History" -> BalanceHistoryTab()
+                "Order History" -> OrderHistoryTab(orderHistory)
+                "Balance History" -> BalanceHistoryTab(balanceHistory)
                 "Trading Journal" -> TradingJournalTab()
                 else -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

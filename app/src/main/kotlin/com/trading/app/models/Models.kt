@@ -260,6 +260,8 @@ data class Position(
     val time: Long,
     val tp: Float? = null,
     val sl: Float? = null,
+    val leverage: String = "1x",
+    val margin: Float = 0f,
     val isSelected: Boolean = false,
     val partialOrders: List<PartialOrder> = emptyList()
 )
@@ -275,6 +277,7 @@ data class Order(
     val time: Long,
     val closingTime: Long? = null,
     val leverage: String = "1x",
+    val margin: Float = 0f,
     val filledQuantity: Float = 0f,
     val averagePrice: Float = 0f,
     val tp: Float? = null,

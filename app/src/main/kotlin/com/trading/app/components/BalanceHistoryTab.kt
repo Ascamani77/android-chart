@@ -23,27 +23,9 @@ fun BalanceHistoryTab(
     records: List<BalanceRecord> = emptyList(),
     labelColor: Color = Color(0xFF787B86)
 ) {
-    // Mock data if records is empty
-    val displayRecords = if (records.isEmpty()) {
-        listOf(
-            BalanceRecord(
-                time = 1775168878000L, // 2026-04-02 19:47:58
-                balanceBefore = 102671.33,
-                balanceAfter = 102659.14,
-                realizedPnl = -12.19,
-                action = "Close short position for symbol PEPPERSTONE:XAUUSD at price 4666.96 for 1 units. Position AVG Price was 4654.770000, currency: USD, rate: 1.000000, point value: 1.000000"
-            ),
-            BalanceRecord(
-                time = 1775146660000L, // 2026-04-02 13:37:40
-                balanceBefore = 102789.72,
-                balanceAfter = 102671.33,
-                realizedPnl = -118.39,
-                action = "Close long position for symbol PEPPERSTONE:XAUUSD at price 4620.94 for 1 units. Position AVG Price was 4739.330000, currency: USD, rate: 1.000000, point value: 1.000000"
-            )
-        )
-    } else {
-        records
-    }
+    // MT5 data is now live from mt5_bridge.py
+    val displayRecords = records
+
 
     Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.weight(1f)) {

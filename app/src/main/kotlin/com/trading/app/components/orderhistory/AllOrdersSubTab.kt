@@ -29,7 +29,7 @@ fun AllOrdersItem(order: Order) {
             HistoryDetailRow("Type", order.orderType)
             
             // Qty
-            HistoryDetailRow("Qty", order.volume.toInt().toString())
+            HistoryDetailRow("Qty", String.format(Locale.US, "%.2f", order.volume))
             
             // Limit Price (Only show for Limit or Stop orders, or Filled Market as seen in screenshot)
             if (order.orderType.lowercase().contains("limit") || order.orderType.lowercase().contains("stop") || statusLower == "filled") {
@@ -46,6 +46,7 @@ fun AllOrdersItem(order: Order) {
             val statusColor = when (statusLower) {
                 "filled" -> Color(0xFF089981)
                 "rejected", "cancelled" -> Color(0xFFF23645)
+                "working", "inactive" -> Color(0xFFEBC147)
                 else -> Color(0xFFD1D4DC)
             }
             HistoryDetailRow("Status", order.status, statusColor)
@@ -57,8 +58,10 @@ fun AllOrdersItem(order: Order) {
             // Closing Time
             val closingTimeStr = if (order.closingTime != null) {
                 dateFormat.format(Date(order.closingTime))
-            } else {
+            } else if (statusLower == "filled" || statusLower == "cancelled" || statusLower == "rejected") {
                 placingTimeStr
+            } else {
+                "—"
             }
             HistoryDetailRow("Closing Time", closingTimeStr)
             
@@ -68,10 +71,8 @@ fun AllOrdersItem(order: Order) {
             // Leverage
             HistoryDetailRow("Leverage", order.leverage)
             
-            // Margin (Only for filled)
-            if (statusLower == "filled") {
-                HistoryDetailRow("Margin", if (order.symbol.contains("XAU", ignoreCase = true)) "10.00 USD" else "9.31 USD")
-            }
+            // Margin
+            HistoryDetailRow("Margin", String.format(Locale.US, "%.2f USD", order.margin))
         }
     }
 }

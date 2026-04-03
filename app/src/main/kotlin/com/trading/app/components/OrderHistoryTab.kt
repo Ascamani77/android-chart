@@ -29,22 +29,9 @@ fun OrderHistoryTab(
     var activeSubTab by remember { mutableStateOf("All") }
     val subTabs = listOf("All", "Filled", "Cancelled", "Rejected")
 
-    // Use internal data if orders list is empty, otherwise use provided orders
-    val baseOrders = if (orders.isEmpty()) {
-        listOf(
-            // Sample Rejected Items
-            Order(id = "2931072918", symbol = "NASDAQ:META", type = "buy", orderType = "Market", status = "Rejected", price = 0f, volume = 1f, time = 1775101010000L, leverage = "500:1"),
-            Order(id = "2914726769", symbol = "TVC:GOLD", type = "buy", orderType = "Market", status = "Rejected", price = 0f, volume = 1f, time = 1774728140000L, leverage = "500:1"),
-            
-            // Sample Cancelled Item
-            Order(id = "2930072264", symbol = "PEPPERSTONE:XAUUSD", type = "buy", orderType = "Stop", status = "Cancelled", price = 4892.01f, volume = 1f, time = 1711998096000L, leverage = "500:1"),
-            
-            // Sample Filled Item
-            Order(id = "2934774519", symbol = "PEPPERSTONE:XAUUSD", type = "buy", orderType = "Limit", status = "Filled", price = 5000.00f, averagePrice = 4665.06f, volume = 1f, time = 1775159549000L, closingTime = 1775159549000L, leverage = "500:1")
-        )
-    } else {
-        orders
-    }
+    // MT5 data is now live from mt5_bridge.py
+    val baseOrders = orders
+
 
     // Dynamic counts
     val allCount = baseOrders.size

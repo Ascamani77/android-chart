@@ -71,8 +71,6 @@ private fun PositionItem(position: Position, lastPrice: Float) {
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Circle, null, tint = Color(0xFFEBC147), modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.width(8.dp))
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
@@ -80,7 +78,7 @@ private fun PositionItem(position: Position, lastPrice: Float) {
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
                 Text(
-                    "PEPPERSTONE:${position.symbol.uppercase()}",
+                    "EXNESS:${position.symbol.uppercase()}",
                     color = Color.White,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
@@ -94,14 +92,14 @@ private fun PositionItem(position: Position, lastPrice: Float) {
             "${position.symbol.uppercase()} VS US DOLLAR",
             color = labelColor,
             fontSize = 11.sp,
-            modifier = Modifier.padding(top = 4.dp, start = 32.dp)
+            modifier = Modifier.padding(top = 4.dp, start = 0.dp)
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Column(modifier = Modifier.padding(start = 32.dp)) {
+        Column(modifier = Modifier.padding(start = 0.dp)) {
             PositionDetailRow("Side", if (isBuy) "Long" else "Short", if (isBuy) Color(0xFF2962FF) else Color(0xFFF23645))
-            PositionDetailRow("Qty", position.volume.toInt().toString())
+            PositionDetailRow("Qty", String.format(Locale.US, "%.2f", position.volume))
             PositionDetailRow("Avg Fill Price", String.format(Locale.US, "%,.2f", position.entryPrice))
             PositionDetailRow("Take Profit", position.tp?.let { String.format(Locale.US, "%,.2f", it) } ?: "")
             PositionDetailRow("Stop Loss", position.sl?.let { String.format(Locale.US, "%,.2f", it) } ?: "")
@@ -110,8 +108,8 @@ private fun PositionItem(position: Position, lastPrice: Float) {
             PositionDetailRow("Unrealized P&L %", String.format(Locale.US, "%.2f%%", pnlPercentage), pnlColor)
             PositionDetailRow("Trade Value", String.format(Locale.US, "%,.2f USD", tradeValue))
             PositionDetailRow("Market Value", String.format(Locale.US, "%,.2f USD", marketValue))
-            PositionDetailRow("Leverage", "500:1")
-            PositionDetailRow("Margin", String.format(Locale.US, "%.2f USD", margin))
+            PositionDetailRow("Leverage", position.leverage)
+            PositionDetailRow("Margin", String.format(Locale.US, "%.2f USD", position.margin))
             PositionDetailRow("Expiration Date", "—")
         }
     }
@@ -129,7 +127,7 @@ private fun PositionDetailRow(label: String, value: String, valueColor: Color = 
             text = label,
             color = Color(0xFF787B86),
             fontSize = 14.sp,
-            modifier = Modifier.width(130.dp) // Adjusted to keep writeup and outcomes close as per screenshot
+            modifier = Modifier.width(160.dp) // Increased width to add more space between label and value
         )
         Text(
             text = value,
