@@ -150,6 +150,7 @@ fun TradingChart(
     positions: List<Position> = emptyList(),
     onPositionUpdate: (Position) -> Unit = {},
     onPositionDelete: (String) -> Unit = {},
+    onAccountUpdate: (Mt5Service.AccountInfo) -> Unit = {},
     onDoubleClick: (Float) -> Unit = {}
 ) {
     var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
@@ -216,6 +217,9 @@ fun TradingChart(
                     currentQuoteState = updatedQuote
                     updatedOnQuoteUpdate.value(updatedQuote)
                 }
+            },
+            onAccountUpdate = { accountInfo ->
+                onAccountUpdate(accountInfo)
             }
         )
     }

@@ -12,12 +12,24 @@ class Mt5Service(
     private val pcIpAddress: String = "10.222.138.133",
     private val port: Int = 8081,
     private val onHistoryUpdate: (String, List<CandlestickData>) -> Unit,
-    private val onQuoteUpdate: (SymbolQuote) -> Unit
+    private val onQuoteUpdate: (SymbolQuote) -> Unit,
+    private val onAccountUpdate: (AccountInfo) -> Unit = {}
 ) {
     private val client = OkHttpClient()
     private var webSocket: WebSocket? = null
     private val gson = Gson()
     private var pendingSubscription: String? = null
+
+    data class AccountInfo(
+        val balance: Double,
+        val equity: Double,
+        val unrealizedPnl: Double,
+        val realizedPnl: Double,
+        val margin: Double,
+        val availableFunds: Double,
+        val ordersMargin: Double,
+        val marginBuffer: Double
+    )
 
     companion object {
         private const val TAG = "MT5_BRIDGE"
@@ -71,6 +83,18 @@ class Mt5Service(
                         // Ensure name is set
                         val finalQuote = if (quote.name.isNullOrEmpty()) quote.copy(name = symbol) else quote
                         onQuoteUpdate(finalQuote)
+                    } else if (type == "account") {
+                        val accountInfo = AccountInfo(
+                            balance = root.optDouble("balance", 0.0),
+                            equity = root.optDouble("equity", 0.0),
+                            unrealizedPnl = root.optDouble("unrealizedPnl", 0.0),
+                            realizedPnl = root.optDouble("realizedPnl", 0.0),
+                            margin = root.optDouble("margin", 0.0),
+                            availableFunds = root.optDouble("availableFunds", 0.0),
+                            ordersMargin = root.optDouble("ordersMargin", 0.0),
+                            marginBuffer = root.optDouble("marginBuffer", 0.0)
+                        )
+                        onAccountUpdate(accountInfo)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Parse error: ${e.message}")

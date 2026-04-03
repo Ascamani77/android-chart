@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.trading.app.components.*
 import com.trading.app.models.*
+import com.trading.app.data.Mt5Service
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
@@ -144,6 +145,7 @@ fun TradingApp() {
     val userAlerts = remember { mutableStateListOf<UserAlert>() }
     val positions = remember { mutableStateListOf<Position>() }
     val orders = remember { mutableStateListOf<Order>() }
+    var mt5AccountInfo by remember { mutableStateOf<Mt5Service.AccountInfo?>(null) }
 
     // Add some dummy orders for preview
     LaunchedEffect(Unit) {
@@ -396,6 +398,7 @@ fun TradingApp() {
                                 onPositionDelete = { id ->
                                     positions.removeAll { it.id == id }
                                 },
+                                onAccountUpdate = { mt5AccountInfo = it },
                                 isTradingBarVisible = showFloatingTradingButtons
                             )
                         }
@@ -484,7 +487,8 @@ fun TradingApp() {
                                 },
                                 backgroundColor = appBackgroundColor,
                                 settings = chartSettings,
-                                currentQuote = currentLiveQuote
+                                currentQuote = currentLiveQuote,
+                                onAccountUpdate = { mt5AccountInfo = it }
                             )
                         }
                     }
@@ -511,6 +515,7 @@ fun TradingApp() {
                     positions = positions,
                     orders = orders,
                     currentPrice = currentLiveQuote?.lastPrice ?: 0f,
+                    accountInfo = mt5AccountInfo,
                     backgroundColor = appBackgroundColor
                 )
             }

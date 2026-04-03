@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trading.app.models.Position
 import com.trading.app.models.Order
+import com.trading.app.data.Mt5Service
 import java.util.Locale
 
 @Composable
@@ -26,6 +27,7 @@ fun PaperTradingPanel(
     orders: List<Order> = emptyList(),
     currentPrice: Float = 0f,
     balance: Double = 102789.72,
+    accountInfo: Mt5Service.AccountInfo? = null,
     backgroundColor: Color = Color(0xFF08090C)
 ) {
     var activeTab by remember { mutableStateOf("Positions") }
@@ -35,13 +37,16 @@ fun PaperTradingPanel(
     val horizontalMargin = 16.dp
 
     // Calculations for Header Stats
-    val totalUnrealizedPnl = positions.sumOf { 
+    val totalUnrealizedPnl = accountInfo?.unrealizedPnl ?: positions.sumOf { 
         ((currentPrice - it.entryPrice) * it.volume * (if (it.type == "buy") 1f else -1f)).toDouble()
     }
-    val equity = balance + totalUnrealizedPnl
-    val totalMargin = positions.sumOf { (it.entryPrice * it.volume * 0.01f).toDouble() }
-    val availableFunds = equity - totalMargin
-    val marginBuffer = if (equity > 0) (availableFunds / equity) * 100 else 100.0
+    val displayBalance = accountInfo?.balance ?: balance
+    val equity = accountInfo?.equity ?: (displayBalance + totalUnrealizedPnl)
+    val totalMargin = accountInfo?.margin ?: positions.sumOf { (it.entryPrice * it.volume * 0.01f).toDouble() }
+    val availableFunds = accountInfo?.availableFunds ?: (equity - totalMargin)
+    val marginBuffer = accountInfo?.marginBuffer ?: (if (equity > 0) (availableFunds / equity) * 100 else 100.0)
+    val realizedPnl = accountInfo?.realizedPnl ?: 0.0
+    val ordersMargin = accountInfo?.ordersMargin ?: 0.0
 
     Column(
         modifier = Modifier
@@ -83,9 +88,16 @@ fun PaperTradingPanel(
         // Account Stats Grid
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
             Row(modifier = Modifier.fillMaxWidth()) {
-                AccountStatItem("Account balance", String.format(Locale.US, "%,.2f", balance), Modifier.weight(1f))
+                AccountStatItem("Account balance", String.format(Locale.US, "%,.2f", displayBalance), Modifier.weight(1f))
                 AccountStatItem("Equity", String.format(Locale.US, "%,.2f", equity), Modifier.weight(1f))
-                AccountStatItem("Realized P&L", "+102,671.33", Modifier.weight(1f), Color(0xFF089981))
+                val realizedColor = if (realizedPnl >= 0) Color(0xFF089981) else Color(0xFFF23645)
+                val realizedSign = if (realizedPnl >= 0) "+" else ""
+                AccountStatItem(
+                    "Realized P&L", 
+                    String.format(Locale.US, "%s%,.2f", realizedSign, realizedPnl), 
+                    Modifier.weight(1f), 
+                    realizedColor
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -98,12 +110,12 @@ fun PaperTradingPanel(
                     unrealizedColor
                 )
                 AccountStatItem("Account margin", String.format(Locale.US, "%.2f", totalMargin), Modifier.weight(1f), showInfo = true)
-                AccountStatItem("Available funds", String.format(Locale.US, "%,.2f", availableFunds), Modifier.weight(1f), showInfo = true)
+                AccountStatItem("Free margin", String.format(Locale.US, "%,.2f", availableFunds), Modifier.weight(1f), showInfo = true)
             }
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                AccountStatItem("Orders margin", "0.00", Modifier.weight(1f), showInfo = true)
-                AccountStatItem("Margin buffer", String.format(Locale.US, "%.2f%%", marginBuffer), Modifier.weight(1f), showInfo = true)
+                AccountStatItem("Orders margin", String.format(Locale.US, "%.2f", ordersMargin), Modifier.weight(1f), showInfo = true)
+                AccountStatItem("Margin level", String.format(Locale.US, "%.2f%%", marginBuffer), Modifier.weight(1f), showInfo = true)
                 Spacer(modifier = Modifier.weight(1f))
             }
         }

@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trading.app.models.ChartSettings
 import com.trading.app.models.SymbolInfo
+import com.trading.app.data.Mt5Service
 import java.util.Locale
 
 @Composable
@@ -35,6 +36,7 @@ fun BottomBar(
     backgroundColor: Color = Color(0xFF08090C),
     settings: ChartSettings = ChartSettings(),
     currentQuote: SymbolQuote? = null,
+    onAccountUpdate: (Mt5Service.AccountInfo) -> Unit = {},
     selectedTzLabel: String = ""
 ) {
     val pairsScrollState = rememberScrollState()

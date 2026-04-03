@@ -65,6 +65,7 @@ async def handle_client(websocket):
 
         async def stream():
             while True:
+                # 1. Send Tick Data
                 tick = mt5.symbol_info_tick(current_symbol)
                 if tick:
                     payload = {
@@ -77,7 +78,26 @@ async def handle_client(websocket):
                         "volume": float(tick.volume)
                     }
                     await websocket.send(json.dumps(payload))
-                await asyncio.sleep(0.5)
+
+                # 2. Send Account Info
+                account = mt5.account_info()
+                if account:
+                    acc_payload = {
+                        "type": "account",
+                        "balance": float(account.balance),
+                        "equity": float(account.equity),
+                        "unrealizedPnl": float(account.profit),
+                        # MT5 doesn't have a direct "Realized P&L" for current session in account_info
+                        # We'll send it as empty/0 or handled by client if we don't calculate from history
+                        "realizedPnl": 0.0,
+                        "margin": float(account.margin),
+                        "availableFunds": float(account.margin_free),
+                        "ordersMargin": 0.0, # MT5 margin includes all, specific orders margin is harder to separate
+                        "marginBuffer": float(account.margin_level) if account.margin_level > 0 else 100.0
+                    }
+                    await websocket.send(json.dumps(acc_payload))
+
+                await asyncio.sleep(0.2)
 
         await asyncio.gather(listen(), stream())
     except websockets.exceptions.ConnectionClosed:
