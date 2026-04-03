@@ -1,0 +1,180 @@
+package com.trading.app.components.orderhistory
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.trading.app.models.Order
+
+@Composable
+fun OrderItemHeader(order: Order, labelColor: Color = Color(0xFF787B86)) {
+    val symbolUpper = order.symbol.uppercase()
+    
+    Box(modifier = Modifier.fillMaxWidth()) {
+        // Triple Bar Icon at the top right (looks like '000' or vertical bars)
+        Row(
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 0.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            repeat(3) {
+                Box(
+                    modifier = Modifier
+                        .width(2.dp)
+                        .height(11.dp)
+                        .background(Color(0xFF2A2E39))
+                )
+            }
+        }
+
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Symbol Icon
+                if (symbolUpper.contains("META")) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF0064E0)), 
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.AllInclusive, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                } else if (symbolUpper.contains("GOLD") || symbolUpper.contains("XAU")) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFEBC147)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                                Box(modifier = Modifier.size(width = 6.dp, height = 3.dp).background(Color.White))
+                                Box(modifier = Modifier.size(width = 6.dp, height = 3.dp).background(Color.White))
+                            }
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Box(modifier = Modifier.size(width = 8.dp, height = 3.dp).background(Color.White))
+                        }
+                    }
+                } else {
+                    Icon(Icons.Default.Circle, null, tint = Color(0xFF2962FF), modifier = Modifier.size(32.dp))
+                }
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                // Ticker Box
+                val isBlueBox = symbolUpper.contains("PEPPERSTONE") || symbolUpper.contains("XAU")
+                val boxBg = if (isBlueBox) Color(0xFF2962FF) else Color(0xFF2A2E39)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(boxBg)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = symbolUpper, 
+                        color = Color.White, 
+                        fontSize = 13.sp, 
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                Spacer(modifier = Modifier.weight(1f))
+                
+                // Status Icon (Red circle with white exclamation mark)
+                if (order.status.lowercase() == "rejected" || order.status.lowercase() == "cancelled") {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF23645)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("!", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            
+            // Description
+            val description = when {
+                symbolUpper.contains("XAU") -> "GOLD VS US DOLLAR"
+                symbolUpper.contains("GOLD") -> "GOLD (US$/OZ)"
+                symbolUpper.contains("META") -> "META PLATFORMS INC CLASS A"
+                else -> "ASSET DESCRIPTION"
+            }
+            
+            if (description.isNotEmpty()) {
+                Text(
+                    text = description, 
+                    color = labelColor, 
+                    fontSize = 13.sp, 
+                    modifier = Modifier.padding(top = 4.dp, start = 44.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun HistoryDetailRow(label: String, value: String, valueColor: Color = Color(0xFFD1D4DC)) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp), 
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label, 
+            color = Color(0xFF787B86), 
+            fontSize = 15.sp, 
+            modifier = Modifier.width(125.dp)
+        )
+        Text(
+            text = value, 
+            color = valueColor, 
+            fontSize = 15.sp, 
+            fontWeight = FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+fun PaginationRow() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp), 
+        horizontalArrangement = Arrangement.Center, 
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.ChevronLeft, null, tint = Color(0xFF787B86), modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.width(16.dp))
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color(0xFF2A2E39)), 
+            contentAlignment = Alignment.Center
+        ) {
+            Text("1", color = Color.White, fontSize = 14.sp)
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text("2", color = Color(0xFF787B86), fontSize = 14.sp)
+        Spacer(modifier = Modifier.width(12.dp))
+        Text("3", color = Color(0xFF787B86), fontSize = 14.sp)
+        Spacer(modifier = Modifier.width(16.dp))
+        Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF787B86), modifier = Modifier.size(24.dp))
+    }
+}

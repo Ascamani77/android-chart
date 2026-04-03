@@ -3,50 +3,42 @@ package com.trading.app.components
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trading.app.models.Position
+import com.trading.app.models.Order
 import java.util.Locale
 
 @Composable
 fun PaperTradingPanel(
     onClose: () -> Unit,
     positions: List<Position> = emptyList(),
+    orders: List<Order> = emptyList(),
     currentPrice: Float = 0f,
     balance: Double = 102789.72,
     backgroundColor: Color = Color(0xFF08090C)
 ) {
     var activeTab by remember { mutableStateOf("Positions") }
     val tabs = listOf("Positions", "Orders", "Order History", "Balance History", "Trading Journal")
-    val labelColor = Color(0xFF787B86)
     
+    val labelColor = Color(0xFF787B86)
     val horizontalMargin = 16.dp
 
-    // Calculations
+    // Calculations for Header Stats
     val totalUnrealizedPnl = positions.sumOf { 
         ((currentPrice - it.entryPrice) * it.volume * (if (it.type == "buy") 1f else -1f)).toDouble()
     }
-    
     val equity = balance + totalUnrealizedPnl
-    
-    // Simple margin calculation: 1% of total trade value
     val totalMargin = positions.sumOf { (it.entryPrice * it.volume * 0.01f).toDouble() }
     val availableFunds = equity - totalMargin
     val marginBuffer = if (equity > 0) (availableFunds / equity) * 100 else 100.0
@@ -61,10 +53,22 @@ fun PaperTradingPanel(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Column(modifier = Modifier.clickable { }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Paper Trading", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("nelsonekomwenrenren USD", color = labelColor, fontSize = 12.sp)
+                    Icon(Icons.Default.KeyboardArrowDown, null, tint = labelColor, modifier = Modifier.size(14.dp))
+                }
+            }
+            
+            Spacer(modifier = Modifier.weight(1f))
+            
             IconButton(onClick = { }) {
                 Icon(Icons.Default.Settings, null, tint = labelColor, modifier = Modifier.size(24.dp))
             }
@@ -81,7 +85,7 @@ fun PaperTradingPanel(
             Row(modifier = Modifier.fillMaxWidth()) {
                 AccountStatItem("Account balance", String.format(Locale.US, "%,.2f", balance), Modifier.weight(1f))
                 AccountStatItem("Equity", String.format(Locale.US, "%,.2f", equity), Modifier.weight(1f))
-                AccountStatItem("Realized P&L", "+0.00", Modifier.weight(1f), Color(0xFF089981))
+                AccountStatItem("Realized P&L", "+102,671.33", Modifier.weight(1f), Color(0xFF089981))
             }
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -93,7 +97,7 @@ fun PaperTradingPanel(
                     Modifier.weight(1f), 
                     unrealizedColor
                 )
-                AccountStatItem("Account margin", String.format(Locale.US, "%,.2f", totalMargin), Modifier.weight(1f), showInfo = true)
+                AccountStatItem("Account margin", String.format(Locale.US, "%.2f", totalMargin), Modifier.weight(1f), showInfo = true)
                 AccountStatItem("Available funds", String.format(Locale.US, "%,.2f", availableFunds), Modifier.weight(1f), showInfo = true)
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -106,7 +110,7 @@ fun PaperTradingPanel(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Navbar: Items, Scrollable row, 14sp font
+        // Navbar: Items
         Column {
             Row(
                 modifier = Modifier
@@ -118,65 +122,72 @@ fun PaperTradingPanel(
             ) {
                 tabs.forEach { tab ->
                     val isSelected = activeTab == tab
-                    val countText = if (tab == "Positions" && positions.isNotEmpty()) " ${positions.size}" else ""
-                    val text = "$tab$countText"
+                    val count = when (tab) {
+                        "Positions" -> if (positions.isNotEmpty()) positions.size else null
+                        "Orders" -> {
+                            val activeOrdersCount = orders.count { it.status.lowercase() == "working" || it.status.lowercase() == "inactive" }
+                            if (activeOrdersCount > 0) activeOrdersCount else null
+                        }
+                        "Order History" -> if (orders.isNotEmpty()) orders.size else null
+                        else -> null
+                    }
                     
                     Column(
                         modifier = Modifier
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
-                            ) { activeTab = tab },
+                            ) { 
+                                activeTab = tab 
+                            },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = text,
-                            color = if (isSelected) Color.White else labelColor,
-                            fontSize = 14.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            modifier = Modifier.padding(bottom = 8.dp),
-                            softWrap = false,
-                            maxLines = 1,
-                            textAlign = TextAlign.Center
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = tab,
+                                color = if (isSelected) Color.White else labelColor,
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            if (count != null) {
+                                Text(
+                                    text = " $count",
+                                    color = labelColor,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
+                        }
                         // Indicator line
-                        Box(
-                            modifier = Modifier
-                                .width(IntrinsicSize.Max)
-                                .fillMaxWidth()
-                                .height(2.dp)
-                                .background(if (isSelected) Color.White else Color.Transparent)
-                        )
+                        if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(2.dp)
+                                    .background(Color.White)
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.height(2.dp))
+                        }
                     }
                 }
             }
             Divider(modifier = Modifier.padding(horizontal = horizontalMargin), color = Color(0xFF2A2E39), thickness = 2.dp)
         }
 
-        // Content
+        // Independent Tab Content
         Box(modifier = Modifier.fillMaxSize()) {
-            if (activeTab == "Positions") {
-                if (positions.isEmpty()) {
+            when (activeTab) {
+                "Positions" -> PositionsTab(positions, currentPrice)
+                "Orders" -> OrdersTab(orders)
+                "Order History" -> OrderHistoryTab(orders)
+                "Balance History" -> BalanceHistoryTab()
+                "Trading Journal" -> TradingJournalTab()
+                else -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            "There are no open positions in your trading account yet",
-                            color = labelColor,
-                            fontSize = 14.sp,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 40.dp)
-                        )
+                        Text("No data available for $activeTab", color = labelColor)
                     }
-                } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(positions) { position ->
-                            PositionItem(position, currentPrice)
-                            Divider(color = Color(0xFF2A2E39), thickness = 1.dp)
-                        }
-                    }
-                }
-            } else {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No data available for $activeTab", color = labelColor)
                 }
             }
         }
@@ -219,74 +230,5 @@ fun AccountStatItem(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 4.dp)
         )
-    }
-}
-
-@Composable
-fun PositionItem(position: Position, currentPrice: Float) {
-    val labelColor = Color(0xFF787B86)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFF2962FF))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    "PEPPERSTONE:${position.symbol.uppercase()}",
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            Icon(Icons.Default.MoreVert, null, tint = labelColor, modifier = Modifier.size(18.dp))
-        }
-        
-        Text(
-            "GOLD VS US DOLLAR",
-            color = labelColor,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        PositionDetailRow("Side", if (position.type == "buy") "Long" else "Short", if (position.type == "buy") Color(0xFF2962FF) else Color(0xFFF23645))
-        PositionDetailRow("Qty", position.volume.toString())
-        PositionDetailRow("Avg Fill Price", String.format(Locale.US, "%,.2f", position.entryPrice))
-        PositionDetailRow("Take Profit", position.tp?.let { String.format(Locale.US, "%,.2f", it) } ?: "—")
-        PositionDetailRow("Stop Loss", position.sl?.let { String.format(Locale.US, "%,.2f", it) } ?: "—")
-        PositionDetailRow("Last Price", String.format(Locale.US, "%,.2f", currentPrice))
-        
-        val pnl = (currentPrice - position.entryPrice) * position.volume * (if (position.type == "buy") 1f else -1f)
-        val pnlColor = if (pnl >= 0) Color(0xFF089981) else Color(0xFFF23645)
-        
-        PositionDetailRow("Unrealized P&L", String.format(Locale.US, "%+.2f USD", pnl), pnlColor)
-        PositionDetailRow("Unrealized P&L %", String.format(Locale.US, "%+.2f%%", (pnl / (position.entryPrice * position.volume)) * 100), pnlColor)
-        
-        PositionDetailRow("Trade Value", String.format(Locale.US, "%,.2f USD", position.entryPrice * position.volume))
-        PositionDetailRow("Market Value", String.format(Locale.US, "%,.2f USD", currentPrice * position.volume))
-        PositionDetailRow("Leverage", "500:1")
-        PositionDetailRow("Margin", String.format(Locale.US, "%,.2f USD", position.entryPrice * position.volume * 0.01f))
-        PositionDetailRow("Expiration Date", "—")
-    }
-}
-
-@Composable
-fun PositionDetailRow(label: String, value: String, valueColor: Color = Color(0xFFD1D4DC)) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, color = Color(0xFF787B86), fontSize = 13.sp)
-        Text(value, color = valueColor, fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }
 }

@@ -264,6 +264,39 @@ data class Position(
     val partialOrders: List<PartialOrder> = emptyList()
 )
 
+data class Order(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val symbol: String,
+    val type: String, // "buy" or "sell"
+    val orderType: String, // "Market", "Limit", "Stop"
+    val status: String, // "Working", "Inactive", "Filled", "Cancelled", "Rejected"
+    val price: Float,
+    val volume: Float,
+    val time: Long,
+    val closingTime: Long? = null,
+    val leverage: String = "1x",
+    val filledQuantity: Float = 0f,
+    val averagePrice: Float = 0f,
+    val tp: Float? = null,
+    val sl: Float? = null,
+    val expiry: Long? = null
+)
+
+data class BalanceRecord(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val time: Long,
+    val balanceBefore: Double,
+    val balanceAfter: Double,
+    val realizedPnl: Double,
+    val action: String
+)
+
+data class JournalEntry(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val time: String,
+    val text: String
+)
+
 data class Indicator(
     val id: String,
     val name: String,

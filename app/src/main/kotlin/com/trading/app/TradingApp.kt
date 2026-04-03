@@ -143,6 +143,15 @@ fun TradingApp() {
     val redoStack = remember { mutableStateListOf<ChartSnapshot>() }
     val userAlerts = remember { mutableStateListOf<UserAlert>() }
     val positions = remember { mutableStateListOf<Position>() }
+    val orders = remember { mutableStateListOf<Order>() }
+
+    // Add some dummy orders for preview
+    LaunchedEffect(Unit) {
+        if (orders.isEmpty()) {
+            orders.add(Order(symbol = "BTCUSD", type = "buy", orderType = "Limit", status = "Working", price = 62100f, volume = 0.5f, time = System.currentTimeMillis()))
+            orders.add(Order(symbol = "ETHUSD", type = "sell", orderType = "Stop", status = "Inactive", price = 3400f, volume = 10f, time = System.currentTimeMillis()))
+        }
+    }
 
     // Timezone list
     val timeZones = remember {
@@ -500,6 +509,7 @@ fun TradingApp() {
                 PaperTradingPanel(
                     onClose = { showPaperTradingPanel = false },
                     positions = positions,
+                    orders = orders,
                     currentPrice = currentLiveQuote?.lastPrice ?: 0f,
                     backgroundColor = appBackgroundColor
                 )
@@ -676,7 +686,11 @@ fun TradingApp() {
                 bidPrice = currentLiveQuote?.bid ?: 0f,
                 askPrice = currentLiveQuote?.ask ?: 0f,
                 onClose = { showOrderModal = false },
-                onPlaceOrder = { positions.add(it) },
+                onPlaceOrder = { position ->
+                    // Logic to distinguish between immediate position and pending order
+                    // For now, simple implementation
+                    positions.add(position)
+                },
                 onTradingSettingsClick = {
                     showOrderModal = false
                     settingsInitialTab = "Trading"
