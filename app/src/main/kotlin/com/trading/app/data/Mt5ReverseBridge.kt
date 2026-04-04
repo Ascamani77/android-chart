@@ -38,8 +38,22 @@ class Mt5ReverseBridge(
             put("action", "place_order")
             put("symbol", order.symbol)
             put("type", order.type.lowercase()) // "buy" or "sell"
-            put("orderType", order.orderType.lowercase()) // "market", "limit", "stop"
+            
+            // Map the detailed order types to MT5-compatible strings
+            val typeStr = when (order.orderType) {
+                "Buy Limit" -> "limit"
+                "Sell Limit" -> "limit"
+                "Buy Stop" -> "stop"
+                "Sell Stop" -> "stop"
+                "Buy Stop Limit" -> "stoplimit"
+                "Sell Stop Limit" -> "stoplimit"
+                else -> order.orderType.lowercase()
+            }
+            put("orderType", typeStr)
             put("price", order.price.toDouble())
+            if (order.stopLimitPrice != null) {
+                put("stopLimitPrice", order.stopLimitPrice.toDouble())
+            }
             put("volume", order.volume.toDouble())
             put("tp", (order.tp ?: 0.0).toDouble())
             put("sl", (order.sl ?: 0.0).toDouble())

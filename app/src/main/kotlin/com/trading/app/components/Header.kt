@@ -50,6 +50,9 @@ fun Header(
     onDrawingClick: () -> Unit = {},
     onMoreClick: () -> Unit = {},
     onTradeClick: () -> Unit = {},
+    onSellClick: () -> Unit = {},
+    onBuyClick: () -> Unit = {},
+    onLotSizeChange: (String) -> Unit = {},
     onCurrencyClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()

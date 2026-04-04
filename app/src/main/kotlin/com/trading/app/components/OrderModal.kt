@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -42,25 +43,46 @@ fun OrderModal(
     bidPrice: Float,
     askPrice: Float,
     onClose: () -> Unit,
-    onPlaceOrder: (Position) -> Unit,
+    onPlaceOrder: (Position, String, Float?) -> Unit,
     onTradingSettingsClick: () -> Unit
 ) {
     var selectedType by remember { mutableStateOf("buy") }
-    var selectedTab by remember { mutableStateOf("Market") }
+    val orderTypes = listOf(
+        "Market Execution",
+        "Buy Limit",
+        "Sell Limit",
+        "Buy Stop",
+        "Sell Stop",
+        "Buy Stop Limit",
+        "Sell Stop Limit"
+    )
+    var selectedTab by remember { mutableStateOf("Market Execution") }
     
     // Inputs
-    var unitsInput by remember { mutableStateOf("1") }
+    var unitsInput by remember { mutableStateOf("0.1") }
     var limitPriceInput by remember { mutableStateOf("") }
+    var stopLimitPriceInput by remember { mutableStateOf("") }
     var tpEnabled by remember { mutableStateOf(false) }
     var tpPriceInput by remember { mutableStateOf("") }
     var slEnabled by remember { mutableStateOf(false) }
     var slPriceInput by remember { mutableStateOf("") }
+    var expiration by remember { mutableStateOf("GTC") }
+    var commentInput by remember { mutableStateOf("") }
+    
+    // Derived side from tab
+    LaunchedEffect(selectedTab) {
+        if (selectedTab.contains("Buy")) selectedType = "buy"
+        else if (selectedTab.contains("Sell")) selectedType = "sell"
+    }
     
     // Default values logic - Runs when entering a tab or changing side
     LaunchedEffect(selectedTab, selectedType, symbol) {
         val currentMarketPrice = if (selectedType == "buy") askPrice else bidPrice
         if (limitPriceInput.isEmpty()) {
             limitPriceInput = formatPriceValue(currentMarketPrice, symbol).replace(",", "")
+        }
+        if (stopLimitPriceInput.isEmpty()) {
+            stopLimitPriceInput = formatPriceValue(currentMarketPrice, symbol).replace(",", "")
         }
         if (tpPriceInput.isEmpty()) {
             val tpOffset = if (selectedType == "buy") 1.05f else 0.95f
@@ -100,9 +122,19 @@ fun OrderModal(
     // Current Values
     val marketPrice = if (selectedType == "buy") askPrice else bidPrice
     val limitPrice = limitPriceInput.replace(",", "").toFloatOrNull() ?: marketPrice
-    val entryPrice = if (selectedTab == "Market") marketPrice else limitPrice
+    val entryPrice = if (selectedTab == "Market Execution") marketPrice else limitPrice
     val units = unitsInput.toFloatOrNull() ?: 0f
     
+    val isPriceValid = when (selectedTab) {
+        "Buy Limit" -> limitPrice < askPrice
+        "Sell Limit" -> limitPrice > bidPrice
+        "Buy Stop" -> limitPrice > askPrice
+        "Sell Stop" -> limitPrice < bidPrice
+        "Buy Stop Limit" -> limitPrice > askPrice
+        "Sell Stop Limit" -> limitPrice < bidPrice
+        else -> true
+    }
+
     val tpPrice = tpPriceInput.replace(",", "").toFloatOrNull() ?: entryPrice
     val slPrice = slPriceInput.replace(",", "").toFloatOrNull() ?: entryPrice
     
@@ -116,11 +148,6 @@ fun OrderModal(
     val riskPercent = if (balance > 0) (riskAmount / balance) * 100f else 0f
     val tpProfitAmount = units * abs(tpPrice - entryPrice)
     val tpProfitPercent = if (balance > 0) (tpProfitAmount / balance) * 100f else 0f
-
-    // Relative Label (e.g. Ask - 21)
-    val priceDiffTicks = ((limitPrice - askPrice) / tickSize).toInt()
-    val priceSign = if (priceDiffTicks >= 0) "+" else "-"
-    val priceLabel = "Ask $priceSign ${abs(priceDiffTicks)}"
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
@@ -144,167 +171,223 @@ fun OrderModal(
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Header
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(symbol, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.SwapVert, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(formatPriceValue(bidPrice, symbol), color = if (selectedType == "sell") Color(0xFFF23645) else Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(formatPriceValue(askPrice, symbol), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text("Ethereum vs US Dollar", color = Color(0xFF787B86), fontSize = 12.sp)
+                }
+
+                // Tabs - Scrollable like MT5
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .horizontalScroll(rememberScrollState())
                 ) {
-                    IconButton(onClick = onClose) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }
-                    Text(symbol, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(start = 8.dp))
-                    IconButton(onClick = { showPresets = !showPresets }) { Icon(Icons.Default.GridView, null, tint = if (showPresets) Color.White else Color(0xFF787B86)) }
-                    IconButton(onClick = { showMoreMenu = !showMoreMenu }) { Icon(Icons.Default.MoreHoriz, null, tint = if (showMoreMenu) Color.White else Color(0xFF787B86)) }
-                }
-
-                // Buy/Sell buttons
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).height(46.dp).background(Color(0xFF1E222D), RoundedCornerShape(10.dp))) {
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight().background(if (selectedType == "sell") Color(0xFFF23645) else Color(0xFF2A2E39), RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)).clickable { selectedType = "sell" }.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
-                        Column(horizontalAlignment = Alignment.Start) {
-                            Text("Sell", color = Color.White, fontSize = 11.sp)
-                            Text(formatPriceValue(bidPrice, symbol), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    Box(modifier = Modifier.width(60.dp).fillMaxHeight().background(Color(0xFF1E222D)), contentAlignment = Alignment.Center) {
-                        Text(String.format("%.2f", (askPrice - bidPrice) / tickSize * (if (tickSize < 0.01) 0.1 else 1.0)), color = Color(0xFF787B86), fontSize = 11.sp)
-                    }
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight().background(if (selectedType == "buy") Color(0xFF2962FF) else Color(0xFF2A2E39), RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp)).clickable { selectedType = "buy" }.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterEnd) {
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text("Buy", color = Color.White, fontSize = 11.sp)
-                            Text(formatPriceValue(askPrice, symbol), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-
-                // Tabs
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    listOf("Market", "Limit", "Stop").forEach { tab ->
-                        Column(modifier = Modifier.weight(1f).clickable { selectedTab = tab }, horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(tab, color = if (selectedTab == tab) Color.White else Color(0xFF787B86), fontSize = 14.sp, fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.padding(vertical = 8.dp))
-                            if (selectedTab == tab) Box(modifier = Modifier.fillMaxWidth().height(2.dp).background(Color.White))
-                        }
+                    orderTypes.forEach { tab ->
+                        val isSelected = selectedTab == tab
+                        val textColor = if (isSelected) {
+                            if (tab.contains("Sell") || (tab == "Market Execution" && selectedType == "sell")) Color(0xFFF23645) else Color.White
+                        } else Color(0xFF787B86)
+                        
+                        Text(
+                            text = tab,
+                            color = textColor,
+                            fontSize = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier
+                                .clickable { selectedTab = tab }
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
                     }
                 }
 
                 // Content
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-                    if (selectedTab != "Market") {
-                        Text("Price", color = Color(0xFF787B86), fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).border(1.dp, if (selectedType == "sell") Color(0xFFF23645).copy(alpha = 0.4f) else Color(0xFF2A2E39), RoundedCornerShape(4.dp)).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            BasicTextField(value = limitPriceInput, onValueChange = { limitPriceInput = it }, textStyle = TextStyle(color = Color.White, fontSize = 16.sp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), cursorBrush = SolidColor(Color.White), modifier = Modifier.weight(1f))
-                            Icon(Icons.Default.SwapHoriz, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp)); Text(priceLabel, color = Color(0xFF787B86), fontSize = 14.sp)
+                    // Volume
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp)
+                            .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                            .border(1.dp, Color(0xFF2A2E39), RoundedCornerShape(4.dp))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Volume", color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                        BasicTextField(
+                            value = unitsInput,
+                            onValueChange = { unitsInput = it },
+                            textStyle = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            cursorBrush = SolidColor(Color.White),
+                            modifier = Modifier.width(80.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { }) {
+                            Text("Lots", color = Color.White, fontSize = 16.sp)
+                            Icon(Icons.Default.UnfoldMore, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
                         }
                     }
 
-                    // Units
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Row(modifier = Modifier.clickable { showModeSelector = "Units" }, verticalAlignment = Alignment.CenterVertically) {
-                            Text(unitsMode, color = Color(0xFF787B86), fontSize = 14.sp)
-                            Icon(if (showModeSelector == "Units") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(16.dp))
-                        }
-                    }
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).border(1.dp, Color(0xFF2A2E39), RoundedCornerShape(4.dp)).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        BasicTextField(value = unitsInput, onValueChange = { unitsInput = it }, textStyle = TextStyle(color = Color.White, fontSize = 16.sp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), cursorBrush = SolidColor(Color.White), modifier = Modifier.weight(1f))
-                        Icon(Icons.Default.SwapHoriz, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Row(modifier = Modifier.clickable { showModeSelector = "SecondaryUnits" }, verticalAlignment = Alignment.CenterVertically) {
-                            Text(String.format("%.2f USD", margin), color = Color(0xFF787B86), fontSize = 14.sp)
-                            Icon(if (showModeSelector == "SecondaryUnits") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(16.dp))
-                        }
+                    // Volume Slider
+                    Slider(
+                        value = unitsInput.toFloatOrNull() ?: 0.1f,
+                        onValueChange = { unitsInput = String.format("%.1f", it) },
+                        valueRange = 0.1f..10f,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color.White,
+                            activeTrackColor = Color.White,
+                            inactiveTrackColor = Color(0xFF2A2E39)
+                        )
+                    )
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Margin = ${String.format("%.2f", margin)} USD", color = Color.White, fontSize = 12.sp)
+                        Text("Free: ${String.format("%,.2f", balance)} USD", color = Color(0xFF787B86), fontSize = 12.sp)
                     }
 
-                    // Exits Section
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Exits", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        val rr = if (slTicks > 0) String.format("%.2f", tpTicks / slTicks) else "0.00"
-                        Text("• Risk/Reward $rr", color = Color(0xFF787B86), fontSize = 12.sp)
-                        Spacer(modifier = Modifier.weight(1f)); Icon(Icons.Default.KeyboardArrowUp, null, tint = Color(0xFF787B86))
-                    }
-
-                    // Take Profit
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Row(modifier = Modifier.weight(1f).clickable { showModeSelector = "TP" }, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Take profit, ${tpMode.lowercase()}", color = if (tpEnabled) Color.White else Color(0xFF787B86), fontSize = 14.sp)
-                            Icon(if (showModeSelector == "TP") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(16.dp))
+                    if (selectedTab != "Market Execution") {
+                        // Price Field
+                        Text("Price", color = Color(0xFF787B86), fontSize = 14.sp, modifier = Modifier.padding(top = 16.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                                .border(1.dp, if (!isPriceValid) Color(0xFFF23645) else if (selectedType == "sell") Color(0xFFF23645).copy(alpha = 0.4f) else Color(0xFF2A2E39), RoundedCornerShape(4.dp))
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            BasicTextField(
+                                value = limitPriceInput,
+                                onValueChange = { limitPriceInput = it },
+                                textStyle = TextStyle(color = if (!isPriceValid) Color(0xFFF23645) else if (selectedType == "sell") Color(0xFFF23645) else Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                cursorBrush = SolidColor(Color.White),
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(Icons.Default.UnfoldMore, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
                         }
-                        Switch(checked = tpEnabled, onCheckedChange = { tpEnabled = it }, modifier = Modifier.scale(0.7f), colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF2962FF), uncheckedThumbColor = Color(0xFF787B86), uncheckedTrackColor = Color(0xFF2A2E39)))
-                    }
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).border(1.dp, if (tpEnabled) Color(0xFF2A2E39) else Color(0xFF2A2E39).copy(alpha = 0.5f), RoundedCornerShape(4.dp)).background(if (tpEnabled) Color.Transparent else Color(0xFF131722).copy(alpha = 0.5f), RoundedCornerShape(4.dp)).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        BasicTextField(value = tpPriceInput, onValueChange = { tpPriceInput = it }, enabled = tpEnabled, textStyle = TextStyle(color = if (tpEnabled) Color.White else Color(0xFF434651), fontSize = 16.sp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), cursorBrush = SolidColor(Color.White), modifier = Modifier.weight(1f))
-                        Icon(Icons.Default.SwapHoriz, null, tint = if (tpEnabled) Color(0xFF787B86) else Color(0xFF434651), modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Row(modifier = Modifier.clickable { if (tpEnabled) showModeSelector = "SecondaryTP" }, verticalAlignment = Alignment.CenterVertically) {
-                            val secondaryValue = when(secondaryTpMode) {
-                                "Ticks" -> String.format("%.0f ticks", tpTicks)
-                                "% price" -> String.format("%.2f%%", (abs(tpPrice - entryPrice)/entryPrice)*100)
-                                "Risk, USD" -> String.format("%.2f USD", tpProfitAmount)
-                                "Risk, % balance" -> String.format("%.2f%%", tpProfitPercent)
-                                else -> String.format("%.0f ticks", tpTicks)
+
+                        // Stop Limit Price Field
+                        if (selectedTab.contains("Stop Limit")) {
+                            Text("Stop Limit Price", color = Color(0xFF787B86), fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                                    .border(1.dp, if (selectedType == "sell") Color(0xFFF23645).copy(alpha = 0.4f) else Color(0xFF2A2E39), RoundedCornerShape(4.dp))
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                BasicTextField(
+                                    value = stopLimitPriceInput,
+                                    onValueChange = { stopLimitPriceInput = it },
+                                    textStyle = TextStyle(color = if (selectedType == "sell") Color(0xFFF23645) else Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    cursorBrush = SolidColor(Color.White),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(Icons.Default.UnfoldMore, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
                             }
-                            Text(secondaryValue, color = if (tpEnabled) Color(0xFF787B86) else Color(0xFF434651), fontSize = 14.sp)
-                            Icon(if (showModeSelector == "SecondaryTP") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = if (tpEnabled) Color(0xFF787B86) else Color(0xFF434651), modifier = Modifier.size(16.dp))
                         }
                     }
 
-                    // Stop Loss
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Row(modifier = Modifier.weight(1f).clickable { showModeSelector = "SL" }, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Stop loss, ${slMode.lowercase()}", color = if (slEnabled) Color.White else Color(0xFF787B86), fontSize = 14.sp)
-                            Icon(if (showModeSelector == "SL") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(16.dp))
-                        }
-                        Switch(checked = slEnabled, onCheckedChange = { slEnabled = it }, modifier = Modifier.scale(0.7f), colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFFF23645), uncheckedThumbColor = Color(0xFF787B86), uncheckedTrackColor = Color(0xFF2A2E39)))
-                    }
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).border(1.dp, if (slEnabled) Color(0xFF2A2E39) else Color(0xFF2A2E39).copy(alpha = 0.5f), RoundedCornerShape(4.dp)).background(if (slEnabled) Color.Transparent else Color(0xFF131722).copy(alpha = 0.5f), RoundedCornerShape(4.dp)).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        BasicTextField(value = slPriceInput, onValueChange = { slPriceInput = it }, enabled = slEnabled, textStyle = TextStyle(color = if (slEnabled) Color.White else Color(0xFF434651), fontSize = 16.sp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), cursorBrush = SolidColor(Color.White), modifier = Modifier.weight(1f))
-                        Icon(Icons.Default.SwapHoriz, null, tint = if (slEnabled) Color(0xFF787B86) else Color(0xFF434651), modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Row(modifier = Modifier.clickable { if (slEnabled) showModeSelector = "SecondarySL" }, verticalAlignment = Alignment.CenterVertically) {
-                            val secondaryValue = when(secondarySlMode) {
-                                "Ticks" -> String.format("%.0f ticks", slTicks)
-                                "% price" -> String.format("%.2f%%", (abs(slPrice - entryPrice)/entryPrice)*100)
-                                "Risk, USD" -> String.format("%.2f USD", riskAmount)
-                                "Risk, % balance" -> String.format("%.2f%%", riskPercent)
-                                else -> String.format("%.0f ticks", slTicks)
-                            }
-                            Text(secondaryValue, color = if (slEnabled) Color(0xFF787B86) else Color(0xFF434651), fontSize = 14.sp)
-                            Icon(if (showModeSelector == "SecondarySL") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = if (slEnabled) Color(0xFF787B86) else Color(0xFF434651), modifier = Modifier.size(16.dp))
-                        }
+                    // Add Stop Levels Button
+                    Button(
+                        onClick = { showExitLevelsModal = true },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp).height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E222D)),
+                        shape = RoundedCornerShape(4.dp),
+                        border = BorderStroke(1.dp, Color(0xFF2A2E39))
+                    ) {
+                        Text("Add Stop Levels", color = Color.White, fontSize = 16.sp)
                     }
 
-                    Text("+ Add level", color = Color(0xFF2962FF), fontSize = 14.sp, modifier = Modifier.padding(vertical = 12.dp).clickable { showExitLevelsModal = true })
-
-                    if (selectedTab != "Market") {
-                        Text("Extra settings", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
-                        Text("Time in force", color = Color(0xFF787B86), fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).border(1.dp, Color(0xFF2A2E39), RoundedCornerShape(4.dp)).clickable { showModeSelector = "TIF" }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(timeInForce, color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                            Icon(if (showModeSelector == "TIF") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(20.dp))
+                    // Expiration
+                    if (selectedTab != "Market Execution") {
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Expiration: ", color = Color.White, fontSize = 14.sp)
+                            Text(expiration, color = Color.White, fontSize = 14.sp, modifier = Modifier.clickable { })
+                            Icon(Icons.Default.UnfoldMore, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                    } else {
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Fill policy: ", color = Color.White, fontSize = 14.sp)
+                            Text("Fill or Kill", color = Color.White, fontSize = 14.sp, modifier = Modifier.clickable { })
+                            Icon(Icons.Default.UnfoldMore, null, tint = Color.White, modifier = Modifier.size(16.dp))
                         }
                     }
 
-                    // Order Info
-                    Text("Order info", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Margin", color = Color.White, fontSize = 14.sp); Icon(Icons.Default.HelpOutline, null, tint = Color(0xFF787B86), modifier = Modifier.size(14.dp).padding(start = 4.dp))
-                        Spacer(modifier = Modifier.weight(1f)); Text(String.format("%.2f / %,.2f", margin, balance), color = Color.White, fontSize = 14.sp)
+                    // Comment
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Comment: ", color = Color.White, fontSize = 14.sp)
+                        if (commentInput.isEmpty()) {
+                            Text("Add comment", color = Color.White, fontSize = 14.sp, modifier = Modifier.clickable { commentInput = "Order" })
+                        } else {
+                            BasicTextField(value = commentInput, onValueChange = { commentInput = it }, textStyle = TextStyle(color = Color.White, fontSize = 14.sp))
+                        }
                     }
-                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(6.dp).clip(RoundedCornerShape(50)).background(Color(0xFF2A2E39)), contentAlignment = Alignment.CenterStart) {
-                        Box(modifier = Modifier.fillMaxWidth((margin / balance).coerceIn(0f, 1f)).fillMaxHeight().background(Color(0xFF787B86)))
-                    }
-                    InfoRow("Leverage", "500:1")
-                    InfoRow("Tick value", String.format("%.2f USD", tickSize))
-                    InfoRow("Trade value", String.format("%,.2f USD", tradeValue))
-                    InfoRow("Risk", String.format("%.2f%% / %,.2f USD", riskPercent, riskAmount))
-                    Spacer(modifier = Modifier.height(32.dp))
+
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
                 // Bottom Buttons
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 12.dp, bottom = 32.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(onClick = onClose, modifier = Modifier.weight(1f).height(44.dp), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)), colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent, contentColor = Color.White), shape = RoundedCornerShape(8.dp), contentPadding = PaddingValues(0.dp)) { Text("Discard", fontSize = 14.sp, fontWeight = FontWeight.Medium) }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Button(onClick = { onPlaceOrder(Position(symbol = symbol, type = selectedType, entryPrice = entryPrice, volume = units, time = System.currentTimeMillis(), tp = if (tpEnabled) tpPrice else null, sl = if (slEnabled) slPrice else null)); onClose() }, modifier = Modifier.weight(1f).height(44.dp), colors = ButtonDefaults.buttonColors(containerColor = if (selectedType == "buy") Color(0xFF2962FF) else Color(0xFFF23645)), shape = RoundedCornerShape(8.dp), contentPadding = PaddingValues(0.dp)) {
-                        Text(if (selectedTab == "Market") (if (selectedType == "buy") "Buy" else "Sell") else "Place Order", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                if (selectedTab == "Market Execution") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = { onPlaceOrder(Position(symbol = symbol, type = "sell", entryPrice = bidPrice, volume = units, time = System.currentTimeMillis()), "Market", null); onClose() },
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF23645)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Sell", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = { onPlaceOrder(Position(symbol = symbol, type = "buy", entryPrice = askPrice, volume = units, time = System.currentTimeMillis()), "Market", null); onClose() },
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2962FF)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Buy", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = { 
+                            if (isPriceValid) {
+                                onPlaceOrder(
+                                    Position(symbol = symbol, type = selectedType, entryPrice = entryPrice, volume = units, time = System.currentTimeMillis(), tp = if (tpEnabled) tpPrice else null, sl = if (slEnabled) slPrice else null), 
+                                    selectedTab,
+                                    stopLimitPriceInput.toFloatOrNull()
+                                )
+                                onClose()
+                            }
+                        },
+                        enabled = isPriceValid,
+                        modifier = Modifier.fillMaxWidth().padding(16.dp).height(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedType == "buy") Color(0xFF2962FF) else Color(0xFFF23645),
+                            disabledContainerColor = Color(0xFF2A2E39)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(if (isPriceValid) "Place $selectedTab" else "Invalid Price", color = if (isPriceValid) Color.White else Color(0xFF787B86), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
             // Selector Overlays (Units, SecondaryUnits, TP, SL, TIF)

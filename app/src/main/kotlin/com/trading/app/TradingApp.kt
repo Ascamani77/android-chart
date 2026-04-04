@@ -450,6 +450,7 @@ fun TradingApp() {
                                     }
                                     localPositions.removeAll(toRemove)
                                 },
+                                orders = orders,
                                 onOrdersUpdate = { newOrders ->
                                     orders.clear()
                                     orders.addAll(newOrders)
@@ -757,11 +758,26 @@ fun TradingApp() {
                 bidPrice = currentLiveQuote?.bid ?: 0f,
                 askPrice = currentLiveQuote?.ask ?: 0f,
                 onClose = { showOrderModal = false },
-                onPlaceOrder = { position ->
-                    // Logic to distinguish between immediate position and pending order
-                    // For now, simple implementation
-                    reverseBridge.placePosition(position)
-                    positions.add(position)
+                onPlaceOrder = { position, orderType, stopLimitPrice ->
+                    if (orderType == "Market Execution") {
+                        reverseBridge.placePosition(position)
+                        positions.add(position)
+                    } else {
+                        val order = Order(
+                            symbol = position.symbol,
+                            type = position.type,
+                            orderType = orderType,
+                            status = "Working",
+                            price = position.entryPrice,
+                            stopLimitPrice = stopLimitPrice,
+                            volume = position.volume,
+                            time = position.time,
+                            tp = position.tp,
+                            sl = position.sl
+                        )
+                        reverseBridge.placeOrder(order)
+                        orders.add(order)
+                    }
                 },
                 onTradingSettingsClick = {
                     showOrderModal = false

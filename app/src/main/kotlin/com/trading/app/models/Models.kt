@@ -270,9 +270,10 @@ data class Order(
     val id: String = java.util.UUID.randomUUID().toString(),
     val symbol: String,
     val type: String, // "buy" or "sell"
-    val orderType: String, // "Market", "Limit", "Stop"
+    val orderType: String, // "Market", "Limit", "Stop", "Stop Limit" etc
     val status: String, // "Working", "Inactive", "Filled", "Cancelled", "Rejected"
     val price: Float,
+    val stopLimitPrice: Float? = null,
     val volume: Float,
     val time: Long,
     val closingTime: Long? = null,

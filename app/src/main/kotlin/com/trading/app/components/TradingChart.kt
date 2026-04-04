@@ -155,6 +155,7 @@ fun TradingChart(
     onPositionDelete: (String) -> Unit = {},
     onAccountUpdate: (Mt5Service.AccountInfo) -> Unit = {},
     onPositionsUpdate: (List<Position>) -> Unit = {},
+    orders: List<Order> = emptyList(),
     onOrdersUpdate: (List<Order>) -> Unit = {},
     onHistoryOrdersUpdate: (List<Order>) -> Unit = {},
     onBalanceHistoryUpdate: (List<com.trading.app.models.BalanceRecord>) -> Unit = {},
@@ -521,6 +522,70 @@ fun TradingChart(
             // SL Line
             position.sl?.let { sl ->
                 positionPriceLines.add(
+                    api.createPriceLine(
+                        PriceLineOptions(
+                            price = sl,
+                            color = IntColor(AndroidColor.parseColor("#F23645")),
+                            lineWidth = LineWidth.ONE,
+                            lineStyle = LineStyle.DASHED,
+                            lineVisible = true,
+                            axisLabelVisible = true,
+                            title = "SL"
+                        )
+                    )
+                )
+            }
+        }
+    }
+
+    // Manage Order Price Lines (Pending Orders)
+    val orderPriceLines = remember { mutableStateListOf<PriceLine>() }
+    val ordersSnapshot = orders.toList()
+    LaunchedEffect(ordersSnapshot, seriesApi, symbol) {
+        val api = seriesApi ?: return@LaunchedEffect
+        
+        // Remove previous order lines
+        orderPriceLines.forEach { api.removePriceLine(it) }
+        orderPriceLines.clear()
+
+        ordersSnapshot.filter { it.symbol.equals(symbol, ignoreCase = true) }.forEach { order ->
+            val color = if (order.type.equals("buy", ignoreCase = true)) "#2962FF" else "#F2A52C"
+            
+            // Order Price Line
+            orderPriceLines.add(
+                api.createPriceLine(
+                    PriceLineOptions(
+                        price = order.price,
+                        color = IntColor(AndroidColor.parseColor(color)),
+                        lineWidth = LineWidth.ONE,
+                        lineStyle = LineStyle.DASHED,
+                        lineVisible = true,
+                        axisLabelVisible = true,
+                        title = "${order.orderType.uppercase()} ${order.volume}"
+                    )
+                )
+            )
+
+            // TP Line for Order
+            order.tp?.let { tp ->
+                orderPriceLines.add(
+                    api.createPriceLine(
+                        PriceLineOptions(
+                            price = tp,
+                            color = IntColor(AndroidColor.parseColor("#089981")),
+                            lineWidth = LineWidth.ONE,
+                            lineStyle = LineStyle.DASHED,
+                            lineVisible = true,
+                            axisLabelVisible = true,
+                            title = "TP"
+                        )
+                    )
+                )
+            }
+
+            // SL Line for Order
+            order.sl?.let { sl ->
+                orderPriceLines.add(
                     api.createPriceLine(
                         PriceLineOptions(
                             price = sl,
