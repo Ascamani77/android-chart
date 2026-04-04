@@ -1,6 +1,7 @@
 package com.trading.app.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +27,7 @@ import java.util.Locale
 fun PositionsTab(
     positions: List<Position>,
     currentPrice: Float,
+    onPositionClick: (Position) -> Unit = {},
     labelColor: Color = Color(0xFF787B86)
 ) {
     if (positions.isEmpty()) {
@@ -44,7 +46,7 @@ fun PositionsTab(
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
             items(positions) { position ->
-                PositionItem(position, currentPrice)
+                PositionItem(position, currentPrice, onClick = { onPositionClick(position) })
                 Divider(color = Color(0xFF2A2E39), thickness = 1.dp)
             }
         }
@@ -52,7 +54,7 @@ fun PositionsTab(
 }
 
 @Composable
-private fun PositionItem(position: Position, lastPrice: Float) {
+private fun PositionItem(position: Position, lastPrice: Float, onClick: () -> Unit) {
     val labelColor = Color(0xFF787B86)
     
     // Calculations
@@ -68,6 +70,7 @@ private fun PositionItem(position: Position, lastPrice: Float) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onClick() }
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

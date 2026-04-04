@@ -23,6 +23,7 @@ import java.util.Locale
 @Composable
 fun PaperTradingPanel(
     onClose: () -> Unit,
+    onPositionClick: (Position) -> Unit = {},
     positions: List<Position> = emptyList(),
     orders: List<Order> = emptyList(),
     orderHistory: List<Order> = emptyList(),
@@ -194,7 +195,7 @@ fun PaperTradingPanel(
         // Independent Tab Content
         Box(modifier = Modifier.fillMaxSize()) {
             when (activeTab) {
-                "Positions" -> PositionsTab(positions, currentPrice)
+                "Positions" -> PositionsTab(positions, currentPrice, onPositionClick = onPositionClick)
                 "Orders" -> OrdersTab(orders)
                 "Order History" -> OrderHistoryTab(orderHistory)
                 "Balance History" -> BalanceHistoryTab(balanceHistory)

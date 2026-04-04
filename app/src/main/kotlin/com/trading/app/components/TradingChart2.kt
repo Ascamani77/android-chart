@@ -476,7 +476,7 @@ fun ModifyTpSlModal(
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         TabItem("Close Position", selectedTab == "Close Position", primaryColor) { selectedTab = "Close Position" }
                         Spacer(modifier = Modifier.width(16.dp))
-                        TabItem("Entire Position", selectedTab == "Entire Position", primaryColor) { selectedTab = "Entire Position" }
+                        TabItem("Modify Position", selectedTab == "Modify Position", primaryColor) { selectedTab = "Modify Position" }
                         Spacer(modifier = Modifier.width(16.dp))
                         TabItem("Partial Position", selectedTab == "Partial Position", primaryColor, isNew = true) { selectedTab = "Partial Position" }
                         Spacer(modifier = Modifier.weight(1f))
@@ -543,7 +543,7 @@ fun ModifyTpSlModal(
                                                         
                                                         Column(horizontalAlignment = Alignment.End) {
                                                             Text(
-                                                                "${if (pnl >= 0) "+" else ""}${String.format("%.2f", pnl)} USDT",
+                                                                "${if (pnl >= 0) "+" else ""}${String.format("%.2f", pnl)} USD",
                                                                 color = pnlColor,
                                                                 fontWeight = FontWeight.Bold,
                                                                 fontSize = 15.sp
@@ -586,7 +586,7 @@ fun ModifyTpSlModal(
                                             shape = RoundedCornerShape(6.dp)
                                         ) {
                                             Text(
-                                                text = "Close ${currentPos.symbol} with ${if (pnl >= 0) "profit" else "loss"} ${if (pnl >= 0) "+" else ""}${String.format("%.2f", pnl)} USDT",
+                                                text = "Close ${currentPos.symbol} with ${if (pnl >= 0) "profit" else "loss"} ${if (pnl >= 0) "+" else ""}${String.format("%.2f", pnl)} USD",
                                                 color = Color.White,
                                                 fontSize = 15.sp,
                                                 fontWeight = FontWeight.Bold
@@ -639,7 +639,7 @@ fun ModifyTpSlModal(
                                 }
                             }
                         }
-                        "Entire Position" -> {
+                        "Modify Position" -> {
                             // Take Profit Section
                             val tpVal = tpTriggerPrice.toFloatOrNull()
                             val tpPnl = tpVal?.let { if (isBuy) (it - entryPrice) * (qty.toFloatOrNull() ?: 1f) else (entryPrice - it) * (qty.toFloatOrNull() ?: 1f) }
@@ -1023,7 +1023,7 @@ fun SummaryText(type: String, targetPrice: String, entryPrice: Float, volume: Fl
     val profitLossText = if (actualIsProfit) "profit" else "loss"
     
     Text(
-        text = "Last Traded Price to ${if (targetPrice.isEmpty()) "..." else targetPrice} will trigger market $type order; your expected $profitLossText will be ${String.format("%.4f", amount)} USDT (ROI: ${String.format("%.2f", roi)}%)",
+        text = "Last Traded Price to ${if (targetPrice.isEmpty()) "..." else targetPrice} will trigger market $type order; your expected $profitLossText will be ${String.format("%.4f", amount)} USD (ROI: ${String.format("%.2f", roi)}%)",
         color = Color(0xFF787B86),
         fontSize = 12.sp,
         lineHeight = 16.sp,

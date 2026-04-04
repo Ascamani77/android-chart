@@ -215,6 +215,7 @@ fun TradingApp() {
     var showChartTypeModal by remember { mutableStateOf(false) }
     var showFloatingTradingButtons by remember { mutableStateOf(false) }
     var showOrderModal by remember { mutableStateOf(false) }
+    var selectedPositionToModify by remember { mutableStateOf<Position?>(null) }
 
     // Quick Actions State
     var showQuickActions by remember { mutableStateOf(false) }
@@ -577,6 +578,10 @@ fun TradingApp() {
             if (showPaperTradingPanel) {
                 PaperTradingPanel(
                     onClose = { showPaperTradingPanel = false },
+                    onPositionClick = { pos ->
+                        selectedPositionToModify = pos
+                        showPaperTradingPanel = false
+                    },
                     positions = positions,
                     orders = orders,
                     orderHistory = orderHistory,
@@ -584,6 +589,47 @@ fun TradingApp() {
                     currentPrice = currentLiveQuote?.lastPrice ?: 0f,
                     accountInfo = mt5AccountInfo,
                     backgroundColor = appBackgroundColor
+                )
+            }
+
+            if (selectedPositionToModify != null) {
+                val pos = selectedPositionToModify!!
+                ModifyTpSlModal(
+                    symbol = pos.symbol,
+                    qty = pos.volume.toString(),
+                    entryPrice = pos.entryPrice,
+                    lastTradedPrice = currentLiveQuote?.lastPrice ?: pos.entryPrice,
+                    isBuy = pos.type.equals("buy", ignoreCase = true),
+                    initialTp = pos.tp,
+                    initialSl = pos.sl,
+                    initialPartialOrders = pos.partialOrders,
+                    allPositions = (positions + localPositions).distinctBy { it.id },
+                    currentPrice = currentLiveQuote?.lastPrice ?: 0f,
+                    onConfirm = { tp, sl, partials ->
+                        val updatedPos = pos.copy(tp = tp, sl = sl, partialOrders = partials)
+                        reverseBridge.modifyPosition(updatedPos, tp, sl)
+                        // Update local state
+                        val idxLocal = localPositions.indexOfFirst { it.id == pos.id }
+                        if (idxLocal != -1) localPositions[idxLocal] = updatedPos
+                        val idxRemote = positions.indexOfFirst { it.id == pos.id }
+                        if (idxRemote != -1) positions[idxRemote] = updatedPos
+                        
+                        selectedPositionToModify = null
+                    },
+                    onCancel = { selectedPositionToModify = null },
+                    onClosePosition = { id ->
+                        val p = positions.find { it.id == id } ?: localPositions.find { it.id == id }
+                        p?.let { reverseBridge.closePosition(it) }
+                        positions.removeAll { it.id == id }
+                        localPositions.removeAll { it.id == id }
+                    },
+                    onPositionUpdate = { updated ->
+                        reverseBridge.modifyPosition(updated, updated.tp, updated.sl)
+                        val idxLocal = localPositions.indexOfFirst { it.id == updated.id }
+                        if (idxLocal != -1) localPositions[idxLocal] = updated
+                        val idxRemote = positions.indexOfFirst { it.id == updated.id }
+                        if (idxRemote != -1) positions[idxRemote] = updated
+                    }
                 )
             }
 
