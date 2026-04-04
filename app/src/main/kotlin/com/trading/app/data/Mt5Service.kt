@@ -201,6 +201,17 @@ class Mt5Service(
         }
     }
 
+    fun sendAction(action: String, params: Map<String, Any>) {
+        val json = JSONObject()
+        json.put("action", action)
+        params.forEach { (key, value) ->
+            json.put(key, value)
+        }
+        val msg = json.toString()
+        Log.d(TAG, "Sending action: $msg")
+        webSocket?.send(msg)
+    }
+
     fun disconnect() {
         webSocket?.close(1000, "App closing")
         webSocket = null

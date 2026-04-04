@@ -9,6 +9,19 @@ if not mt5.initialize():
     print("MT5 initialize failed.")
     quit()
 
+terminal_info = mt5.terminal_info()
+if terminal_info:
+    if not terminal_info.trade_allowed:
+        print("WARNING: Algo Trading is DISABLED in MT5 terminal. Please enable 'Algo Trading' button in the top toolbar.")
+    if not terminal_info.connected:
+        print("WARNING: MT5 terminal is NOT connected to the broker server.")
+
+account_info = mt5.account_info()
+if account_info:
+    print(f"Connected to account: {account_info.login} at {account_info.server}")
+else:
+    print("WARNING: Could not retrieve account info. Check connection.")
+
 print("MetaTrader 5 connected successfully.")
 
 # Map Android timeframe names to MT5 timeframes
@@ -68,11 +81,10 @@ async def handle_client(websocket):
             async for message in websocket:
                 try:
                     data = json.loads(message)
-                    if data.get("action") == "subscribe":
+                    action = data.get("action")
+                    if action == "subscribe":
                         symbol = data.get("symbol")
                         # Add 'm' back if missing for MT5 internal use (adjust if your broker uses 'M')
-                        # Most Exness accounts use 'm', some might use 'M'.
-                        # We'll try to find the actual symbol in MT5.
                         all_symbols = [s.name for s in mt5.symbols_get()]
                         matched_symbol = next((s for s in all_symbols if s.upper() == symbol.upper() or s.upper() == (symbol + "M").upper()), symbol)
 
@@ -81,6 +93,99 @@ async def handle_client(websocket):
                         tf_str = data.get("timeframe", "1h")
                         current_tf = TIMEFRAME_MAP.get(tf_str, mt5.TIMEFRAME_H1)
                         await send_history(current_symbol, current_tf)
+
+                    elif action == "place_order":
+                        symbol = data.get("symbol")
+                        # Handle symbol mapping
+                        all_symbols = [s.name for s in mt5.symbols_get()]
+                        matched_symbol = next((s for s in all_symbols if s.upper() == symbol.upper() or s.upper() == (symbol + "M").upper()), symbol)
+
+                        order_type = data.get("type").lower() # buy or sell
+                        volume = float(data.get("volume", 0.01))
+                        price = float(data.get("price", 0))
+                        tp = float(data.get("tp", 0))
+                        sl = float(data.get("sl", 0))
+
+                        mt5_type = mt5.ORDER_TYPE_BUY if order_type == "buy" else mt5.ORDER_TYPE_SELL
+                        current_tick = mt5.symbol_info_tick(matched_symbol)
+                        if current_tick is None:
+                            await websocket.send(json.dumps({"type": "order_result", "status": "failed", "error": "No tick data"}))
+                            continue
+
+                        request = {
+                            "action": mt5.TRADE_ACTION_DEAL,
+                            "symbol": matched_symbol,
+                            "volume": volume,
+                            "type": mt5_type,
+                            "price": current_tick.ask if order_type == "buy" else current_tick.bid,
+                            "magic": 123456,
+                            "comment": data.get("comment", "App Order"),
+                            "type_time": mt5.ORDER_TIME_GTC,
+                            "type_filling": mt5.ORDER_FILLING_IOC,
+                        }
+                        if tp > 0: request["tp"] = tp
+                        if sl > 0: request["sl"] = sl
+
+                        result = mt5.order_send(request)
+                        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                            await websocket.send(json.dumps({
+                                "type": "order_result",
+                                "status": "success",
+                                "ticket": result.order,
+                                "price": result.price,
+                                "volume": result.volume
+                            }))
+                        else:
+                            await websocket.send(json.dumps({
+                                "type": "order_result",
+                                "status": "failed",
+                                "error": result.comment if result else "Order failed"
+                            }))
+                        print(f"Order Result: {result.comment if result else 'Failed'}")
+
+                    elif action == "close_position":
+                        ticket = int(data.get("ticket"))
+                        symbol = data.get("symbol")
+                        volume = float(data.get("volume"))
+
+                        # Find position to get type
+                        positions = mt5.positions_get(ticket=ticket)
+                        if positions:
+                            p = positions[0]
+                            order_type = mt5.ORDER_TYPE_SELL if p.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
+                            price = mt5.symbol_info_tick(p.symbol).bid if p.type == mt5.POSITION_TYPE_BUY else mt5.symbol_info_tick(p.symbol).ask
+
+                            request = {
+                                "action": mt5.TRADE_ACTION_DEAL,
+                                "symbol": p.symbol,
+                                "volume": volume,
+                                "type": order_type,
+                                "position": ticket,
+                                "price": price,
+                                "magic": 123456,
+                                "comment": "App Close",
+                                "type_time": mt5.ORDER_TIME_GTC,
+                                "type_filling": mt5.ORDER_FILLING_IOC,
+                            }
+                            result = mt5.order_send(request)
+                            print(f"Close Result: {result.comment if result else 'Failed'}")
+                        else:
+                            print(f"Position {ticket} not found for closing")
+
+                    elif action == "modify_position":
+                        ticket = int(data.get("ticket"))
+                        tp = float(data.get("tp", 0))
+                        sl = float(data.get("sl", 0))
+
+                        request = {
+                            "action": mt5.TRADE_ACTION_SLTP,
+                            "position": ticket,
+                            "tp": tp,
+                            "sl": sl,
+                        }
+                        result = mt5.order_send(request)
+                        print(f"Modify Result: {result.comment if result else 'Failed'}")
+
                 except Exception as e:
                     print(f"Listen error: {e}")
         except websockets.exceptions.ConnectionClosed:
@@ -105,7 +210,8 @@ async def handle_client(websocket):
 
                 # 2. Send Account Info
                 account = mt5.account_info()
-                if account:
+                terminal = mt5.terminal_info()
+                if account and terminal:
                     acc_payload = {
                         "type": "account",
                         "balance": float(account.balance),
@@ -115,7 +221,8 @@ async def handle_client(websocket):
                         "margin": float(account.margin),
                         "availableFunds": float(account.margin_free),
                         "ordersMargin": 0.0,
-                        "marginBuffer": float(account.margin_level) if account.margin_level > 0 else 100.0
+                        "marginBuffer": float(account.margin_level) if account.margin_level > 0 else 100.0,
+                        "trade_allowed": terminal.trade_allowed
                     }
                     await websocket.send(json.dumps(acc_payload))
 

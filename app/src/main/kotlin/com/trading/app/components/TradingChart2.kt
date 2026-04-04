@@ -91,7 +91,8 @@ fun TradingChart2(
     onOrdersUpdate: (List<Order>) -> Unit = {},
     onHistoryOrdersUpdate: (List<Order>) -> Unit = {},
     onBalanceHistoryUpdate: (List<BalanceRecord>) -> Unit = {},
-    isTradingBarVisible: Boolean = false
+    isTradingBarVisible: Boolean = false,
+    reverseBridge: com.trading.app.data.Mt5ReverseBridge? = null
 ) {
     var lotSize by remember { mutableStateOf("1.0000") }
     var tpPrice by remember { mutableStateOf<Float?>(null) }
@@ -155,8 +156,14 @@ fun TradingChart2(
             onHistoryOrdersUpdate = onHistoryOrdersUpdate,
             onBalanceHistoryUpdate = onBalanceHistoryUpdate,
             positions = positions,
-            onPositionUpdate = onPositionUpdate,
-            onPositionDelete = onPositionDelete,
+            onPositionUpdate = { pos ->
+                reverseBridge?.modifyPosition(pos, pos.tp, pos.sl)
+                onPositionUpdate(pos)
+            },
+            onPositionDelete = { id ->
+                // Handled in TradingApp.kt to access both positions and localPositions
+                onPositionDelete(id)
+            },
             onDoubleClick = { price ->
                 val lastPrice = currentLiveQuote?.lastPrice ?: price
                 val tolerance = lastPrice * 0.02f
@@ -167,7 +174,8 @@ fun TradingChart2(
                 if (targetPos != null) {
                     selectedPositionToModify = targetPos
                 }
-            }
+            },
+            reverseBridge = reverseBridge
         )
 
         // Floating Trading Bar
@@ -215,7 +223,8 @@ fun TradingChart2(
                             .background(Color(0xFFF23645))
                             .clickable {
                                 currentLiveQuote?.let { quote ->
-                                    onPositionUpdate(Position(
+                                    val newPos = Position(
+                                        id = "temp_${System.currentTimeMillis()}",
                                         symbol = symbol,
                                         type = "sell",
                                         entryPrice = quote.bid,
@@ -224,7 +233,9 @@ fun TradingChart2(
                                         tp = tpPrice,
                                         sl = slPrice,
                                         partialOrders = pendingPartialOrders
-                                    ))
+                                    )
+                                    reverseBridge?.placePosition(newPos)
+                                    onPositionUpdate(newPos)
                                 }
                             },
                         contentAlignment = Alignment.Center
@@ -272,7 +283,8 @@ fun TradingChart2(
                             .background(Color(0xFF2962FF))
                             .clickable {
                                 currentLiveQuote?.let { quote ->
-                                    onPositionUpdate(Position(
+                                    val newPos = Position(
+                                        id = "temp_${System.currentTimeMillis()}",
                                         symbol = symbol,
                                         type = "buy",
                                         entryPrice = quote.ask,
@@ -281,7 +293,9 @@ fun TradingChart2(
                                         tp = tpPrice,
                                         sl = slPrice,
                                         partialOrders = pendingPartialOrders
-                                    ))
+                                    )
+                                    reverseBridge?.placePosition(newPos)
+                                    onPositionUpdate(newPos)
                                 }
                             },
                         contentAlignment = Alignment.Center

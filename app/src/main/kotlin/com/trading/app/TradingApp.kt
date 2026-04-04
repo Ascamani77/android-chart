@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.trading.app.components.*
 import com.trading.app.models.*
 import com.trading.app.data.Mt5Service
+import com.trading.app.data.Mt5ReverseBridge
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
@@ -144,10 +145,18 @@ fun TradingApp() {
     val redoStack = remember { mutableStateListOf<ChartSnapshot>() }
     val userAlerts = remember { mutableStateOf(emptyList<UserAlert>()) }
     val positions = remember { mutableStateListOf<Position>() }
+    val localPositions = remember { mutableStateListOf<Position>() }
     val orders = remember { mutableStateListOf<Order>() }
     val orderHistory = remember { mutableStateListOf<Order>() }
     val balanceHistory = remember { mutableStateListOf<BalanceRecord>() }
     var mt5AccountInfo by remember { mutableStateOf<Mt5Service.AccountInfo?>(null) }
+    
+    val reverseBridge = remember { 
+        Mt5ReverseBridge(
+            pcIpAddress = "10.222.138.133",
+            port = 8081
+        )
+    }
 
     // MT5 data is now live from mt5_bridge.py
     LaunchedEffect(Unit) {
@@ -389,18 +398,57 @@ fun TradingApp() {
                                 onSettingsClick = { showChartSettingsBottomSheet = true },
                                 selectedTimeZone = selectedTz.label,
                                 onQuoteUpdate = { currentLiveQuote = it },
-                                positions = positions,
+                                positions = (positions + localPositions).distinctBy { it.id },
                                 onPositionUpdate = { updated ->
-                                    val idx = positions.indexOfFirst { it.id == updated.id }
-                                    if (idx != -1) positions[idx] = updated else positions.add(updated)
+                                    if (updated.id.startsWith("temp_")) {
+                                        val idx = localPositions.indexOfFirst { it.id == updated.id }
+                                        if (idx != -1) localPositions[idx] = updated else localPositions.add(updated)
+                                    } else {
+                                        val idx = positions.indexOfFirst { it.id == updated.id }
+                                        if (idx != -1) positions[idx] = updated else positions.add(updated)
+                                    }
                                 },
                                 onPositionDelete = { id ->
+                                    val pos = positions.find { it.id == id } ?: localPositions.find { it.id == id }
+                                    pos?.let { 
+                                        android.util.Log.d("TradingApp", "Closing position: ${it.id} for ${it.symbol}")
+                                        reverseBridge.closePosition(it) 
+                                    }
                                     positions.removeAll { it.id == id }
+                                    localPositions.removeAll { it.id == id }
                                 },
                                 onAccountUpdate = { mt5AccountInfo = it },
                                 onPositionsUpdate = { newPositions ->
                                     positions.clear()
                                     positions.addAll(newPositions)
+                                    
+                                    // RECONCILIATION LOGIC:
+                                    // We only remove local positions if they match a server position (volume/type)
+                                    // or if we have information that the request failed.
+                                    // For now, let's keep local positions for at least 5 seconds or until matched.
+                                    
+                                    val serverIds = newPositions.map { it.id }.toSet()
+                                    val symbolPositions = newPositions.filter { it.symbol.equals(symbol, ignoreCase = true) }
+                                    
+                                    val toRemove = mutableListOf<Position>()
+                                    localPositions.forEach { local ->
+                                        if (local.symbol.equals(symbol, ignoreCase = true)) {
+                                            // Check if any server position matches this local one (roughly)
+                                            val match = symbolPositions.find { 
+                                                it.type == local.type && 
+                                                Math.abs(it.volume - local.volume) < 0.001 
+                                            }
+                                            if (match != null) {
+                                                toRemove.add(local)
+                                            } else {
+                                                // Optional: Remove if it's too old (e.g., > 10 seconds)
+                                                if (System.currentTimeMillis() - local.time > 10000) {
+                                                    toRemove.add(local)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    localPositions.removeAll(toRemove)
                                 },
                                 onOrdersUpdate = { newOrders ->
                                     orders.clear()
@@ -414,7 +462,8 @@ fun TradingApp() {
                                     balanceHistory.clear()
                                     balanceHistory.addAll(newBalanceHistory)
                                 },
-                                isTradingBarVisible = showFloatingTradingButtons
+                                isTradingBarVisible = showFloatingTradingButtons,
+                                reverseBridge = reverseBridge
                             )
                         }
 
@@ -711,6 +760,7 @@ fun TradingApp() {
                 onPlaceOrder = { position ->
                     // Logic to distinguish between immediate position and pending order
                     // For now, simple implementation
+                    reverseBridge.placePosition(position)
                     positions.add(position)
                 },
                 onTradingSettingsClick = {

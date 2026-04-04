@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.trading.app.data.Mt5Service
+import com.trading.app.data.Mt5ReverseBridge
 import com.trading.app.models.ChartSettings
 import com.trading.app.models.Drawing
 import com.trading.app.models.Position
@@ -157,7 +158,8 @@ fun TradingChart(
     onOrdersUpdate: (List<Order>) -> Unit = {},
     onHistoryOrdersUpdate: (List<Order>) -> Unit = {},
     onBalanceHistoryUpdate: (List<com.trading.app.models.BalanceRecord>) -> Unit = {},
-    onDoubleClick: (Float) -> Unit = {}
+    onDoubleClick: (Float) -> Unit = {},
+    reverseBridge: Mt5ReverseBridge? = null
 ) {
     var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
     var currentQuoteState by remember { mutableStateOf<SymbolQuote?>(null) }
@@ -236,6 +238,7 @@ fun TradingChart(
 
     LaunchedEffect(Unit) {
         mt5Service.connect()
+        reverseBridge?.connect()
     }
 
     LaunchedEffect(symbol, timeframe) {
