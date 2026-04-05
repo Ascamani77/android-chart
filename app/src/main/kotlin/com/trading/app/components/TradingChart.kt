@@ -153,6 +153,7 @@ fun TradingChart(
     positions: List<Position> = emptyList(),
     onPositionUpdate: (Position) -> Unit = {},
     onPositionDelete: (String) -> Unit = {},
+    onDataLoaded: (List<CandlestickData>) -> Unit = {},
     onAccountUpdate: (Mt5Service.AccountInfo) -> Unit = {},
     onPositionsUpdate: (List<Position>) -> Unit = {},
     orders: List<Order> = emptyList(),
@@ -178,6 +179,7 @@ fun TradingChart(
     val askPriceLineState = remember { mutableStateOf<PriceLine?>(null) }
 
     val updatedOnQuoteUpdate = rememberUpdatedState(onQuoteUpdate)
+    val updatedOnDataLoaded = rememberUpdatedState(onDataLoaded)
     val currentSymbol = rememberUpdatedState(symbol)
 
     // Range-based H/L state
@@ -211,6 +213,7 @@ fun TradingChart(
             onHistoryUpdate = { receivedSymbol, history ->
                 if (receivedSymbol.isEmpty() || receivedSymbol.equals(currentSymbol.value, ignoreCase = true)) {
                     candlestickData = history
+                    updatedOnDataLoaded.value(history)
                 }
             },
             onQuoteUpdate = { quote ->
