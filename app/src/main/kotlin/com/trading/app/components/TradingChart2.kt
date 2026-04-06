@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trading.app.models.ChartSettings
 import com.trading.app.models.Drawing
+import com.trading.app.models.OHLCData
 import com.trading.app.models.PartialOrder
 import com.trading.app.models.Position
 import com.trading.app.models.Order
@@ -101,84 +102,111 @@ fun TradingChart2(
     var pendingPartialOrders by remember { mutableStateOf<List<PartialOrder>>(emptyList()) }
     
     var currentLiveQuote by remember { mutableStateOf<SymbolQuote?>(null) }
+    var ohlcList by remember { mutableStateOf<List<OHLCData>>(emptyList()) }
+
+    val rsiValues by remember(ohlcList, showRsi, rsiPeriod) {
+        val vals = if (showRsi) com.trading.app.utils.Indicators.calculateRsi(ohlcList, rsiPeriod) else emptyList()
+        android.util.Log.d("TradingChart2", "RSI computed: ohlcList.size=${ohlcList.size}, rsiValues.size=${vals.size}, showRsi=$showRsi")
+        mutableStateOf(vals)
+    }
+    val rsiMaValues by remember(rsiValues) { mutableStateOf(if (rsiValues.isNotEmpty()) com.trading.app.utils.Indicators.calculateSma(rsiValues, 14) else emptyList()) }
     var showModifyModal by remember { mutableStateOf(false) }
     var selectedPositionToModify by remember { mutableStateOf<Position?>(null) }
     var offset by remember { mutableStateOf(IntOffset(100, 100)) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        TradingChart(
-            symbol = symbol,
-            timeframe = timeframe,
-            style = style,
-            chartSettings = chartSettings,
-            drawings = drawings,
-            onDrawingUpdate = onDrawingUpdate,
-            activeTool = activeTool,
-            onToolReset = onToolReset,
-            showRsi = showRsi,
-            rsiPeriod = rsiPeriod,
-            showEma10 = showEma10,
-            ema10Period = ema10Period,
-            showEma20 = showEma20,
-            ema20Period = ema20Period,
-            showSma1 = showSma1,
-            sma1Period = sma1Period,
-            showSma2 = showSma2,
-            sma2Period = sma2Period,
-            showVwap = showVwap,
-            showBb = showBb,
-            bbPeriod = bbPeriod,
-            showAtr = showAtr,
-            atrPeriod = atrPeriod,
-            showVolume = showVolume,
-            isCrosshairActive = isCrosshairActive,
-            onCrosshairToggle = onCrosshairToggle,
-            onVolumeToggle = onVolumeToggle,
-            onIndicatorSettingsClick = onIndicatorSettingsClick,
-            isMagnetEnabled = isMagnetEnabled,
-            isLocked = isLocked,
-            isVisible = isVisible,
-            selectedCurrency = selectedCurrency,
-            onCurrencyClick = onCurrencyClick,
-            isFullscreen = isFullscreen,
-            onFullscreenExit = onFullscreenExit,
-            scrollToTimestamp = scrollToTimestamp,
-            onScrollDone = onScrollDone,
-            onLongPress = onLongPress,
-            onSettingsClick = onSettingsClick,
-            selectedTimeZone = selectedTimeZone,
-            onQuoteUpdate = { 
-                currentLiveQuote = it
-                onQuoteUpdate(it)
-            },
-            onAccountUpdate = onAccountUpdate,
-            onPositionsUpdate = onPositionsUpdate,
-            orders = orders,
-            onOrdersUpdate = onOrdersUpdate,
-            onHistoryOrdersUpdate = onHistoryOrdersUpdate,
-            onBalanceHistoryUpdate = onBalanceHistoryUpdate,
-            positions = positions,
-            onPositionUpdate = { pos ->
-                reverseBridge?.modifyPosition(pos, pos.tp, pos.sl)
-                onPositionUpdate(pos)
-            },
-            onPositionDelete = { id ->
-                // Handled in TradingApp.kt to access both positions and localPositions
-                onPositionDelete(id)
-            },
-            onDoubleClick = { price ->
-                val lastPrice = currentLiveQuote?.lastPrice ?: price
-                val tolerance = lastPrice * 0.02f
-                val targetPos = positions.find {
-                    it.symbol.equals(symbol, ignoreCase = true) &&
-                    abs(it.entryPrice - lastPrice) < tolerance
-                }
-                if (targetPos != null) {
-                    selectedPositionToModify = targetPos
-                }
-            },
-            reverseBridge = reverseBridge
-        )
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.weight(if (showRsi) 0.7f else 1f).fillMaxWidth()) {
+                TradingChart(
+                    symbol = symbol,
+                    timeframe = timeframe,
+                    style = style,
+                    chartSettings = chartSettings,
+                    drawings = drawings,
+                    onDrawingUpdate = onDrawingUpdate,
+                    activeTool = activeTool,
+                    onToolReset = onToolReset,
+                    showRsi = showRsi,
+                    rsiPeriod = rsiPeriod,
+                    showEma10 = showEma10,
+                    ema10Period = ema10Period,
+                    showEma20 = showEma20,
+                    ema20Period = ema20Period,
+                    showSma1 = showSma1,
+                    sma1Period = sma1Period,
+                    showSma2 = showSma2,
+                    sma2Period = sma2Period,
+                    showVwap = showVwap,
+                    showBb = showBb,
+                    bbPeriod = bbPeriod,
+                    showAtr = showAtr,
+                    atrPeriod = atrPeriod,
+                    showVolume = showVolume,
+                    isCrosshairActive = isCrosshairActive,
+                    onCrosshairToggle = onCrosshairToggle,
+                    onVolumeToggle = onVolumeToggle,
+                    onIndicatorSettingsClick = onIndicatorSettingsClick,
+                    isMagnetEnabled = isMagnetEnabled,
+                    isLocked = isLocked,
+                    isVisible = isVisible,
+                    selectedCurrency = selectedCurrency,
+                    onCurrencyClick = onCurrencyClick,
+                    isFullscreen = isFullscreen,
+                    onFullscreenExit = onFullscreenExit,
+                    scrollToTimestamp = scrollToTimestamp,
+                    onScrollDone = onScrollDone,
+                    onLongPress = onLongPress,
+                    onSettingsClick = onSettingsClick,
+                    selectedTimeZone = selectedTimeZone,
+                    onQuoteUpdate = {
+                        currentLiveQuote = it
+                        onQuoteUpdate(it)
+                    },
+                    onDataLoaded = { data ->
+                        // store candles locally so RSIPane can render when requested
+                        ohlcList = data
+                        android.util.Log.d("TradingChart2", "onDataLoaded: received ${data.size} candles for $symbol")
+                    },
+                    onAccountUpdate = onAccountUpdate,
+                    onPositionsUpdate = onPositionsUpdate,
+                    orders = orders,
+                    onOrdersUpdate = onOrdersUpdate,
+                    onHistoryOrdersUpdate = onHistoryOrdersUpdate,
+                    onBalanceHistoryUpdate = onBalanceHistoryUpdate,
+                    positions = positions,
+                    onPositionUpdate = { pos ->
+                        reverseBridge?.modifyPosition(pos, pos.tp, pos.sl)
+                        onPositionUpdate(pos)
+                    },
+                    onPositionDelete = { id ->
+                        // Handled in TradingApp.kt to access both positions and localPositions
+                        onPositionDelete(id)
+                    },
+                    onDoubleClick = { price ->
+                        val lastPrice = currentLiveQuote?.lastPrice ?: price
+                        val tolerance = lastPrice * 0.02f
+                        val targetPos = positions.find {
+                            it.symbol.equals(symbol, ignoreCase = true) &&
+                            abs(it.entryPrice - lastPrice) < tolerance
+                        }
+                        if (targetPos != null) {
+                            selectedPositionToModify = targetPos
+                        }
+                    },
+                    reverseBridge = reverseBridge
+                )
+            }
+
+            if (showRsi) {
+                android.util.Log.d("TradingChart2", "Rendering RSIPane: rsiValues.size=${rsiValues.size}, nonNull=${rsiValues.count { it != null }}")
+                RSIPane(
+                    rsiValues = rsiValues,
+                    rsiMaValues = rsiMaValues,
+                    rsiPeriod = rsiPeriod,
+                    modifier = Modifier.weight(0.3f)
+                )
+            }
+        }
 
         // Floating Trading Bar
         if (isTradingBarVisible && chartSettings.trading.oneClickTrading) {

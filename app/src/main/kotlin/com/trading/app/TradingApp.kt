@@ -321,6 +321,11 @@ fun TradingApp() {
             "vol" -> showVolume = !showVolume
             "atr" -> showAtr = !showAtr
         }
+        // debug: confirm indicator toggle
+        try {
+            android.util.Log.d("TradingApp", "Indicator toggled: $id -> rsi:$showRsi ema10:$showEma10 ema20:$showEma20 sma1:$showSma1 sma2:$showSma2 vwap:$showVwap bb:$showBb vol:$showVolume atr:$showAtr")
+            android.widget.Toast.makeText(context, "Toggled: $id", android.widget.Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) { /* ignore in non-UI tests */ }
     }
 
     val appBackgroundColor = when (chartSettings.canvas.fullChartColor) {

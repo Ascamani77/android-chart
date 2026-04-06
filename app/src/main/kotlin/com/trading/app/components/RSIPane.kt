@@ -33,6 +33,15 @@ fun RSIPane(
             .background(Color(0xFF131722))
             .border(0.5.dp, Color(0xFF2A2E39))
     ) {
+        // If no RSI data, show placeholder
+        val hasData = rsiValues.any { it != null }
+        android.util.Log.d("RSIPane", "RSIPane rendered: size=${rsiValues.size}, hasData=$hasData, nonNull=${rsiValues.count { it != null }}")
+        if (!hasData) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No RSI data", color = Color(0xFFD1D4DC), fontSize = 12.sp)
+            }
+            return
+        }
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
             val height = size.height

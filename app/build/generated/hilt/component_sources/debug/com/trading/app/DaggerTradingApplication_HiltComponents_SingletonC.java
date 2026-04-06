@@ -7,6 +7,14 @@ import android.view.View;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.SavedStateHandle;
 import androidx.lifecycle.ViewModel;
+import com.example.tradingchart.CandleMapper;
+import com.example.tradingchart.ChartDependencyModule_ProvideCandleMapperFactory;
+import com.example.tradingchart.ChartDependencyModule_ProvideGsonFactory;
+import com.example.tradingchart.ChartDependencyModule_ProvideTradingChartCoordinatorFactory;
+import com.example.tradingchart.ChartDependencyModule_ProvideTradingChartJsBuilderFactory;
+import com.example.tradingchart.TradingChartCoordinator;
+import com.example.tradingchart.TradingChartJsBuilder;
+import com.google.gson.Gson;
 import com.trading.app.di.ChartModule_ProvideChartCoordinatorFactory;
 import com.trading.app.di.ChartModule_ProvideIndicatorJsBuilderFactory;
 import com.trading.app.di.IndicatorModule_ProvideAtrFactory;
@@ -553,6 +561,14 @@ public final class DaggerTradingApplication_HiltComponents_SingletonC {
   private static final class SingletonCImpl extends TradingApplication_HiltComponents.SingletonC {
     private final SingletonCImpl singletonCImpl = this;
 
+    private Provider<TradingChartJsBuilder> provideTradingChartJsBuilderProvider;
+
+    private Provider<Gson> provideGsonProvider;
+
+    private Provider<CandleMapper> provideCandleMapperProvider;
+
+    private Provider<TradingChartCoordinator> provideTradingChartCoordinatorProvider;
+
     private Provider<IndicatorJsBuilder> provideIndicatorJsBuilderProvider;
 
     private Provider<ChartCoordinator> provideChartCoordinatorProvider;
@@ -565,12 +581,21 @@ public final class DaggerTradingApplication_HiltComponents_SingletonC {
 
     @SuppressWarnings("unchecked")
     private void initialize() {
-      this.provideIndicatorJsBuilderProvider = DoubleCheck.provider(new SwitchingProvider<IndicatorJsBuilder>(singletonCImpl, 1));
-      this.provideChartCoordinatorProvider = DoubleCheck.provider(new SwitchingProvider<ChartCoordinator>(singletonCImpl, 0));
+      this.provideTradingChartJsBuilderProvider = DoubleCheck.provider(new SwitchingProvider<TradingChartJsBuilder>(singletonCImpl, 1));
+      this.provideGsonProvider = DoubleCheck.provider(new SwitchingProvider<Gson>(singletonCImpl, 3));
+      this.provideCandleMapperProvider = DoubleCheck.provider(new SwitchingProvider<CandleMapper>(singletonCImpl, 2));
+      this.provideTradingChartCoordinatorProvider = DoubleCheck.provider(new SwitchingProvider<TradingChartCoordinator>(singletonCImpl, 0));
+      this.provideIndicatorJsBuilderProvider = DoubleCheck.provider(new SwitchingProvider<IndicatorJsBuilder>(singletonCImpl, 5));
+      this.provideChartCoordinatorProvider = DoubleCheck.provider(new SwitchingProvider<ChartCoordinator>(singletonCImpl, 4));
     }
 
     @Override
-    public void injectTradingApplication(TradingApplication arg0) {
+    public TradingChartCoordinator getCoordinator() {
+      return provideTradingChartCoordinatorProvider.get();
+    }
+
+    @Override
+    public void injectTradingApplication(TradingApplication tradingApplication) {
     }
 
     @Override
@@ -602,10 +627,22 @@ public final class DaggerTradingApplication_HiltComponents_SingletonC {
       @Override
       public T get() {
         switch (id) {
-          case 0: // com.trading.app.ui.chart.ChartCoordinator 
+          case 0: // com.example.tradingchart.TradingChartCoordinator 
+          return (T) ChartDependencyModule_ProvideTradingChartCoordinatorFactory.provideTradingChartCoordinator(singletonCImpl.provideTradingChartJsBuilderProvider.get(), singletonCImpl.provideCandleMapperProvider.get());
+
+          case 1: // com.example.tradingchart.TradingChartJsBuilder 
+          return (T) ChartDependencyModule_ProvideTradingChartJsBuilderFactory.provideTradingChartJsBuilder();
+
+          case 2: // com.example.tradingchart.CandleMapper 
+          return (T) ChartDependencyModule_ProvideCandleMapperFactory.provideCandleMapper(singletonCImpl.provideGsonProvider.get());
+
+          case 3: // com.google.gson.Gson 
+          return (T) ChartDependencyModule_ProvideGsonFactory.provideGson();
+
+          case 4: // com.trading.app.ui.chart.ChartCoordinator 
           return (T) ChartModule_ProvideChartCoordinatorFactory.provideChartCoordinator(singletonCImpl.provideIndicatorJsBuilderProvider.get());
 
-          case 1: // com.trading.app.ui.chart.IndicatorJsBuilder 
+          case 5: // com.trading.app.ui.chart.IndicatorJsBuilder 
           return (T) ChartModule_ProvideIndicatorJsBuilderFactory.provideIndicatorJsBuilder();
 
           default: throw new AssertionError(id);

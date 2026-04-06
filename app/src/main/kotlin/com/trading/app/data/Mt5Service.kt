@@ -3,15 +3,14 @@ package com.trading.app.data
 import android.util.Log
 import com.google.gson.Gson
 import com.trading.app.components.SymbolQuote
-import com.tradingview.lightweightcharts.api.series.models.CandlestickData
-import com.tradingview.lightweightcharts.api.series.models.Time
+import com.trading.app.models.OHLCData
 import okhttp3.*
 import org.json.JSONObject
 
 class Mt5Service(
     private val pcIpAddress: String = "10.222.138.133",
     private val port: Int = 8081,
-    private val onHistoryUpdate: (String, List<CandlestickData>) -> Unit,
+    private val onHistoryUpdate: (String, List<OHLCData>) -> Unit,
     private val onQuoteUpdate: (SymbolQuote) -> Unit,
     private val onAccountUpdate: (AccountInfo) -> Unit = {},
     private val onPositionsUpdate: (List<com.trading.app.models.Position>) -> Unit = {},
@@ -73,18 +72,59 @@ class Mt5Service(
                         val symbol = cleanSymbol(root.optString("symbol", root.optString("name", "")))
                         val dataArray = root.optJSONArray("data") ?: return
                         
-                        val history = mutableListOf<CandlestickData>()
+                        val history = mutableListOf<OHLCData>()
+                        fun parseTime(obj: JSONObject): Long {
+                            // Try multiple possible fields and formats
+                            var t = 0L
+                            if (obj.has("time")) {
+                                try { t = obj.getLong("time") } catch (_: Exception) {
+                                    try { t = obj.getString("time").toLong() } catch (_: Exception) { t = 0L }
+                                }
+                            }
+                            if (t == 0L && obj.has("timestamp")) {
+                                try { t = obj.getLong("timestamp") } catch (_: Exception) {
+                                    try { t = obj.getString("timestamp").toLong() } catch (_: Exception) { t = 0L }
+                                }
+                            }
+                            if (t == 0L && obj.has("t")) {
+                                try { t = obj.getLong("t") } catch (_: Exception) {
+                                    try { t = obj.getString("t").toLong() } catch (_: Exception) { t = 0L }
+                                }
+                            }
+                            if (t == 0L && obj.has("date")) {
+                                // try ISO datetime parsing
+                                try {
+                                    val s = obj.getString("date")
+                                    val parsed = java.time.OffsetDateTime.parse(s)
+                                    t = parsed.toEpochSecond()
+                                } catch (_: Exception) { /* ignore */ }
+                            }
+                            // if t looks like milliseconds (>= 1e12), convert to seconds
+                            if (t > 1000000000000L) t /= 1000L
+                            return t
+                        }
+
                         for (i in 0 until dataArray.length()) {
                             val obj = dataArray.getJSONObject(i)
-                            val timeVal = obj.optLong("time", 0L)
+                            val timeVal = parseTime(obj)
                             if (timeVal == 0L) continue
-                            
-                            history.add(CandlestickData(
-                                time = Time.Utc(timeVal),
+
+                            history.add(OHLCData(
+                                time = timeVal,
                                 open = obj.optDouble("open", 0.0).toFloat(),
                                 high = obj.optDouble("high", 0.0).toFloat(),
                                 low = obj.optDouble("low", 0.0).toFloat(),
-                                close = obj.optDouble("close", 0.0).toFloat()
+                                close = obj.optDouble("close", 0.0).toFloat(),
+                                volume = obj.optDouble(
+                                    "volume",
+                                    obj.optDouble(
+                                        "tick_volume",
+                                        obj.optDouble(
+                                            "real_volume",
+                                            obj.optDouble("vol", 0.0)
+                                        )
+                                    )
+                                ).toFloat()
                             ))
                         }
                         Log.d(TAG, "Parsed ${history.size} candles for $symbol")

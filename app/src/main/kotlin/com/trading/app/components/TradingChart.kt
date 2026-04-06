@@ -39,8 +39,18 @@ import com.tradingview.lightweightcharts.api.series.enums.*
 import com.tradingview.lightweightcharts.api.chart.models.color.IntColor
 import com.tradingview.lightweightcharts.api.chart.models.color.surface.SolidColor
 import android.graphics.Color as AndroidColor
+import com.trading.app.models.OHLCData
+import com.trading.app.utils.Indicators
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
+import com.tradingview.lightweightcharts.api.series.models.Time
+
+private const val LOG_TAG = "TradingChart"
+
+fun Time.toTimestamp(): Long = (this as? Time.Utc)?.timestamp ?: 0L
+private fun Long.toChartTime(): Time = Time.Utc(this)
+private fun OHLCData.toCandlestickData(): CandlestickData =
+    CandlestickData(time = time.toChartTime(), open = open, high = high, low = low, close = close)
 
 // Data class to match the "Quote" structure
 data class SymbolQuote(
@@ -87,7 +97,7 @@ private fun getFullChartColor(colorSetting: String, customBg: String): Int {
     }
 }
 
-private fun calculateHeikinAshi(data: List<CandlestickData>): List<CandlestickData> {
+private fun calculateHeikinAshi(data: List<OHLCData>): List<CandlestickData> {
     if (data.isEmpty()) return emptyList()
     val haData = mutableListOf<CandlestickData>()
     var prevOpen = data[0].open
@@ -99,12 +109,39 @@ private fun calculateHeikinAshi(data: List<CandlestickData>): List<CandlestickDa
         val high = maxOf(candle.high, maxOf(open, close))
         val low = minOf(candle.low, minOf(open, close))
         
-        haData.add(CandlestickData(candle.time, open, high, low, close))
+        haData.add(CandlestickData(candle.time.toChartTime(), open, high, low, close))
         
         prevOpen = open
         prevClose = close
     }
     return haData
+}
+
+private fun buildVolumeHistogramData(data: List<OHLCData>): List<HistogramData> {
+    if (data.isEmpty()) return emptyList()
+
+    val hasRealVolume = data.any { it.volume > 0f }
+    val values = if (hasRealVolume) {
+        data.map { it.volume.coerceAtLeast(0f) }
+    } else {
+        data.map {
+            val body = kotlin.math.abs(it.close - it.open)
+            val range = (it.high - it.low).coerceAtLeast(0f)
+            maxOf(range, body, 0.0001f)
+        }
+    }
+
+    return data.mapIndexed { index, candle ->
+        HistogramData(
+            time = candle.time.toChartTime(),
+            value = values[index],
+            color = if (candle.close >= candle.open) {
+                IntColor(AndroidColor.parseColor("#089981"))
+            } else {
+                IntColor(AndroidColor.parseColor("#F23645"))
+            }
+        )
+    }
 }
 
 @Composable
@@ -148,12 +185,12 @@ fun TradingChart(
     onScrollDone: () -> Unit = {},
     onLongPress: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    onDataLoaded: (List<OHLCData>) -> Unit = {},
     selectedTimeZone: String = "UTC",
     onQuoteUpdate: (SymbolQuote) -> Unit = {},
     positions: List<Position> = emptyList(),
     onPositionUpdate: (Position) -> Unit = {},
     onPositionDelete: (String) -> Unit = {},
-    onDataLoaded: (List<CandlestickData>) -> Unit = {},
     onAccountUpdate: (Mt5Service.AccountInfo) -> Unit = {},
     onPositionsUpdate: (List<Position>) -> Unit = {},
     orders: List<Order> = emptyList(),
@@ -163,11 +200,27 @@ fun TradingChart(
     onDoubleClick: (Float) -> Unit = {},
     reverseBridge: Mt5ReverseBridge? = null
 ) {
-    var candlestickData by remember { mutableStateOf<List<CandlestickData>>(emptyList()) }
+    var ohlcData by remember { mutableStateOf<List<OHLCData>>(emptyList()) }
+    val candlestickData by remember {
+        derivedStateOf { ohlcData.map(OHLCData::toCandlestickData) }
+    }
     var currentQuoteState by remember { mutableStateOf<SymbolQuote?>(null) }
     var seriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var chartsViewApi by remember { mutableStateOf<ChartsView?>(null) }
     var showMarketStatus by remember { mutableStateOf(false) }
+
+    // Indicator series state
+    var rsiSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var ema10SeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var ema20SeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var sma1SeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var sma2SeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var vwapSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var atrSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var bbUpperSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var bbMiddleSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var bbLowerSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var volumeSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
 
     // High/Low lines state (Line and Label separate for color independence)
     val highLineState = remember { mutableStateOf<PriceLine?>(null) }
@@ -179,7 +232,6 @@ fun TradingChart(
     val askPriceLineState = remember { mutableStateOf<PriceLine?>(null) }
 
     val updatedOnQuoteUpdate = rememberUpdatedState(onQuoteUpdate)
-    val updatedOnDataLoaded = rememberUpdatedState(onDataLoaded)
     val currentSymbol = rememberUpdatedState(symbol)
 
     // Range-based H/L state
@@ -212,13 +264,15 @@ fun TradingChart(
             port = 8081,
             onHistoryUpdate = { receivedSymbol, history ->
                 if (receivedSymbol.isEmpty() || receivedSymbol.equals(currentSymbol.value, ignoreCase = true)) {
-                    candlestickData = history
-                    updatedOnDataLoaded.value(history)
+                    ohlcData = history
+                    // notify host that new data has been loaded
+                    onDataLoaded(history)
+                    Log.d(LOG_TAG, "onHistoryUpdate: received ${history.size} candles for $receivedSymbol")
                 }
             },
             onQuoteUpdate = { quote ->
                 if (quote.name.equals(currentSymbol.value, ignoreCase = true)) {
-                    val prevClose = candlestickData.getOrNull(candlestickData.size - 2)?.close ?: quote.lastPrice
+                    val prevClose = ohlcData.getOrNull(ohlcData.size - 2)?.close ?: quote.lastPrice
                     val change = quote.lastPrice - prevClose
                     val changePercent = if (prevClose != 0f) (change / prevClose) * 100f else 0f
                     
@@ -246,22 +300,99 @@ fun TradingChart(
     }
 
     LaunchedEffect(symbol, timeframe) {
-        candlestickData = emptyList()
+        ohlcData = emptyList()
         currentQuoteState = null
         mt5Service.subscribe(symbol, timeframe)
     }
 
-    LaunchedEffect(candlestickData, seriesApi, style) {
+    LaunchedEffect(ohlcData, seriesApi, style,
+        showRsi, rsiPeriod, showEma10, ema10Period, showEma20, ema20Period, 
+        showSma1, sma1Period, showSma2, sma2Period, showVwap, showBb, bbPeriod, showAtr, atrPeriod, showVolume) {
         val api = seriesApi ?: return@LaunchedEffect
-        if (candlestickData.isNotEmpty()) {
+        val ohlcList = ohlcData
+        
+        if (ohlcData.isNotEmpty()) {
             when (style) {
                 "bars" -> api.setData(candlestickData.map { BarData(it.time, it.open, it.high, it.low, it.close) })
                 "line", "area" -> api.setData(candlestickData.map { LineData(it.time, it.close) })
-                "heikin_ashi" -> api.setData(calculateHeikinAshi(candlestickData))
+                "heikin_ashi" -> api.setData(calculateHeikinAshi(ohlcData))
                 else -> api.setData(candlestickData)
+            }
+
+            // Update Indicator Data
+            if (showRsi) {
+                val rsiData = Indicators.calculateRsi(ohlcList, rsiPeriod)
+                rsiSeriesApi?.setData(rsiData.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+            }
+            
+            if (showEma10) {
+                val ema10Data = com.trading.app.indicators.EmaIndicator(ema10Period).calculate(ohlcList)
+                ema10SeriesApi?.setData(ema10Data.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+            }
+
+            if (showEma20) {
+                val ema20Data = com.trading.app.indicators.EmaIndicator(ema20Period).calculate(ohlcList)
+                ema20SeriesApi?.setData(ema20Data.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+            }
+
+            if (showSma1) {
+                val sma1Data = Indicators.calculateSma(ohlcList.map { it.close }, sma1Period)
+                sma1SeriesApi?.setData(sma1Data.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+            }
+
+            if (showSma2) {
+                val sma2Data = Indicators.calculateSma(ohlcList.map { it.close }, sma2Period)
+                sma2SeriesApi?.setData(sma2Data.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+            }
+
+            if (showVwap) {
+                val vwapData = com.trading.app.indicators.VwapIndicator().calculate(ohlcList)
+                vwapSeriesApi?.setData(vwapData.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+            }
+
+            if (showAtr) {
+                val atrData = com.trading.app.indicators.AtrIndicator(atrPeriod).calculate(ohlcList)
+                atrSeriesApi?.setData(atrData.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+            }
+
+            if (showBb) {
+                // BbandsIndicator implementation in this project only returns middle band in its current state
+                // but we can calculate all three if needed or just use the middle band for now
+                val bbData = com.trading.app.indicators.BbandsIndicator(bbPeriod).calculate(ohlcList)
+                bbMiddleSeriesApi?.setData(bbData.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+                // For a full BB implementation we would need upper and lower bands
+            }
+
+            if (showVolume) {
+                volumeSeriesApi?.setData(buildVolumeHistogramData(ohlcData))
             }
         } else {
             api.setData(emptyList())
+            rsiSeriesApi?.setData(emptyList())
+            ema10SeriesApi?.setData(emptyList())
+            ema20SeriesApi?.setData(emptyList())
+            sma1SeriesApi?.setData(emptyList())
+            sma2SeriesApi?.setData(emptyList())
+            vwapSeriesApi?.setData(emptyList())
+            atrSeriesApi?.setData(emptyList())
+            bbMiddleSeriesApi?.setData(emptyList())
+            volumeSeriesApi?.setData(emptyList())
         }
     }
 
@@ -618,7 +749,7 @@ fun TradingChart(
             .fillMaxSize()
             .background(ComposeColor.Black)
     ) {
-        key(style, symbol) {
+        key(style, symbol, showRsi, showEma10, showEma20, showSma1, showSma2, showVwap, showBb, showAtr, showVolume) {
             AndroidView(
                 factory = { context ->
                     ChartsView(context).apply {
@@ -626,6 +757,8 @@ fun TradingChart(
                         val uppercaseSymbol = symbol.uppercase()
                         val isBitcoin = uppercaseSymbol.contains("BTC") || uppercaseSymbol.contains("BITCOIN")
                         val isForex = uppercaseSymbol.length == 6 || uppercaseSymbol.contains("/")
+                        val mainScaleMargins = PriceScaleMargins(top = 0.06f, bottom = if (showVolume) 0.24f else 0.04f)
+                        val volumeScaleMargins = PriceScaleMargins(top = 0.76f, bottom = 0f)
                         
                         val precision = when {
                             isBitcoin -> 0
@@ -697,28 +830,150 @@ fun TradingChart(
                         val priceLineVisible = chartSettings.scales.symbolLastPriceLine
                         val lastValueVisible = chartSettings.scales.symbolLastPriceLabel
 
+                        // Add Indicator Series
+                        if (showRsi) {
+                            api.addLineSeries(
+                                options = LineSeriesOptions(
+                                    color = IntColor(AndroidColor.parseColor("#7E57C2")),
+                                    lineWidth = LineWidth.ONE,
+                                    priceScaleId = PriceScaleId("rsi_pane")
+                                ),
+                                onSeriesCreated = { rsiSeriesApi = it }
+                            )
+                        }
+
+                        if (showEma10) {
+                            api.addLineSeries(
+                                options = LineSeriesOptions(
+                                    color = IntColor(AndroidColor.parseColor("#2962FF")),
+                                    lineWidth = LineWidth.ONE
+                                ),
+                                onSeriesCreated = { ema10SeriesApi = it }
+                            )
+                        }
+
+                        if (showEma20) {
+                            api.addLineSeries(
+                                options = LineSeriesOptions(
+                                    color = IntColor(AndroidColor.parseColor("#FF6D00")),
+                                    lineWidth = LineWidth.ONE
+                                ),
+                                onSeriesCreated = { ema20SeriesApi = it }
+                            )
+                        }
+
+                        if (showSma1) {
+                            api.addLineSeries(
+                                options = LineSeriesOptions(
+                                    color = IntColor(AndroidColor.parseColor("#4CAF50")),
+                                    lineWidth = LineWidth.ONE
+                                ),
+                                onSeriesCreated = { sma1SeriesApi = it }
+                            )
+                        }
+
+                        if (showSma2) {
+                            api.addLineSeries(
+                                options = LineSeriesOptions(
+                                    color = IntColor(AndroidColor.parseColor("#F44336")),
+                                    lineWidth = LineWidth.ONE
+                                ),
+                                onSeriesCreated = { sma2SeriesApi = it }
+                            )
+                        }
+
+                        if (showVwap) {
+                            api.addLineSeries(
+                                options = LineSeriesOptions(
+                                    color = IntColor(AndroidColor.parseColor("#FFD600")),
+                                    lineWidth = LineWidth.ONE
+                                ),
+                                onSeriesCreated = { vwapSeriesApi = it }
+                            )
+                        }
+
+                        if (showAtr) {
+                            api.addLineSeries(
+                                options = LineSeriesOptions(
+                                    color = IntColor(AndroidColor.parseColor("#F44336")),
+                                    lineWidth = LineWidth.ONE,
+                                    priceScaleId = PriceScaleId("atr_pane")
+                                ),
+                                onSeriesCreated = { atrSeriesApi = it }
+                            )
+                        }
+
+                        if (showBb) {
+                            api.addLineSeries(
+                                options = LineSeriesOptions(
+                                    color = IntColor(AndroidColor.parseColor("#2196F3")),
+                                    lineWidth = LineWidth.ONE
+                                ),
+                                onSeriesCreated = { bbMiddleSeriesApi = it }
+                            )
+                        }
+
+                        if (showVolume) {
+                            api.addHistogramSeries(
+                                options = HistogramSeriesOptions(
+                                    lastValueVisible = false,
+                                    priceLineVisible = false,
+                                    base = 0f,
+                                    priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.VOLUME, precision = 0, minMove = 1f),
+                                    priceScaleId = PriceScaleId("volume_pane")
+                                ),
+                                onSeriesCreated = {
+                                    volumeSeriesApi = it
+                                    it.priceScale().applyOptions(
+                                        PriceScaleOptions(
+                                            autoScale = true,
+                                            scaleMargins = volumeScaleMargins,
+                                            visible = false,
+                                            borderVisible = false
+                                        )
+                                    )
+                                }
+                            )
+                        }
+
                         when (style) {
                             "bars" -> {
                                 api.addBarSeries(
                                     options = BarSeriesOptions(
                                         upColor = chartSettings.symbol.upColor.toIntColor(),
                                         downColor = chartSettings.symbol.downColor.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove),
-                                        priceLineVisible = priceLineVisible,
-                                        lastValueVisible = lastValueVisible
+                                    priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove.toFloat()),
+                                    priceLineVisible = priceLineVisible,
+                                    lastValueVisible = lastValueVisible
                                     ),
-                                    onSeriesCreated = { api -> seriesApi = api }
+                                    onSeriesCreated = { api ->
+                                        seriesApi = api
+                                        api.priceScale().applyOptions(
+                                            PriceScaleOptions(
+                                                autoScale = true,
+                                                scaleMargins = mainScaleMargins
+                                            )
+                                        )
+                                    }
                                 )
                             }
                             "line" -> {
                                 api.addLineSeries(
                                     options = LineSeriesOptions(
                                         color = chartSettings.symbol.upColor.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove),
+                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove.toFloat()),
                                         priceLineVisible = priceLineVisible,
                                         lastValueVisible = lastValueVisible
                                     ),
-                                    onSeriesCreated = { api -> seriesApi = api }
+                                    onSeriesCreated = { api ->
+                                        seriesApi = api
+                                        api.priceScale().applyOptions(
+                                            PriceScaleOptions(
+                                                autoScale = true,
+                                                scaleMargins = mainScaleMargins
+                                            )
+                                        )
+                                    }
                                 )
                             }
                             else -> {
@@ -732,11 +987,19 @@ fun TradingChart(
                                         wickVisible = chartSettings.symbol.wickVisible,
                                         wickUpColor = chartSettings.symbol.wickColorUp.toIntColor(),
                                         wickDownColor = chartSettings.symbol.wickColorDown.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove),
+                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove.toFloat()),
                                         priceLineVisible = priceLineVisible,
                                         lastValueVisible = lastValueVisible
                                     ),
-                                    onSeriesCreated = { api -> seriesApi = api }
+                                    onSeriesCreated = { api ->
+                                        seriesApi = api
+                                        api.priceScale().applyOptions(
+                                            PriceScaleOptions(
+                                                autoScale = true,
+                                                scaleMargins = mainScaleMargins
+                                            )
+                                        )
+                                    }
                                 )
                             }
                         }

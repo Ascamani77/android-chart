@@ -55,12 +55,30 @@ async def handle_client(websocket):
         if rates is not None:
             history = []
             for r in rates:
+                tick_volume = 0.0
+                real_volume = 0.0
+                try:
+                    tick_volume = float(r["tick_volume"])
+                except Exception:
+                    try:
+                        tick_volume = float(r[5])
+                    except Exception:
+                        tick_volume = 0.0
+                try:
+                    real_volume = float(r["real_volume"])
+                except Exception:
+                    try:
+                        real_volume = float(r[7])
+                    except Exception:
+                        real_volume = 0.0
+
                 history.append({
                     "time": int(r[0]),
                     "open": float(r[1]),
                     "high": float(r[2]),
                     "low": float(r[3]),
-                    "close": float(r[4])
+                    "close": float(r[4]),
+                    "volume": real_volume if real_volume > 0 else tick_volume
                 })
             await websocket.send(json.dumps({
                 "type": "history",

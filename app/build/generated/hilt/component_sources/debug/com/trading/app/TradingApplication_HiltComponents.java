@@ -1,5 +1,7 @@
 package com.trading.app;
 
+import com.example.tradingchart.ChartDependencyModule;
+import com.example.tradingchart.TradingChartViewEntryPoint;
 import com.trading.app.di.ChartModule;
 import com.trading.app.di.IndicatorModule;
 import com.trading.app.viewmodels.ChartViewModel_HiltModules;
@@ -119,6 +121,7 @@ public final class TradingApplication_HiltComponents {
   @Component(
       modules = {
           ApplicationContextModule.class,
+          ChartDependencyModule.class,
           ChartModule.class,
           HiltWrapper_FragmentGetContextFix_FragmentGetContextFixModule.class,
           IndicatorModule.class,
@@ -127,7 +130,8 @@ public final class TradingApplication_HiltComponents {
       }
   )
   @Singleton
-  public abstract static class SingletonC implements TradingApplication_GeneratedInjector,
+  public abstract static class SingletonC implements TradingChartViewEntryPoint,
+      TradingApplication_GeneratedInjector,
       FragmentGetContextFix.FragmentGetContextFixEntryPoint,
       HiltWrapper_ActivityRetainedComponentManager_ActivityRetainedComponentBuilderEntryPoint,
       ServiceComponentManager.ServiceComponentBuilderEntryPoint,

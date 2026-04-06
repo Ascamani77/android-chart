@@ -21,7 +21,6 @@ import com.trading.app.models.OHLCData
 import com.trading.app.utils.Indicators
 import com.tradingview.lightweightcharts.api.series.models.CandlestickData
 import java.util.Locale
-import com.tradingview.lightweightcharts.api.series.models.Time
 import com.tradingview.lightweightcharts.api.series.models.BarData
 import com.tradingview.lightweightcharts.api.series.models.LineData
 
@@ -159,19 +158,7 @@ fun TradingChart3(
                 onPositionUpdate = onPositionUpdate,
                 onPositionDelete = onPositionDelete,
                 onDataLoaded = { data ->
-                    ohlcData = data.map { candle ->
-                        val timestamp = when (val t = candle.time) {
-                            is Time.Utc -> t.timestamp
-                            else -> t.date.time
-                        }
-                        OHLCData(
-                            time = timestamp,
-                            open = candle.open,
-                            high = candle.high,
-                            low = candle.low,
-                            close = candle.close
-                        )
-                    }
+                    ohlcData = data
                 },
                 reverseBridge = reverseBridge
             )
