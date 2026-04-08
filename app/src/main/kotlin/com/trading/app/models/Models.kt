@@ -295,6 +295,76 @@ data class BalanceRecord(
     val action: String
 )
 
+data class CalendarDayChip(
+    val isoDate: String,
+    val dayNumber: Int,
+    val dayLabel: String,
+    val isSelected: Boolean = false,
+    val isToday: Boolean = false
+)
+
+data class EconomicCalendarDisplayEvent(
+    val id: Long,
+    val isoDateTime: String,
+    val releaseTimeLabel: String,
+    val countryCode: String,
+    val countryName: String,
+    val currencyCode: String,
+    val title: String,
+    val actual: String,
+    val forecast: String,
+    val previous: String,
+    val importance: String,
+    val impactDirection: Int,
+    val isSpeechOrReport: Boolean = false,
+    val isAllDay: Boolean = false,
+    val detailsUrl: String? = null
+)
+
+data class EconomicCalendarDisplayPayload(
+    val sourceLabel: String,
+    val rangeStartIso: String,
+    val rangeEndIso: String,
+    val selectedDateIso: String,
+    val headerDateLabel: String,
+    val dayChips: List<CalendarDayChip>,
+    val events: List<EconomicCalendarDisplayEvent>,
+    val lastUpdatedIso: String
+)
+
+data class EconomicCalendarAiEvent(
+    val id: Long,
+    val isoDateTime: String,
+    val dateIso: String,
+    val currencyCode: String,
+    val countryCode: String,
+    val countryName: String,
+    val title: String,
+    val importance: String,
+    val actual: String,
+    val forecast: String,
+    val previous: String,
+    val impactDirection: Int,
+    val eventType: Int,
+    val timeMode: Int,
+    val processed: Boolean,
+    val detailsUrl: String? = null
+)
+
+data class EconomicCalendarAiPayload(
+    val source: String,
+    val generatedAtIso: String,
+    val selectedDateIso: String,
+    val rangeStartIso: String,
+    val rangeEndIso: String,
+    val events: List<EconomicCalendarAiEvent>
+)
+
+data class EconomicCalendarPayload(
+    val display: EconomicCalendarDisplayPayload,
+    val ai: EconomicCalendarAiPayload
+)
+
 data class JournalEntry(
     val id: String = java.util.UUID.randomUUID().toString(),
     val time: String,

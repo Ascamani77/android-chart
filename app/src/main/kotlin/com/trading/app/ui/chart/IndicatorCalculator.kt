@@ -9,34 +9,42 @@ import javax.inject.Singleton
 class IndicatorCalculator @Inject constructor() {
 
     fun calculateRsi(data: List<CandlestickData>, period: Int = 14): List<LineData> {
-        if (data.size <= period) return emptyList()
+        if (period <= 0 || data.size <= period) return emptyList()
 
         val results = mutableListOf<LineData>()
-        val gains = mutableListOf<Float>()
-        val losses = mutableListOf<Float>()
+        var gainSum = 0.0
+        var lossSum = 0.0
 
-        for (i in 1 until data.size) {
-            val change = data[i].close - data[i - 1].close
-            gains.add(if (change > 0) change else 0f)
-            losses.add(if (change < 0) -change else 0f)
+        for (index in 1..period) {
+            val change = (data[index].close - data[index - 1].close).toDouble()
+            if (change > 0.0) {
+                gainSum += change
+            } else {
+                lossSum -= change
+            }
         }
 
-        var avgGain = gains.take(period).average().toFloat()
-        var avgLoss = losses.take(period).average().toFloat()
+        var avgGain = gainSum / period
+        var avgLoss = lossSum / period
 
-        fun calculateRsiValue(g: Float, l: Float): Float {
-            if (l == 0f) return 100f
-            val rs = g / l
-            return 100f - (100f / (1f + rs))
+        fun calculateRsiValue(gain: Double, loss: Double): Float {
+            return when {
+                gain == 0.0 && loss == 0.0 -> 50f
+                loss == 0.0 -> 100f
+                gain == 0.0 -> 0f
+                else -> (100.0 - (100.0 / (1.0 + gain / loss))).toFloat()
+            }
         }
 
-        // Add first RSI value at index 'period'
         results.add(LineData(data[period].time, calculateRsiValue(avgGain, avgLoss)))
 
-        for (i in period until gains.size) {
-            avgGain = (avgGain * (period - 1) + gains[i]) / period
-            avgLoss = (avgLoss * (period - 1) + losses[i]) / period
-            results.add(LineData(data[i + 1].time, calculateRsiValue(avgGain, avgLoss)))
+        for (index in period + 1 until data.size) {
+            val change = (data[index].close - data[index - 1].close).toDouble()
+            val gain = if (change > 0.0) change else 0.0
+            val loss = if (change < 0.0) -change else 0.0
+            avgGain = ((avgGain * (period - 1)) + gain) / period
+            avgLoss = ((avgLoss * (period - 1)) + loss) / period
+            results.add(LineData(data[index].time, calculateRsiValue(avgGain, avgLoss)))
         }
 
         return results

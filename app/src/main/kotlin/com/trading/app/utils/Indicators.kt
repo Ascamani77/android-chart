@@ -13,44 +13,42 @@ object Indicators {
      * RS = AvgGain / AvgLoss
      */
     fun calculateRsi(data: List<OHLCData>, period: Int = 14): List<Float?> {
-        if (data.size <= period) return List(data.size) { null }
+        if (period <= 0 || data.size <= period) return List(data.size) { null }
 
-        val rsiValues = mutableListOf<Float?>()
-        val gains = mutableListOf<Float>()
-        val losses = mutableListOf<Float>()
+        val rsiValues = MutableList<Float?>(data.size) { null }
+        var gainSum = 0.0
+        var lossSum = 0.0
 
-        // Calculate initial gains and losses
-        for (i in 1 until data.size) {
-            val change = data[i].close - data[i - 1].close
-            gains.add(if (change > 0) change else 0f)
-            losses.add(if (change < 0) -change else 0f)
+        for (index in 1..period) {
+            val change = (data[index].close - data[index - 1].close).toDouble()
+            if (change > 0.0) {
+                gainSum += change
+            } else {
+                lossSum -= change
+            }
         }
 
-        // RMA (Wilder's Smoothing) Calculation
-        // Initial average: Simple Moving Average
-        var avgGain = gains.take(period).average().toFloat()
-        var avgLoss = losses.take(period).average().toFloat()
+        var avgGain = gainSum / period
+        var avgLoss = lossSum / period
 
-        // First RSI value
-        for (i in 0 until period) {
-            rsiValues.add(null)
-        }
-        
-        fun calculateRsiValue(g: Float, l: Float): Float {
-            if (l == 0f) return 100f
-            val rs = g / l
-            return 100f - (100f / (1f + rs))
+        fun calculateRsiValue(gain: Double, loss: Double): Float {
+            return when {
+                gain == 0.0 && loss == 0.0 -> 50f
+                loss == 0.0 -> 100f
+                gain == 0.0 -> 0f
+                else -> (100.0 - (100.0 / (1.0 + gain / loss))).toFloat()
+            }
         }
 
-        rsiValues.add(calculateRsiValue(avgGain, avgLoss))
+        rsiValues[period] = calculateRsiValue(avgGain, avgLoss)
 
-        // Subsequent values using RMA:
-        // alpha = 1 / period
-        // NextAvg = (PreviousAvg * (period - 1) + CurrentValue) / period
-        for (i in period until gains.size) {
-            avgGain = (avgGain * (period - 1) + gains[i]) / period
-            avgLoss = (avgLoss * (period - 1) + losses[i]) / period
-            rsiValues.add(calculateRsiValue(avgGain, avgLoss))
+        for (index in period + 1 until data.size) {
+            val change = (data[index].close - data[index - 1].close).toDouble()
+            val gain = if (change > 0.0) change else 0.0
+            val loss = if (change < 0.0) -change else 0.0
+            avgGain = ((avgGain * (period - 1)) + gain) / period
+            avgLoss = ((avgLoss * (period - 1)) + loss) / period
+            rsiValues[index] = calculateRsiValue(avgGain, avgLoss)
         }
 
         return rsiValues

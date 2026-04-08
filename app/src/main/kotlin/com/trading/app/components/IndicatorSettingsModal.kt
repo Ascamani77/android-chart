@@ -21,9 +21,14 @@ fun IndicatorSettingsModal(
     indicatorId: String,
     period: Int,
     onPeriodChange: (Int) -> Unit,
+    slowPeriod: Int = 26,
+    signalPeriod: Int = 9,
+    onMacdChange: ((Int, Int, Int) -> Unit)? = null,
     onClose: () -> Unit
 ) {
     var currentPeriod by remember { mutableIntStateOf(period) }
+    var currentSlow by remember { mutableIntStateOf(slowPeriod) }
+    var currentSignal by remember { mutableIntStateOf(signalPeriod) }
 
     Dialog(onDismissRequest = onClose) {
         Card(
@@ -32,7 +37,7 @@ fun IndicatorSettingsModal(
                 .padding(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E222D))
         ) {
-            Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -50,29 +55,90 @@ fun IndicatorSettingsModal(
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                // Period
-                Text("Period", color = Color(0xFF787B86), fontSize = 12.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    value = currentPeriod.toString(),
-                    onValueChange = { currentPeriod = it.toIntOrNull() ?: currentPeriod },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFF131722),
-                        unfocusedContainerColor = Color(0xFF131722),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedIndicatorColor = Color(0xFF2962FF)
-                    ),
-                    shape = RoundedCornerShape(4.dp)
-                )
+                if (indicatorId == "MACD") {
+                    // Fast Period
+                    Text("Fast Period", color = Color(0xFF787B86), fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextField(
+                        value = currentPeriod.toString(),
+                        onValueChange = { currentPeriod = it.toIntOrNull() ?: currentPeriod },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color(0xFF131722),
+                            unfocusedContainerColor = Color(0xFF131722),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedIndicatorColor = Color(0xFF2962FF)
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Slow Period
+                    Text("Slow Period", color = Color(0xFF787B86), fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextField(
+                        value = currentSlow.toString(),
+                        onValueChange = { currentSlow = it.toIntOrNull() ?: currentSlow },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color(0xFF131722),
+                            unfocusedContainerColor = Color(0xFF131722),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedIndicatorColor = Color(0xFF2962FF)
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Signal Period
+                    Text("Signal Period", color = Color(0xFF787B86), fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextField(
+                        value = currentSignal.toString(),
+                        onValueChange = { currentSignal = it.toIntOrNull() ?: currentSignal },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color(0xFF131722),
+                            unfocusedContainerColor = Color(0xFF131722),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedIndicatorColor = Color(0xFF2962FF)
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                } else {
+                    // Period
+                    Text("Period", color = Color(0xFF787B86), fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextField(
+                        value = currentPeriod.toString(),
+                        onValueChange = { currentPeriod = it.toIntOrNull() ?: currentPeriod },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color(0xFF131722),
+                            unfocusedContainerColor = Color(0xFF131722),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedIndicatorColor = Color(0xFF2962FF)
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                }
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 // Save Button
                 Button(
                     onClick = {
-                        onPeriodChange(currentPeriod)
+                        if (indicatorId == "MACD" && onMacdChange != null) {
+                            onMacdChange(currentPeriod, currentSlow, currentSignal)
+                        } else {
+                            onPeriodChange(currentPeriod)
+                        }
                         onClose()
                     },
                     modifier = Modifier.fillMaxWidth(),

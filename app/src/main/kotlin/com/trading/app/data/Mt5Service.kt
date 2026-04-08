@@ -3,9 +3,15 @@ package com.trading.app.data
 import android.util.Log
 import com.google.gson.Gson
 import com.trading.app.components.SymbolQuote
+import com.trading.app.models.EconomicCalendarAiPayload
+import com.trading.app.models.EconomicCalendarDisplayPayload
+import com.trading.app.models.EconomicCalendarPayload
 import com.trading.app.models.OHLCData
 import okhttp3.*
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 
 class Mt5Service(
     private val pcIpAddress: String = "10.222.138.133",
@@ -16,12 +22,13 @@ class Mt5Service(
     private val onPositionsUpdate: (List<com.trading.app.models.Position>) -> Unit = {},
     private val onOrdersUpdate: (List<com.trading.app.models.Order>) -> Unit = {},
     private val onHistoryOrdersUpdate: (List<com.trading.app.models.Order>) -> Unit = {},
-    private val onBalanceHistoryUpdate: (List<com.trading.app.models.BalanceRecord>) -> Unit = {}
+    private val onBalanceHistoryUpdate: (List<com.trading.app.models.BalanceRecord>) -> Unit = {},
+    private val onCalendarUpdate: (EconomicCalendarPayload) -> Unit = {}
 ) {
     private val client = OkHttpClient()
     private var webSocket: WebSocket? = null
     private val gson = Gson()
-    private var pendingSubscription: String? = null
+    private val pendingMessages = mutableListOf<String>()
 
     data class AccountInfo(
         val balance: Double,
@@ -46,6 +53,37 @@ class Mt5Service(
         }
     }
 
+    private fun parseIsoDateToEpochSeconds(value: String): Long {
+        val normalized = value.trim()
+        val candidates = listOf(
+            normalized,
+            normalized.replace("Z", "+0000"),
+            normalized.replace(Regex("([+-]\\d{2}):(\\d{2})$"), "$1$2")
+        )
+
+        val patterns = listOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+            "yyyy-MM-dd'T'HH:mm:ssZ",
+            "yyyy-MM-dd HH:mm:ssZ",
+            "yyyy-MM-dd"
+        )
+
+        for (candidate in candidates) {
+            for (pattern in patterns) {
+                try {
+                    val formatter = SimpleDateFormat(pattern, Locale.US).apply {
+                        timeZone = TimeZone.getTimeZone("UTC")
+                    }
+                    return formatter.parse(candidate)?.time?.div(1000L) ?: 0L
+                } catch (_: Exception) {
+                    // Try the next format.
+                }
+            }
+        }
+
+        return 0L
+    }
+
     fun connect() {
         val url = "ws://$pcIpAddress:$port"
         Log.d(TAG, "Connecting to $url")
@@ -57,9 +95,9 @@ class Mt5Service(
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.i(TAG, "WebSocket Connected")
-                pendingSubscription?.let {
-                    webSocket.send(it)
-                    pendingSubscription = null
+                synchronized(pendingMessages) {
+                    pendingMessages.forEach(webSocket::send)
+                    pendingMessages.clear()
                 }
             }
 
@@ -95,8 +133,7 @@ class Mt5Service(
                                 // try ISO datetime parsing
                                 try {
                                     val s = obj.getString("date")
-                                    val parsed = java.time.OffsetDateTime.parse(s)
-                                    t = parsed.toEpochSecond()
+                                    t = parseIsoDateToEpochSeconds(s)
                                 } catch (_: Exception) { /* ignore */ }
                             }
                             // if t looks like milliseconds (>= 1e12), convert to seconds
@@ -127,8 +164,9 @@ class Mt5Service(
                                 ).toFloat()
                             ))
                         }
-                        Log.d(TAG, "Parsed ${history.size} candles for $symbol")
-                        onHistoryUpdate(symbol, history)
+                        val orderedHistory = history.sortedBy(OHLCData::time)
+                        Log.d(TAG, "Parsed ${orderedHistory.size} candles for $symbol")
+                        onHistoryUpdate(symbol, orderedHistory)
                     } else if (type == "tick") {
                         val symbol = cleanSymbol(root.optString("symbol", root.optString("name", "")))
                         val quote = gson.fromJson(text, SymbolQuote::class.java)
@@ -221,6 +259,16 @@ class Mt5Service(
                             ))
                         }
                         onBalanceHistoryUpdate(balanceHistory)
+                    } else if (type == "calendar") {
+                        val display = gson.fromJson(
+                            root.getJSONObject("display").toString(),
+                            EconomicCalendarDisplayPayload::class.java
+                        )
+                        val ai = gson.fromJson(
+                            root.getJSONObject("ai").toString(),
+                            EconomicCalendarAiPayload::class.java
+                        )
+                        onCalendarUpdate(EconomicCalendarPayload(display = display, ai = ai))
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Parse error: ${e.message}")
@@ -236,9 +284,7 @@ class Mt5Service(
     fun subscribe(symbol: String, timeframe: String = "1h") {
         val msg = "{\"action\": \"subscribe\", \"symbol\": \"$symbol\", \"timeframe\": \"$timeframe\"}"
         Log.d(TAG, "Subscribing to $symbol ($timeframe)")
-        if (webSocket?.send(msg) != true) {
-            pendingSubscription = msg
-        }
+        sendOrQueue(msg)
     }
 
     fun sendAction(action: String, params: Map<String, Any>) {
@@ -249,11 +295,29 @@ class Mt5Service(
         }
         val msg = json.toString()
         Log.d(TAG, "Sending action: $msg")
-        webSocket?.send(msg)
+        sendOrQueue(msg)
+    }
+
+    fun requestCalendar(selectedDateIso: String? = null) {
+        val params = mutableMapOf<String, Any>()
+        if (!selectedDateIso.isNullOrBlank()) {
+            params["selectedDate"] = selectedDateIso
+        }
+        sendAction("get_calendar", params)
     }
 
     fun disconnect() {
         webSocket?.close(1000, "App closing")
         webSocket = null
+    }
+
+    private fun sendOrQueue(message: String) {
+        if (webSocket?.send(message) == true) {
+            return
+        }
+
+        synchronized(pendingMessages) {
+            pendingMessages.add(message)
+        }
     }
 }

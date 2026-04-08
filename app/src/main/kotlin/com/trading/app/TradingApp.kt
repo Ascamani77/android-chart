@@ -22,12 +22,17 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.trading.app.components.*
 import com.trading.app.models.*
+import com.trading.app.data.CalendarSnapshotStore
 import com.trading.app.data.Mt5Service
 import com.trading.app.data.Mt5ReverseBridge
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 // Helper to parse color string to Compose Color
 private fun parseComposeColor(colorString: String?, defaultColor: Color = Color(0xFF131722)): Color {
@@ -52,6 +57,46 @@ private fun parseComposeColor(colorString: String?, defaultColor: Color = Color(
     } catch (e: Exception) {
         defaultColor
     }
+}
+
+private fun todayIsoDate(): String {
+    return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+}
+
+private fun parseIsoCalendar(value: String): Calendar {
+    val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    return Calendar.getInstance().apply {
+        time = formatter.parse(value) ?: Date()
+    }
+}
+
+private fun formatIsoCalendar(calendar: Calendar): String {
+    return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
+}
+
+private fun formatHeaderDateLabel(isoDate: String): String {
+    val calendar = parseIsoCalendar(isoDate)
+    val month = SimpleDateFormat("MMM", Locale.US).format(calendar.time)
+    return "${calendar.get(Calendar.DAY_OF_MONTH)} $month ${calendar.get(Calendar.YEAR)}"
+}
+
+private fun updateCalendarSelection(
+    payload: EconomicCalendarDisplayPayload,
+    selectedDateIso: String
+): EconomicCalendarDisplayPayload {
+    return payload.copy(
+        selectedDateIso = selectedDateIso,
+        headerDateLabel = formatHeaderDateLabel(selectedDateIso),
+        dayChips = payload.dayChips.map { chip ->
+            chip.copy(isSelected = chip.isoDate == selectedDateIso)
+        }
+    )
+}
+
+private fun shiftMonth(isoDate: String, monthDelta: Int): String {
+    val calendar = parseIsoCalendar(isoDate)
+    calendar.add(Calendar.MONTH, monthDelta)
+    return formatIsoCalendar(calendar)
 }
 
 @Composable
@@ -150,6 +195,25 @@ fun TradingApp() {
     val orderHistory = remember { mutableStateListOf<Order>() }
     val balanceHistory = remember { mutableStateListOf<BalanceRecord>() }
     var mt5AccountInfo by remember { mutableStateOf<Mt5Service.AccountInfo?>(null) }
+    val cachedCalendarDisplay = remember {
+        sharedPrefs.getString("calendar_display_payload", null)?.let {
+            try {
+                gson.fromJson(it, EconomicCalendarDisplayPayload::class.java)
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+    val cachedCalendarAiJson = remember {
+        sharedPrefs.getString("calendar_ai_payload", "") ?: ""
+    }
+    var calendarDisplayPayload by remember { mutableStateOf(cachedCalendarDisplay) }
+    var calendarAiPayloadJson by remember { mutableStateOf(cachedCalendarAiJson) }
+    var isCalendarLoading by remember { mutableStateOf(cachedCalendarDisplay == null) }
+    var calendarSelectedDateIso by remember {
+        mutableStateOf(cachedCalendarDisplay?.selectedDateIso ?: todayIsoDate())
+    }
+    var calendarRequestVersion by remember { mutableIntStateOf(0) }
     
     val reverseBridge = remember { 
         Mt5ReverseBridge(
@@ -189,6 +253,10 @@ fun TradingApp() {
     var bbPeriod by remember { mutableIntStateOf(20) }
     var showAtr by remember { mutableStateOf(false) }
     var atrPeriod by remember { mutableIntStateOf(14) }
+    var showMacd by remember { mutableStateOf(false) }
+    var macdFast by remember { mutableIntStateOf(12) }
+    var macdSlow by remember { mutableIntStateOf(26) }
+    var macdSignal by remember { mutableIntStateOf(9) }
     var showVolume by remember { mutableStateOf(true) }
 
     // Tab State
@@ -210,6 +278,7 @@ fun TradingApp() {
     var showIndicatorSettingsModal by remember { mutableStateOf<String?>(null) }
     var showTimeZoneModal by remember { mutableStateOf(false) }
     var showNewsPage by remember { mutableStateOf(false) }
+    var showCalendarPage by remember { mutableStateOf(false) }
     var showDrawingsModal by remember { mutableStateOf(false) }
     var showAnalysisHubModal by remember { mutableStateOf(false) }
     var showChartTypeModal by remember { mutableStateOf(false) }
@@ -226,6 +295,21 @@ fun TradingApp() {
         mutableStateOf(IntOffset(chartSettings.quickActions.buttonX, chartSettings.quickActions.buttonY)) 
     }
     var isTimezonePaneVisible by remember { mutableStateOf(chartSettings.quickActions.isTimezoneVisible) }
+
+    LaunchedEffect(Unit) {
+        CalendarSnapshotStore.latestDisplayPayload = calendarDisplayPayload
+        CalendarSnapshotStore.latestAiPayloadJson = calendarAiPayloadJson
+        CalendarSnapshotStore.latestAiPayload =
+            if (calendarAiPayloadJson.isBlank()) {
+                null
+            } else {
+                try {
+                    gson.fromJson(calendarAiPayloadJson, EconomicCalendarAiPayload::class.java)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+    }
 
     // Responsive Reposition & Safe Area Awareness
     LaunchedEffect(configuration.screenWidthDp, configuration.screenHeightDp, safeDrawingInsets) {
@@ -304,21 +388,22 @@ fun TradingApp() {
     }
 
     fun handleIndicatorSelect(id: String) {
-        when (id) {
+        when (id.trim().lowercase()) {
             "rsi" -> showRsi = !showRsi
-            "ema" -> {
+            "ema", "exponential moving average" -> {
                 if (!showEma10) showEma10 = true
                 else if (!showEma20) showEma20 = true
                 else { showEma10 = false; showEma20 = false }
             }
-            "sma" -> {
+            "sma", "simple moving average" -> {
                 if (!showSma1) showSma1 = true
                 else if (!showSma2) showSma2 = true
                 else { showSma1 = false; showSma2 = false }
             }
             "vwap" -> showVwap = !showVwap
-            "bb" -> showBb = !showBb
-            "vol" -> showVolume = !showVolume
+            "bb", "bollinger bands" -> showBb = !showBb
+            "macd" -> showMacd = !showMacd
+            "vol", "volume" -> showVolume = !showVolume
             "atr" -> showAtr = !showAtr
         }
         // debug: confirm indicator toggle
@@ -386,6 +471,10 @@ fun TradingApp() {
                                 bbPeriod = bbPeriod,
                                 showAtr = showAtr,
                                 atrPeriod = atrPeriod,
+                                showMacd = showMacd,
+                                macdFast = macdFast,
+                                macdSlow = macdSlow,
+                                macdSignal = macdSignal,
                                 showVolume = showVolume,
                                 onVolumeToggle = { showVolume = it },
                                 onIndicatorSettingsClick = { showIndicatorSettingsModal = it },
@@ -469,6 +558,27 @@ fun TradingApp() {
                                     balanceHistory.clear()
                                     balanceHistory.addAll(newBalanceHistory)
                                 },
+                                onCalendarUpdate = { payload ->
+                                    scope.launch {
+                                        val aiJson = gson.toJson(payload.ai)
+                                        calendarDisplayPayload = payload.display
+                                        calendarAiPayloadJson = aiJson
+                                        calendarSelectedDateIso = payload.display.selectedDateIso
+                                        isCalendarLoading = false
+
+                                        CalendarSnapshotStore.latestDisplayPayload = payload.display
+                                        CalendarSnapshotStore.latestAiPayload = payload.ai
+                                        CalendarSnapshotStore.latestAiPayloadJson = aiJson
+
+                                        sharedPrefs.edit()
+                                            .putString("calendar_display_payload", gson.toJson(payload.display))
+                                            .putString("calendar_ai_payload", aiJson)
+                                            .apply()
+                                    }
+                                },
+                                isCalendarVisible = showCalendarPage,
+                                calendarRequestDateIso = calendarSelectedDateIso,
+                                calendarRequestVersion = calendarRequestVersion,
                                 isTradingBarVisible = showFloatingTradingButtons,
                                 reverseBridge = reverseBridge
                             )
@@ -579,6 +689,40 @@ fun TradingApp() {
                 NewsPage(onBack = { showNewsPage = false })
             }
 
+            if (showCalendarPage) {
+                CalendarPage(
+                    payload = calendarDisplayPayload,
+                    isLoading = isCalendarLoading,
+                    onBack = { showCalendarPage = false },
+                    onRefresh = {
+                        isCalendarLoading = true
+                        calendarRequestVersion += 1
+                    },
+                    onSelectDate = { isoDate ->
+                        val currentPayload = calendarDisplayPayload
+                        if (currentPayload != null && currentPayload.dayChips.any { it.isoDate == isoDate }) {
+                            val updatedPayload = updateCalendarSelection(currentPayload, isoDate)
+                            calendarSelectedDateIso = isoDate
+                            calendarDisplayPayload = updatedPayload
+                            CalendarSnapshotStore.latestDisplayPayload = updatedPayload
+                            sharedPrefs.edit()
+                                .putString("calendar_display_payload", gson.toJson(updatedPayload))
+                                .apply()
+                        }
+                    },
+                    onPreviousMonth = {
+                        calendarSelectedDateIso = shiftMonth(calendarSelectedDateIso, -1)
+                        isCalendarLoading = true
+                        calendarRequestVersion += 1
+                    },
+                    onNextMonth = {
+                        calendarSelectedDateIso = shiftMonth(calendarSelectedDateIso, 1)
+                        isCalendarLoading = true
+                        calendarRequestVersion += 1
+                    }
+                )
+            }
+
             // Paper Trading Panel Overlay
             if (showPaperTradingPanel) {
                 PaperTradingPanel(
@@ -639,7 +783,7 @@ fun TradingApp() {
             }
 
             // Backdrop for Quick Actions
-            if (showQuickActions) {
+            if (showQuickActions && !showNewsPage && !showCalendarPage) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -653,16 +797,18 @@ fun TradingApp() {
             }
 
             // Floating Draggable Quick Actions Button
-            QuickActionsButton(
-                onClick = { showQuickActions = !showQuickActions },
-                offset = quickActionsButtonOffset,
-                onOffsetChange = { quickActionsButtonOffset = it },
-                isLocked = isLocked,
-                isModalOpen = showQuickActions
-            )
+            if (!showNewsPage && !showCalendarPage) {
+                QuickActionsButton(
+                    onClick = { showQuickActions = !showQuickActions },
+                    offset = quickActionsButtonOffset,
+                    onOffsetChange = { quickActionsButtonOffset = it },
+                    isLocked = isLocked,
+                    isModalOpen = showQuickActions
+                )
+            }
 
             // Quick Actions Modal
-            if (showQuickActions) {
+            if (showQuickActions && !showNewsPage && !showCalendarPage) {
                 QuickActionsModal(
                     isFullscreen = isFullscreen,
                     onFullscreenToggle = { isFullscreen = !isFullscreen },
@@ -790,6 +936,12 @@ fun TradingApp() {
                 onClose = { showAnalysisHubModal = false },
                 onIndicatorClick = { showIndicatorModal = true; showAnalysisHubModal = false },
                 onAlertClick = { showAlertModal = true; showAnalysisHubModal = false },
+                onCalendarClick = {
+                    showCalendarPage = true
+                    showAnalysisHubModal = false
+                    isCalendarLoading = calendarDisplayPayload == null
+                    calendarRequestVersion += 1
+                },
                 onChartTypeClick = { 
                     showChartTypeModal = true
                     showAnalysisHubModal = false
@@ -848,6 +1000,7 @@ fun TradingApp() {
                     "SMA2" -> sma2Period
                     "BB" -> bbPeriod
                     "ATR" -> atrPeriod
+                    "MACD" -> macdFast
                     else -> 14
                 },
                 onPeriodChange = {
@@ -860,6 +1013,13 @@ fun TradingApp() {
                         "BB" -> bbPeriod = it
                         "ATR" -> atrPeriod = it
                     }
+                },
+                slowPeriod = if (indicatorId == "MACD") macdSlow else 26,
+                signalPeriod = if (indicatorId == "MACD") macdSignal else 9,
+                onMacdChange = { fast, slow, signal ->
+                    macdFast = fast
+                    macdSlow = slow
+                    macdSignal = signal
                 },
                 onClose = { showIndicatorSettingsModal = null }
             )

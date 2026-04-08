@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.trading.app.models.EconomicCalendarPayload
 import com.trading.app.models.OHLCData
 import com.trading.app.utils.Indicators
 import com.tradingview.lightweightcharts.api.series.models.CandlestickData
@@ -49,6 +50,10 @@ fun TradingChart3(
     bbPeriod: Int = 20,
     showAtr: Boolean = false,
     atrPeriod: Int = 14,
+    showMacd: Boolean = false,
+    macdFast: Int = 12,
+    macdSlow: Int = 26,
+    macdSignal: Int = 9,
     showVolume: Boolean = true,
     isCrosshairActive: Boolean = false,
     onCrosshairToggle: (Boolean) -> Unit = {},
@@ -76,6 +81,10 @@ fun TradingChart3(
     onOrdersUpdate: (List<com.trading.app.models.Order>) -> Unit = {},
     onHistoryOrdersUpdate: (List<com.trading.app.models.Order>) -> Unit = {},
     onBalanceHistoryUpdate: (List<com.trading.app.models.BalanceRecord>) -> Unit = {},
+    onCalendarUpdate: (EconomicCalendarPayload) -> Unit = {},
+    isCalendarVisible: Boolean = false,
+    calendarRequestDateIso: String? = null,
+    calendarRequestVersion: Int = 0,
     isTradingBarVisible: Boolean = false,
     reverseBridge: com.trading.app.data.Mt5ReverseBridge? = null
 ) {
@@ -90,89 +99,71 @@ fun TradingChart3(
         if (rsiValues.isNotEmpty()) Indicators.calculateSma(rsiValues, 14) else emptyList()
     }
 
-    // We'll use a Column to stack the main chart and the RSI pane
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0C0D0F))) {
-        Box(modifier = Modifier.weight(if (showRsi) 0.7f else 1f).fillMaxWidth()) {
-            TradingChart(
-                symbol = symbol,
-                timeframe = timeframe,
-                style = style,
-                chartSettings = chartSettings,
-                drawings = drawings,
-                onDrawingUpdate = onDrawingUpdate,
-                activeTool = activeTool,
-                onToolReset = onToolReset,
-                showRsi = false, // We handle RSI in Chart3's dedicated pane
-                rsiPeriod = rsiPeriod,
-                showEma10 = showEma10,
-                ema10Period = ema10Period,
-                showEma20 = showEma20,
-                ema20Period = ema20Period,
-                showSma1 = showSma1,
-                sma1Period = sma1Period,
-                showSma2 = showSma2,
-                sma2Period = sma2Period,
-                showVwap = showVwap,
-                showBb = showBb,
-                bbPeriod = bbPeriod,
-                showAtr = showAtr,
-                atrPeriod = atrPeriod,
-                showVolume = showVolume,
-                isCrosshairActive = isCrosshairActive,
-                onCrosshairToggle = onCrosshairToggle,
-                onVolumeToggle = onVolumeToggle,
-                onIndicatorSettingsClick = onIndicatorSettingsClick,
-                isMagnetEnabled = isMagnetEnabled,
-                isLocked = isLocked,
-                isVisible = isVisible,
-                selectedCurrency = selectedCurrency,
-                onCurrencyClick = onCurrencyClick,
-                isFullscreen = isFullscreen,
-                onFullscreenExit = onFullscreenExit,
-                scrollToTimestamp = scrollToTimestamp,
-                onScrollDone = onScrollDone,
-                onLongPress = onLongPress,
-                onSettingsClick = onSettingsClick,
-                selectedTimeZone = selectedTimeZone,
-                onQuoteUpdate = { quote ->
-                    onQuoteUpdate(quote)
-                    // Update the last OHLC point with the latest quote
-                    if (ohlcData.isNotEmpty()) {
-                        val last = ohlcData.last()
-                        val updatedList = ohlcData.toMutableList()
-                        updatedList[updatedList.size - 1] = last.copy(
-                            high = maxOf(last.high, quote.lastPrice),
-                            low = minOf(last.low, quote.lastPrice),
-                            close = quote.lastPrice
-                        )
-                        ohlcData = updatedList
-                    }
-                },
-                onAccountUpdate = onAccountUpdate,
-                onPositionsUpdate = onPositionsUpdate,
-                orders = orders,
-                onOrdersUpdate = onOrdersUpdate,
-                onHistoryOrdersUpdate = onHistoryOrdersUpdate,
-                onBalanceHistoryUpdate = onBalanceHistoryUpdate,
-                positions = positions,
-                onPositionUpdate = onPositionUpdate,
-                onPositionDelete = onPositionDelete,
-                onDataLoaded = { data ->
-                    ohlcData = data
-                },
-                reverseBridge = reverseBridge
-            )
-        }
-
-        if (showRsi) {
-            RSIPane(
-                rsiValues = rsiValues,
-                rsiMaValues = rsiMaValues,
-                rsiPeriod = rsiPeriod,
-                modifier = Modifier.weight(0.3f)
-            )
-        }
-    }
+    // Use the internal pane management of TradingChart
+    TradingChart(
+        symbol = symbol,
+        timeframe = timeframe,
+        style = style,
+        chartSettings = chartSettings,
+        drawings = drawings,
+        onDrawingUpdate = onDrawingUpdate,
+        activeTool = activeTool,
+        onToolReset = onToolReset,
+        showRsi = showRsi,
+        rsiPeriod = rsiPeriod,
+        showEma10 = showEma10,
+        ema10Period = ema10Period,
+        showEma20 = showEma20,
+        ema20Period = ema20Period,
+        showSma1 = showSma1,
+        sma1Period = sma1Period,
+        showSma2 = showSma2,
+        sma2Period = sma2Period,
+        showVwap = showVwap,
+        showBb = showBb,
+        bbPeriod = bbPeriod,
+        showAtr = showAtr,
+        atrPeriod = atrPeriod,
+        showMacd = showMacd,
+        macdFast = macdFast,
+        macdSlow = macdSlow,
+        macdSignal = macdSignal,
+        showVolume = showVolume,
+        isCrosshairActive = isCrosshairActive,
+        onCrosshairToggle = onCrosshairToggle,
+        onVolumeToggle = onVolumeToggle,
+        onIndicatorSettingsClick = onIndicatorSettingsClick,
+        isMagnetEnabled = isMagnetEnabled,
+        isLocked = isLocked,
+        isVisible = isVisible,
+        selectedCurrency = selectedCurrency,
+        onCurrencyClick = onCurrencyClick,
+        isFullscreen = isFullscreen,
+        onFullscreenExit = onFullscreenExit,
+        scrollToTimestamp = scrollToTimestamp,
+        onScrollDone = onScrollDone,
+        onLongPress = onLongPress,
+        onSettingsClick = onSettingsClick,
+        selectedTimeZone = selectedTimeZone,
+        onQuoteUpdate = onQuoteUpdate,
+        onAccountUpdate = onAccountUpdate,
+        onPositionsUpdate = onPositionsUpdate,
+        orders = orders,
+        onOrdersUpdate = onOrdersUpdate,
+        onHistoryOrdersUpdate = onHistoryOrdersUpdate,
+        onBalanceHistoryUpdate = onBalanceHistoryUpdate,
+        onCalendarUpdate = onCalendarUpdate,
+        isCalendarVisible = isCalendarVisible,
+        calendarRequestDateIso = calendarRequestDateIso,
+        calendarRequestVersion = calendarRequestVersion,
+        positions = positions,
+        onPositionUpdate = onPositionUpdate,
+        onPositionDelete = onPositionDelete,
+        onDataLoaded = { data ->
+            ohlcData = data
+        },
+        reverseBridge = reverseBridge
+    )
 }
 
 

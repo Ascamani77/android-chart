@@ -28,6 +28,7 @@ import com.trading.app.models.Drawing
 import com.trading.app.models.Position
 import com.trading.app.models.Order
 import com.trading.app.models.BalanceRecord
+import com.trading.app.models.EconomicCalendarPayload
 import com.trading.app.models.SymbolInfo
 import com.tradingview.lightweightcharts.api.interfaces.SeriesApi
 import com.tradingview.lightweightcharts.api.series.common.PriceLine
@@ -40,12 +41,17 @@ import com.tradingview.lightweightcharts.api.chart.models.color.IntColor
 import com.tradingview.lightweightcharts.api.chart.models.color.surface.SolidColor
 import android.graphics.Color as AndroidColor
 import com.trading.app.models.OHLCData
+import com.trading.app.indicators.BbandsData
+import com.trading.app.indicators.VwapData
 import com.trading.app.utils.Indicators
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import com.tradingview.lightweightcharts.api.series.models.Time
 
 private const val LOG_TAG = "TradingChart"
+private const val MACD_SCALE_KEY = "macd_pane"
+private const val VOLUME_SCALE_KEY = "volume_pane"
+private const val ATR_SCALE_KEY = "atr_pane"
 
 fun Time.toTimestamp(): Long = (this as? Time.Utc)?.timestamp ?: 0L
 private fun Long.toChartTime(): Time = Time.Utc(this)
@@ -65,7 +71,8 @@ data class SymbolQuote(
     val bid: Float,
     val ask: Float,
     val volume: Float,
-    val spread: Float = 0.2f
+    val spread: Float = 0.2f,
+    val time: Long = 0L
 )
 
 private fun getFullSymbolName(symbol: String): String {
@@ -94,6 +101,104 @@ private fun getFullChartColor(colorSetting: String, customBg: String): Int {
         "Dark Blue" -> android.graphics.Color.parseColor("#0a0e27")
         "OLED Black" -> android.graphics.Color.parseColor("#0d0f1a")
         else -> try { android.graphics.Color.parseColor(customBg) } catch (e: Exception) { android.graphics.Color.BLACK }
+    }
+}
+
+private fun normalizeEpochSeconds(timestamp: Long): Long {
+    return when {
+        timestamp <= 0L -> 0L
+        timestamp >= 1_000_000_000_000L -> timestamp / 1000L
+        else -> timestamp
+    }
+}
+
+private fun timeframeToSeconds(timeframe: String): Long {
+    return when (timeframe.lowercase(Locale.US)) {
+        "1m" -> 60L
+        "5m" -> 5 * 60L
+        "15m" -> 15 * 60L
+        "30m" -> 30 * 60L
+        "1h" -> 60 * 60L
+        "4h" -> 4 * 60 * 60L
+        "1d" -> 24 * 60 * 60L
+        else -> 60 * 60L
+    }
+}
+
+private fun alignToTimeframeStart(timestampSeconds: Long, timeframe: String): Long {
+    val interval = timeframeToSeconds(timeframe)
+    if (timestampSeconds <= 0L || interval <= 0L) return timestampSeconds
+    return (timestampSeconds / interval) * interval
+}
+
+private fun applyTickToCandles(
+    candles: List<OHLCData>,
+    timeframe: String,
+    lastPrice: Float,
+    tickTimestampSeconds: Long,
+    tickVolume: Float
+): List<OHLCData> {
+    if (candles.isEmpty()) return candles
+
+    val orderedCandles = candles.sortedBy(OHLCData::time)
+    val interval = timeframeToSeconds(timeframe)
+    val lastCandle = orderedCandles.last()
+    val resolvedTickTime = if (tickTimestampSeconds > 0L) {
+        alignToTimeframeStart(tickTimestampSeconds, timeframe)
+    } else {
+        lastCandle.time
+    }
+
+    if (resolvedTickTime < lastCandle.time) {
+        return orderedCandles
+    }
+
+    val updatedCandles = orderedCandles.toMutableList()
+    if (resolvedTickTime == lastCandle.time) {
+        updatedCandles[updatedCandles.lastIndex] = lastCandle.copy(
+            high = maxOf(lastCandle.high, lastPrice),
+            low = minOf(lastCandle.low, lastPrice),
+            close = lastPrice,
+            volume = maxOf(lastCandle.volume, tickVolume.coerceAtLeast(0f))
+        )
+        return updatedCandles
+    }
+
+    var previousClose = lastCandle.close
+    var nextBarTime = lastCandle.time + interval
+    while (nextBarTime < resolvedTickTime) {
+        updatedCandles.add(
+            OHLCData(
+                time = nextBarTime,
+                open = previousClose,
+                high = previousClose,
+                low = previousClose,
+                close = previousClose,
+                volume = 0f
+            )
+        )
+        nextBarTime += interval
+    }
+
+    updatedCandles.add(
+        OHLCData(
+            time = resolvedTickTime,
+            open = previousClose,
+            high = maxOf(previousClose, lastPrice),
+            low = minOf(previousClose, lastPrice),
+            close = lastPrice,
+            volume = tickVolume.coerceAtLeast(0f)
+        )
+    )
+    return updatedCandles
+}
+
+private fun safelyRemovePriceLine(api: SeriesApi, priceLine: PriceLine?) {
+    if (priceLine == null) return
+    runCatching {
+        api.removePriceLine(priceLine)
+    }.onFailure { error ->
+        Log.w(LOG_TAG, "Ignoring stale price line removal: ${error.message}")
     }
 }
 
@@ -144,6 +249,43 @@ private fun buildVolumeHistogramData(data: List<OHLCData>): List<HistogramData> 
     }
 }
 
+private fun resolvePaneMargins(
+    showVolume: Boolean,
+    showRsi: Boolean,
+    showMacd: Boolean,
+    showAtr: Boolean = false
+): Map<String, PriceScaleMargins> {
+    val indicatorHeight = 0.14f
+    val gap = 0.02f
+    val margins = mutableMapOf<String, PriceScaleMargins>()
+
+    val activePanes = buildList {
+        if (showAtr) add(ATR_SCALE_KEY)
+        if (showMacd) add(MACD_SCALE_KEY)
+        if (showRsi) add(RSI_SCALE_KEY)
+        if (showVolume) add(VOLUME_SCALE_KEY)
+    }
+
+    val bottomInset = if (activePanes.firstOrNull() == RSI_SCALE_KEY) 0.04f else 0.0f
+    var currentBottom = bottomInset
+
+    activePanes.forEachIndexed { index, paneKey ->
+        margins[paneKey] = PriceScaleMargins(
+            top = (1f - currentBottom - indicatorHeight).coerceAtLeast(0f),
+            bottom = currentBottom
+        )
+        currentBottom += indicatorHeight
+        if (index < activePanes.lastIndex) {
+            currentBottom += gap
+        }
+    }
+
+    val finalBottom = if (currentBottom == 0.0f) 0.04f else currentBottom
+    margins["main"] = PriceScaleMargins(top = 0.06f, bottom = finalBottom)
+    
+    return margins
+}
+
 @Composable
 fun TradingChart(
     symbol: String,
@@ -167,8 +309,13 @@ fun TradingChart(
     showVwap: Boolean = false,
     showBb: Boolean = false,
     bbPeriod: Int = 20,
+    bbStdDev: Float = 2f,
     showAtr: Boolean = false,
     atrPeriod: Int = 14,
+    showMacd: Boolean = false,
+    macdFast: Int = 12,
+    macdSlow: Int = 26,
+    macdSignal: Int = 9,
     showVolume: Boolean = true,
     isCrosshairActive: Boolean = false,
     onCrosshairToggle: (Boolean) -> Unit = {},
@@ -197,6 +344,10 @@ fun TradingChart(
     onOrdersUpdate: (List<Order>) -> Unit = {},
     onHistoryOrdersUpdate: (List<Order>) -> Unit = {},
     onBalanceHistoryUpdate: (List<com.trading.app.models.BalanceRecord>) -> Unit = {},
+    onCalendarUpdate: (EconomicCalendarPayload) -> Unit = {},
+    isCalendarVisible: Boolean = false,
+    calendarRequestDateIso: String? = null,
+    calendarRequestVersion: Int = 0,
     onDoubleClick: (Float) -> Unit = {},
     reverseBridge: Mt5ReverseBridge? = null
 ) {
@@ -205,21 +356,31 @@ fun TradingChart(
         derivedStateOf { ohlcData.map(OHLCData::toCandlestickData) }
     }
     var currentQuoteState by remember { mutableStateOf<SymbolQuote?>(null) }
+    var mainPriceScaleWidthPx by remember { mutableFloatStateOf(0f) }
     var seriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var chartsViewApi by remember { mutableStateOf<ChartsView?>(null) }
     var showMarketStatus by remember { mutableStateOf(false) }
 
     // Indicator series state
-    var rsiSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    val rsiPaneRefs = rememberRsiPaneRefs()
     var ema10SeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var ema20SeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var sma1SeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var sma2SeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var vwapBandFillSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var vwapBandMaskSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var vwapUpperSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var vwapSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var vwapLowerSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var atrSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var bbBandFillSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var bbBandMaskSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var bbUpperSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var bbMiddleSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var bbLowerSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var macdLineSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var macdSignalSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
+    var macdHistogramSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
     var volumeSeriesApi by remember { mutableStateOf<SeriesApi?>(null) }
 
     // High/Low lines state (Line and Label separate for color independence)
@@ -227,15 +388,53 @@ fun TradingChart(
     val highLabelState = remember { mutableStateOf<PriceLine?>(null) }
     val lowLineState = remember { mutableStateOf<PriceLine?>(null) }
     val lowLabelState = remember { mutableStateOf<PriceLine?>(null) }
+    var highLowPriceLineOwner by remember { mutableStateOf<SeriesApi?>(null) }
     
     val bidPriceLineState = remember { mutableStateOf<PriceLine?>(null) }
     val askPriceLineState = remember { mutableStateOf<PriceLine?>(null) }
+    var bidAskPriceLineOwner by remember { mutableStateOf<SeriesApi?>(null) }
 
     val updatedOnQuoteUpdate = rememberUpdatedState(onQuoteUpdate)
+    val updatedOnDataLoaded = rememberUpdatedState(onDataLoaded)
     val currentSymbol = rememberUpdatedState(symbol)
+    val currentTimeframe = rememberUpdatedState(timeframe)
+    val showInlineRsiPane = showRsi
 
     // Range-based H/L state
     var visibleRangeHighLow by remember { mutableStateOf<Pair<Float, Float>?>(null) }
+    val chartBgColor = getFullChartColor(chartSettings.canvas.fullChartColor, chartSettings.canvas.background)
+    val rsiDataState = remember(ohlcData, showRsi, rsiPeriod) {
+        calculateRsiChartData(
+            candles = ohlcData,
+            enabled = showInlineRsiPane,
+            period = rsiPeriod
+        )
+    }
+    val bbDataState = remember(ohlcData, showBb, bbPeriod, bbStdDev) {
+        if (showBb) {
+            com.trading.app.indicators.BbandsIndicator(bbPeriod, bbStdDev).calculateBands(ohlcData)
+        } else {
+            BbandsData(
+                upperBand = emptyList(),
+                middleBand = emptyList(),
+                lowerBand = emptyList()
+            )
+        }
+    }
+    val vwapDataState = remember(ohlcData, showVwap) {
+        if (showVwap) {
+            com.trading.app.indicators.VwapIndicator().calculateBands(ohlcData)
+        } else {
+            VwapData(
+                vwap = emptyList(),
+                upperBand = emptyList(),
+                lowerBand = emptyList()
+            )
+        }
+    }
+    val paneMargins = remember(showVolume, showInlineRsiPane, showMacd, showAtr) {
+        resolvePaneMargins(showVolume, showInlineRsiPane, showMacd, showAtr)
+    }
 
     fun String.toIntColor(): IntColor = try {
         IntColor(AndroidColor.parseColor(this))
@@ -264,10 +463,11 @@ fun TradingChart(
             port = 8081,
             onHistoryUpdate = { receivedSymbol, history ->
                 if (receivedSymbol.isEmpty() || receivedSymbol.equals(currentSymbol.value, ignoreCase = true)) {
-                    ohlcData = history
+                    val orderedHistory = history.sortedBy(OHLCData::time)
+                    ohlcData = orderedHistory
                     // notify host that new data has been loaded
-                    onDataLoaded(history)
-                    Log.d(LOG_TAG, "onHistoryUpdate: received ${history.size} candles for $receivedSymbol")
+                    updatedOnDataLoaded.value(orderedHistory)
+                    Log.d(LOG_TAG, "onHistoryUpdate: received ${orderedHistory.size} candles for $receivedSymbol")
                 }
             },
             onQuoteUpdate = { quote ->
@@ -281,6 +481,13 @@ fun TradingChart(
                         changePercent = changePercent
                     )
                     currentQuoteState = updatedQuote
+                    ohlcData = applyTickToCandles(
+                        candles = ohlcData,
+                        timeframe = currentTimeframe.value,
+                        lastPrice = updatedQuote.lastPrice,
+                        tickTimestampSeconds = normalizeEpochSeconds(updatedQuote.time),
+                        tickVolume = updatedQuote.volume
+                    )
                     updatedOnQuoteUpdate.value(updatedQuote)
                 }
             },
@@ -290,7 +497,8 @@ fun TradingChart(
             onPositionsUpdate = { onPositionsUpdate(it) },
             onOrdersUpdate = { onOrdersUpdate(it) },
             onHistoryOrdersUpdate = { onHistoryOrdersUpdate(it) },
-            onBalanceHistoryUpdate = { onBalanceHistoryUpdate(it) }
+            onBalanceHistoryUpdate = { onBalanceHistoryUpdate(it) },
+            onCalendarUpdate = { onCalendarUpdate(it) }
         )
     }
 
@@ -305,27 +513,33 @@ fun TradingChart(
         mt5Service.subscribe(symbol, timeframe)
     }
 
-    LaunchedEffect(ohlcData, seriesApi, style,
+    LaunchedEffect(isCalendarVisible, calendarRequestDateIso, calendarRequestVersion) {
+        if (isCalendarVisible) {
+            mt5Service.requestCalendar(calendarRequestDateIso)
+        }
+    }
+
+    LaunchedEffect(ohlcData, seriesApi, style, chartBgColor,
         showRsi, rsiPeriod, showEma10, ema10Period, showEma20, ema20Period, 
-        showSma1, sma1Period, showSma2, sma2Period, showVwap, showBb, bbPeriod, showAtr, atrPeriod, showVolume) {
-        val api = seriesApi ?: return@LaunchedEffect
+        showSma1, sma1Period, showSma2, sma2Period, showVwap, showBb, bbPeriod, bbStdDev, showAtr, atrPeriod, 
+        showMacd, macdFast, macdSlow, macdSignal, showVolume) {
+        val mainSeriesApi = seriesApi
         val ohlcList = ohlcData
         
         if (ohlcData.isNotEmpty()) {
             when (style) {
-                "bars" -> api.setData(candlestickData.map { BarData(it.time, it.open, it.high, it.low, it.close) })
-                "line", "area" -> api.setData(candlestickData.map { LineData(it.time, it.close) })
-                "heikin_ashi" -> api.setData(calculateHeikinAshi(ohlcData))
-                else -> api.setData(candlestickData)
+                "bars" -> mainSeriesApi?.setData(candlestickData.map { BarData(it.time, it.open, it.high, it.low, it.close) })
+                "line", "area" -> mainSeriesApi?.setData(candlestickData.map { LineData(it.time, it.close) })
+                "heikin_ashi" -> mainSeriesApi?.setData(calculateHeikinAshi(ohlcData))
+                else -> mainSeriesApi?.setData(candlestickData)
             }
 
-            // Update Indicator Data
-            if (showRsi) {
-                val rsiData = Indicators.calculateRsi(ohlcList, rsiPeriod)
-                rsiSeriesApi?.setData(rsiData.mapIndexedNotNull { index, value ->
-                    value?.let { LineData(candlestickData[index].time, it) }
-                })
-            }
+            updateInlineRsiPaneData(
+                refs = rsiPaneRefs,
+                candles = ohlcData,
+                data = rsiDataState,
+                enabled = showInlineRsiPane
+            )
             
             if (showEma10) {
                 val ema10Data = com.trading.app.indicators.EmaIndicator(ema10Period).calculate(ohlcList)
@@ -356,10 +570,46 @@ fun TradingChart(
             }
 
             if (showVwap) {
-                val vwapData = com.trading.app.indicators.VwapIndicator().calculate(ohlcList)
-                vwapSeriesApi?.setData(vwapData.mapIndexedNotNull { index, value ->
+                val vwapBandFillColor = IntColor(applyOpacity(AndroidColor.parseColor("#2B4B60"), 18))
+                val vwapBandMaskColor = IntColor(chartBgColor)
+
+                vwapBandFillSeriesApi?.setData(vwapDataState.upperBand.mapIndexedNotNull { index, value ->
+                    value?.let {
+                        AreaData(
+                            time = candlestickData[index].time,
+                            value = it,
+                            lineColor = IntColor(applyOpacity(AndroidColor.WHITE, 0)),
+                            topColor = vwapBandFillColor,
+                            bottomColor = vwapBandFillColor
+                        )
+                    }
+                })
+                vwapBandMaskSeriesApi?.setData(vwapDataState.lowerBand.mapIndexedNotNull { index, value ->
+                    value?.let {
+                        AreaData(
+                            time = candlestickData[index].time,
+                            value = it,
+                            lineColor = IntColor(applyOpacity(AndroidColor.WHITE, 0)),
+                            topColor = vwapBandMaskColor,
+                            bottomColor = vwapBandMaskColor
+                        )
+                    }
+                })
+                vwapUpperSeriesApi?.setData(vwapDataState.upperBand.mapIndexedNotNull { index, value ->
                     value?.let { LineData(candlestickData[index].time, it) }
                 })
+                vwapSeriesApi?.setData(vwapDataState.vwap.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+                vwapLowerSeriesApi?.setData(vwapDataState.lowerBand.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+            } else {
+                vwapBandFillSeriesApi?.setData(emptyList())
+                vwapBandMaskSeriesApi?.setData(emptyList())
+                vwapUpperSeriesApi?.setData(emptyList())
+                vwapSeriesApi?.setData(emptyList())
+                vwapLowerSeriesApi?.setData(emptyList())
             }
 
             if (showAtr) {
@@ -370,29 +620,176 @@ fun TradingChart(
             }
 
             if (showBb) {
-                // BbandsIndicator implementation in this project only returns middle band in its current state
-                // but we can calculate all three if needed or just use the middle band for now
-                val bbData = com.trading.app.indicators.BbandsIndicator(bbPeriod).calculate(ohlcList)
-                bbMiddleSeriesApi?.setData(bbData.mapIndexedNotNull { index, value ->
+                val bandFillColor = IntColor(applyOpacity(AndroidColor.parseColor("#2B4B60"), 18))
+                val bandMaskColor = IntColor(chartBgColor)
+
+                bbBandFillSeriesApi?.setData(bbDataState.upperBand.mapIndexedNotNull { index, value ->
+                    value?.let {
+                        AreaData(
+                            time = candlestickData[index].time,
+                            value = it,
+                            lineColor = IntColor(applyOpacity(AndroidColor.WHITE, 0)),
+                            topColor = bandFillColor,
+                            bottomColor = bandFillColor
+                        )
+                    }
+                })
+                bbBandMaskSeriesApi?.setData(bbDataState.lowerBand.mapIndexedNotNull { index, value ->
+                    value?.let {
+                        AreaData(
+                            time = candlestickData[index].time,
+                            value = it,
+                            lineColor = IntColor(applyOpacity(AndroidColor.WHITE, 0)),
+                            topColor = bandMaskColor,
+                            bottomColor = bandMaskColor
+                        )
+                    }
+                })
+                bbUpperSeriesApi?.setData(bbDataState.upperBand.mapIndexedNotNull { index, value ->
                     value?.let { LineData(candlestickData[index].time, it) }
                 })
-                // For a full BB implementation we would need upper and lower bands
+                bbMiddleSeriesApi?.setData(bbDataState.middleBand.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+                bbLowerSeriesApi?.setData(bbDataState.lowerBand.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+            } else {
+                bbBandFillSeriesApi?.setData(emptyList())
+                bbBandMaskSeriesApi?.setData(emptyList())
+                bbUpperSeriesApi?.setData(emptyList())
+                bbMiddleSeriesApi?.setData(emptyList())
+                bbLowerSeriesApi?.setData(emptyList())
+            }
+
+            if (showMacd) {
+                val macdIndicator = com.trading.app.indicators.MacdIndicator(macdFast, macdSlow, macdSignal)
+                val macdLine = macdIndicator.calculateMacdLine(ohlcList)
+                val signalLine = macdIndicator.calculateSignalLine(macdLine)
+                val histogram = macdIndicator.calculateHistogram(macdLine, signalLine)
+
+                macdLineSeriesApi?.setData(macdLine.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+                macdSignalSeriesApi?.setData(signalLine.mapIndexedNotNull { index, value ->
+                    value?.let { LineData(candlestickData[index].time, it) }
+                })
+                macdHistogramSeriesApi?.setData(histogram.mapIndexedNotNull { index, value ->
+                    value?.let {
+                        HistogramData(
+                            time = candlestickData[index].time,
+                            value = it,
+                            color = if (it >= 0) IntColor(AndroidColor.parseColor("#089981")) else IntColor(AndroidColor.parseColor("#F23645"))
+                        )
+                    }
+                })
+            } else {
+                macdLineSeriesApi?.setData(emptyList())
+                macdSignalSeriesApi?.setData(emptyList())
+                macdHistogramSeriesApi?.setData(emptyList())
             }
 
             if (showVolume) {
                 volumeSeriesApi?.setData(buildVolumeHistogramData(ohlcData))
             }
         } else {
-            api.setData(emptyList())
-            rsiSeriesApi?.setData(emptyList())
+            mainSeriesApi?.setData(emptyList())
+            rsiPaneRefs.clearData()
             ema10SeriesApi?.setData(emptyList())
             ema20SeriesApi?.setData(emptyList())
             sma1SeriesApi?.setData(emptyList())
             sma2SeriesApi?.setData(emptyList())
+            vwapBandFillSeriesApi?.setData(emptyList())
+            vwapBandMaskSeriesApi?.setData(emptyList())
+            vwapUpperSeriesApi?.setData(emptyList())
             vwapSeriesApi?.setData(emptyList())
+            vwapLowerSeriesApi?.setData(emptyList())
             atrSeriesApi?.setData(emptyList())
+            bbBandFillSeriesApi?.setData(emptyList())
+            bbBandMaskSeriesApi?.setData(emptyList())
+            bbUpperSeriesApi?.setData(emptyList())
             bbMiddleSeriesApi?.setData(emptyList())
+            bbLowerSeriesApi?.setData(emptyList())
+            macdLineSeriesApi?.setData(emptyList())
+            macdSignalSeriesApi?.setData(emptyList())
+            macdHistogramSeriesApi?.setData(emptyList())
             volumeSeriesApi?.setData(emptyList())
+        }
+    }
+
+    LaunchedEffect(
+        seriesApi,
+        rsiPaneRefs.rsiSeriesApi,
+        volumeSeriesApi,
+        macdLineSeriesApi,
+        atrSeriesApi,
+        showInlineRsiPane,
+        showMacd,
+        showVolume,
+        showAtr,
+        chartSettings.canvas.scaleLineColor
+    ) {
+        val mainScaleMargins = paneMargins["main"]!!
+        val rsiScaleMargins = paneMargins[RSI_SCALE_KEY] ?: PriceScaleMargins(top = 0.72f, bottom = 0.04f)
+        val macdScaleMargins = paneMargins[MACD_SCALE_KEY] ?: PriceScaleMargins(0.82f, 0.02f)
+        val volumeScaleMargins = paneMargins[VOLUME_SCALE_KEY] ?: PriceScaleMargins(0.82f, 0.02f)
+        val atrScaleMargins = paneMargins[ATR_SCALE_KEY] ?: PriceScaleMargins(0.82f, 0.02f)
+        val scaleBorderColor = chartSettings.canvas.scaleLineColor.toIntColor()
+
+        seriesApi?.priceScale()?.applyOptions(
+            PriceScaleOptions(
+                autoScale = true,
+                scaleMargins = mainScaleMargins
+            )
+        )
+
+        applyInlineRsiPaneScale(
+            refs = rsiPaneRefs,
+            scaleMargins = rsiScaleMargins,
+            borderColor = scaleBorderColor,
+            visible = showInlineRsiPane
+        )
+        macdLineSeriesApi?.priceScale()?.applyOptions(
+            PriceScaleOptions(
+                autoScale = true,
+                scaleMargins = macdScaleMargins,
+                visible = showMacd,
+                borderVisible = false,
+                borderColor = scaleBorderColor,
+                entireTextOnly = true,
+                alignLabels = true,
+                ticksVisible = false
+            )
+        )
+
+        volumeSeriesApi?.priceScale()?.applyOptions(
+            PriceScaleOptions(
+                autoScale = true,
+                scaleMargins = volumeScaleMargins,
+                visible = false,
+                borderVisible = false
+            )
+        )
+
+        atrSeriesApi?.priceScale()?.applyOptions(
+            PriceScaleOptions(
+                autoScale = true,
+                scaleMargins = atrScaleMargins,
+                visible = showAtr,
+                borderVisible = false,
+                borderColor = scaleBorderColor,
+                entireTextOnly = true,
+                alignLabels = true,
+                ticksVisible = false
+            )
+        )
+    }
+
+    LaunchedEffect(seriesApi, chartSettings.canvas.scaleFontSize) {
+        seriesApi?.priceScale()?.width { width ->
+            if (width > 0f) {
+                mainPriceScaleWidthPx = width
+            }
         }
     }
 
@@ -442,15 +839,18 @@ fun TradingChart(
         val scales = chartSettings.scales
         
         // Remove existing lines
-        highLineState.value?.let { api.removePriceLine(it) }
-        highLabelState.value?.let { api.removePriceLine(it) }
-        lowLineState.value?.let { api.removePriceLine(it) }
-        lowLabelState.value?.let { api.removePriceLine(it) }
+        if (highLowPriceLineOwner === api) {
+            safelyRemovePriceLine(api, highLineState.value)
+            safelyRemovePriceLine(api, highLabelState.value)
+            safelyRemovePriceLine(api, lowLineState.value)
+            safelyRemovePriceLine(api, lowLabelState.value)
+        }
         
         highLineState.value = null
         highLabelState.value = null
         lowLineState.value = null
         lowLabelState.value = null
+        highLowPriceLineOwner = api
 
         if (candlestickData.isEmpty()) return@LaunchedEffect
 
@@ -572,10 +972,13 @@ fun TradingChart(
         val quote = currentQuoteState ?: return@LaunchedEffect
         val scales = chartSettings.scales
         
-        bidPriceLineState.value?.let { api.removePriceLine(it) }
-        askPriceLineState.value?.let { api.removePriceLine(it) }
+        if (bidAskPriceLineOwner === api) {
+            safelyRemovePriceLine(api, bidPriceLineState.value)
+            safelyRemovePriceLine(api, askPriceLineState.value)
+        }
         bidPriceLineState.value = null
         askPriceLineState.value = null
+        bidAskPriceLineOwner = api
 
         if (!scales.bidAskLabels && !scales.bidAskLines) return@LaunchedEffect
 
@@ -609,14 +1012,18 @@ fun TradingChart(
 
     // Manage Position Price Lines
     val positionPriceLines = remember { mutableStateListOf<PriceLine>() }
+    var positionPriceLineOwner by remember { mutableStateOf<SeriesApi?>(null) }
     // Using positions.toList() to ensure the effect re-runs when the list content changes
     val positionsSnapshot = positions.toList()
     LaunchedEffect(positionsSnapshot, seriesApi, symbol) {
         val api = seriesApi ?: return@LaunchedEffect
         
         // Remove previous position lines
-        positionPriceLines.forEach { api.removePriceLine(it) }
+        if (positionPriceLineOwner === api) {
+            positionPriceLines.forEach { safelyRemovePriceLine(api, it) }
+        }
         positionPriceLines.clear()
+        positionPriceLineOwner = api
 
         positionsSnapshot.filter { it.symbol.equals(symbol, ignoreCase = true) }.forEach { position ->
             val color = if (position.type.equals("buy", ignoreCase = true)) "#2962FF" else "#F2A52C"
@@ -674,13 +1081,17 @@ fun TradingChart(
 
     // Manage Order Price Lines (Pending Orders)
     val orderPriceLines = remember { mutableStateListOf<PriceLine>() }
+    var orderPriceLineOwner by remember { mutableStateOf<SeriesApi?>(null) }
     val ordersSnapshot = orders.toList()
     LaunchedEffect(ordersSnapshot, seriesApi, symbol) {
         val api = seriesApi ?: return@LaunchedEffect
         
         // Remove previous order lines
-        orderPriceLines.forEach { api.removePriceLine(it) }
+        if (orderPriceLineOwner === api) {
+            orderPriceLines.forEach { safelyRemovePriceLine(api, it) }
+        }
         orderPriceLines.clear()
+        orderPriceLineOwner = api
 
         ordersSnapshot.filter { it.symbol.equals(symbol, ignoreCase = true) }.forEach { order ->
             val color = if (order.type.equals("buy", ignoreCase = true)) "#2962FF" else "#F2A52C"
@@ -742,36 +1153,38 @@ fun TradingChart(
         }
     }
 
-    val chartBgColor = getFullChartColor(chartSettings.canvas.fullChartColor, chartSettings.canvas.background)
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(ComposeColor.Black)
     ) {
-        key(style, symbol, showRsi, showEma10, showEma20, showSma1, showSma2, showVwap, showBb, showAtr, showVolume) {
-            AndroidView(
-                factory = { context ->
-                    ChartsView(context).apply {
-                        chartsViewApi = this
-                        val uppercaseSymbol = symbol.uppercase()
-                        val isBitcoin = uppercaseSymbol.contains("BTC") || uppercaseSymbol.contains("BITCOIN")
-                        val isForex = uppercaseSymbol.length == 6 || uppercaseSymbol.contains("/")
-                        val mainScaleMargins = PriceScaleMargins(top = 0.06f, bottom = if (showVolume) 0.24f else 0.04f)
-                        val volumeScaleMargins = PriceScaleMargins(top = 0.76f, bottom = 0f)
-                        
-                        val precision = when {
-                            isBitcoin -> 0
-                            isForex -> 5
-                            else -> 2
-                        }
-                        val minMove = when {
-                            isBitcoin -> 1f
-                            isForex -> 0.00001f
-                            else -> 0.01f
-                        }
+        Box(modifier = Modifier.fillMaxSize()) {
+                key(style, symbol, showRsi, showEma10, showEma20, showSma1, showSma2, showVwap, showBb, showAtr, showVolume) {
+                    AndroidView(
+                        factory = { context ->
+                            ChartsView(context).apply {
+                                chartsViewApi = this
+                                rsiPaneRefs.clear()
+                                val uppercaseSymbol = symbol.uppercase()
+                                val isBitcoin = uppercaseSymbol.contains("BTC") || uppercaseSymbol.contains("BITCOIN")
+                                val isForex = uppercaseSymbol.length == 6 || uppercaseSymbol.contains("/")
+                                val mainScaleMargins = paneMargins["main"]!!
+                                val macdScaleMargins = paneMargins[MACD_SCALE_KEY] ?: PriceScaleMargins(0.82f, 0.02f)
+                                val volumeScaleMargins = paneMargins[VOLUME_SCALE_KEY] ?: PriceScaleMargins(0.82f, 0.02f)
+                                val atrScaleMargins = paneMargins[ATR_SCALE_KEY] ?: PriceScaleMargins(0.82f, 0.02f)
 
-                        api.applyOptions {
+                                val precision = when {
+                                    isBitcoin -> 0
+                                    isForex -> 5
+                                    else -> 2
+                                }
+                                val minMove = when {
+                                    isBitcoin -> 1f
+                                    isForex -> 0.00001f
+                                    else -> 0.01f
+                                }
+
+                                api.applyOptions {
                             layout = LayoutOptions(
                                 background = SolidColor(color = IntColor(chartBgColor)),
                                 textColor = chartSettings.canvas.scaleTextColor.toIntColor(),
@@ -807,12 +1220,26 @@ fun TradingChart(
                             )
                             timeScale = TimeScaleOptions(
                                 borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
+                                visible = true,
                                 timeVisible = true
+                            )
+                            handleScroll = HandleScrollOptions(
+                                pressedMouseMove = true,
+                                horzTouchDrag = true,
+                                vertTouchDrag = false
+                            )
+                            handleScale = HandleScaleOptions(
+                                mouseWheel = true,
+                                pinch = true,
+                                axisPressedMouseMove = AxisPressedMouseMoveOptions(
+                                    time = true,
+                                    price = true
+                                )
                             )
                         }
 
                         api.timeScale.subscribeVisibleTimeRangeChange { range ->
-                            if (chartSettings.scales.highLowCalculationMode == "Dynamic" && range != null && candlestickData.isNotEmpty()) {
+                            if (range != null && candlestickData.isNotEmpty()) {
                                 try {
                                     val start = (range.from as? Time.Utc)?.timestamp ?: 0L
                                     val end = (range.to as? Time.Utc)?.timestamp ?: Long.MAX_VALUE
@@ -830,17 +1257,125 @@ fun TradingChart(
                         val priceLineVisible = chartSettings.scales.symbolLastPriceLine
                         val lastValueVisible = chartSettings.scales.symbolLastPriceLabel
 
-                        // Add Indicator Series
-                        if (showRsi) {
-                            api.addLineSeries(
-                                options = LineSeriesOptions(
-                                    color = IntColor(AndroidColor.parseColor("#7E57C2")),
-                                    lineWidth = LineWidth.ONE,
-                                    priceScaleId = PriceScaleId("rsi_pane")
-                                ),
-                                onSeriesCreated = { rsiSeriesApi = it }
-                            )
+                        when (style) {
+                            "bars" -> {
+                                api.addBarSeries(
+                                    options = BarSeriesOptions(
+                                        upColor = chartSettings.symbol.upColor.toIntColor(),
+                                        downColor = chartSettings.symbol.downColor.toIntColor(),
+                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove.toFloat()),
+                                        priceLineVisible = priceLineVisible,
+                                        lastValueVisible = lastValueVisible
+                                    ),
+                                    onSeriesCreated = { createdSeries ->
+                                        seriesApi = createdSeries
+                                        createdSeries.priceScale().applyOptions(
+                                            PriceScaleOptions(
+                                                autoScale = true,
+                                                scaleMargins = mainScaleMargins
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+                            "line" -> {
+                                api.addLineSeries(
+                                    options = LineSeriesOptions(
+                                        color = chartSettings.symbol.upColor.toIntColor(),
+                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove.toFloat()),
+                                        priceLineVisible = priceLineVisible,
+                                        lastValueVisible = lastValueVisible
+                                    ),
+                                    onSeriesCreated = { createdSeries ->
+                                        seriesApi = createdSeries
+                                        createdSeries.priceScale().applyOptions(
+                                            PriceScaleOptions(
+                                                autoScale = true,
+                                                scaleMargins = mainScaleMargins
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+                            else -> {
+                                api.addCandlestickSeries(
+                                    options = CandlestickSeriesOptions(
+                                        upColor = chartSettings.symbol.upColor.toIntColor(),
+                                        downColor = chartSettings.symbol.downColor.toIntColor(),
+                                        borderVisible = chartSettings.symbol.borderVisible,
+                                        borderUpColor = chartSettings.symbol.borderColorUp.toIntColor(),
+                                        borderDownColor = chartSettings.symbol.borderColorDown.toIntColor(),
+                                        wickVisible = chartSettings.symbol.wickVisible,
+                                        wickUpColor = chartSettings.symbol.wickColorUp.toIntColor(),
+                                        wickDownColor = chartSettings.symbol.wickColorDown.toIntColor(),
+                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove.toFloat()),
+                                        priceLineVisible = priceLineVisible,
+                                        lastValueVisible = lastValueVisible
+                                    ),
+                                    onSeriesCreated = { createdSeries ->
+                                        seriesApi = createdSeries
+                                        createdSeries.priceScale().applyOptions(
+                                            PriceScaleOptions(
+                                                autoScale = true,
+                                                scaleMargins = mainScaleMargins
+                                            )
+                                        )
+                                    }
+                                )
+                            }
                         }
+
+                        if (showInlineRsiPane) {
+                            createInlineRsiPaneSeries(this, rsiPaneRefs)
+                        }
+
+                        // Add MACD Series
+                        api.addHistogramSeries(
+                            options = HistogramSeriesOptions(
+                                lastValueVisible = false,
+                                priceLineVisible = false,
+                                base = 0f,
+                                priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = 4, minMove = 0.0001f),
+                                priceScaleId = PriceScaleId(MACD_SCALE_KEY)
+                            ),
+                            onSeriesCreated = { macdHistogramSeriesApi = it }
+                        )
+
+                        api.addLineSeries(
+                            options = LineSeriesOptions(
+                                color = IntColor(AndroidColor.parseColor("#2962FF")),
+                                lineWidth = LineWidth.ONE,
+                                priceScaleId = PriceScaleId(MACD_SCALE_KEY),
+                                lastValueVisible = true,
+                                priceLineVisible = false
+                            ),
+                            onSeriesCreated = {
+                                macdLineSeriesApi = it
+                                it.priceScale().applyOptions(
+                                    PriceScaleOptions(
+                                        autoScale = true,
+                                        scaleMargins = macdScaleMargins,
+                                        visible = showMacd,
+                                        borderVisible = false,
+                                        borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
+                                        entireTextOnly = true,
+                                        alignLabels = true,
+                                        ticksVisible = false
+                                    )
+                                )
+                            }
+                        )
+
+                        api.addLineSeries(
+                            options = LineSeriesOptions(
+                                color = IntColor(AndroidColor.parseColor("#FF6D00")),
+                                lineWidth = LineWidth.ONE,
+                                priceScaleId = PriceScaleId(MACD_SCALE_KEY),
+                                lastValueVisible = false,
+                                priceLineVisible = false
+                            ),
+                            onSeriesCreated = { macdSignalSeriesApi = it }
+                        )
 
                         if (showEma10) {
                             api.addLineSeries(
@@ -883,12 +1418,54 @@ fun TradingChart(
                         }
 
                         if (showVwap) {
+                            api.addAreaSeries(
+                                options = AreaSeriesOptions(
+                                    lastValueVisible = false,
+                                    priceLineVisible = false,
+                                    lineColor = IntColor(applyOpacity(AndroidColor.WHITE, 0)),
+                                    topColor = IntColor(applyOpacity(AndroidColor.parseColor("#2B4B60"), 18)),
+                                    bottomColor = IntColor(applyOpacity(AndroidColor.parseColor("#2B4B60"), 18)),
+                                    crosshairMarkerVisible = false
+                                ),
+                                onSeriesCreated = { vwapBandFillSeriesApi = it }
+                            )
+                            api.addAreaSeries(
+                                options = AreaSeriesOptions(
+                                    lastValueVisible = false,
+                                    priceLineVisible = false,
+                                    lineColor = IntColor(applyOpacity(AndroidColor.WHITE, 0)),
+                                    topColor = IntColor(chartBgColor),
+                                    bottomColor = IntColor(chartBgColor),
+                                    crosshairMarkerVisible = false
+                                ),
+                                onSeriesCreated = { vwapBandMaskSeriesApi = it }
+                            )
                             api.addLineSeries(
                                 options = LineSeriesOptions(
-                                    color = IntColor(AndroidColor.parseColor("#FFD600")),
-                                    lineWidth = LineWidth.ONE
+                                    color = IntColor(AndroidColor.parseColor("#4CAF50")),
+                                    lineWidth = LineWidth.ONE,
+                                    lastValueVisible = true,
+                                    priceLineVisible = false
+                                ),
+                                onSeriesCreated = { vwapUpperSeriesApi = it }
+                            )
+                            api.addLineSeries(
+                                options = LineSeriesOptions(
+                                    color = IntColor(AndroidColor.parseColor("#2962FF")),
+                                    lineWidth = LineWidth.ONE,
+                                    lastValueVisible = true,
+                                    priceLineVisible = false
                                 ),
                                 onSeriesCreated = { vwapSeriesApi = it }
+                            )
+                            api.addLineSeries(
+                                options = LineSeriesOptions(
+                                    color = IntColor(AndroidColor.parseColor("#4CAF50")),
+                                    lineWidth = LineWidth.ONE,
+                                    lastValueVisible = true,
+                                    priceLineVisible = false
+                                ),
+                                onSeriesCreated = { vwapLowerSeriesApi = it }
                             )
                         }
 
@@ -897,19 +1474,75 @@ fun TradingChart(
                                 options = LineSeriesOptions(
                                     color = IntColor(AndroidColor.parseColor("#F44336")),
                                     lineWidth = LineWidth.ONE,
-                                    priceScaleId = PriceScaleId("atr_pane")
+                                    priceScaleId = PriceScaleId(ATR_SCALE_KEY)
                                 ),
-                                onSeriesCreated = { atrSeriesApi = it }
+                                onSeriesCreated = { api ->
+                                    atrSeriesApi = api
+                                    api.priceScale().applyOptions(
+                                        PriceScaleOptions(
+                                            autoScale = true,
+                                            scaleMargins = atrScaleMargins,
+                                            visible = showAtr,
+                                            borderVisible = false,
+                                            borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
+                                            entireTextOnly = true,
+                                            alignLabels = true,
+                                            ticksVisible = false
+                                        )
+                                    )
+                                }
                             )
                         }
 
                         if (showBb) {
+                            api.addAreaSeries(
+                                options = AreaSeriesOptions(
+                                    lastValueVisible = false,
+                                    priceLineVisible = false,
+                                    lineColor = IntColor(applyOpacity(AndroidColor.WHITE, 0)),
+                                    topColor = IntColor(applyOpacity(AndroidColor.parseColor("#2B4B60"), 18)),
+                                    bottomColor = IntColor(applyOpacity(AndroidColor.parseColor("#2B4B60"), 18)),
+                                    crosshairMarkerVisible = false
+                                ),
+                                onSeriesCreated = { bbBandFillSeriesApi = it }
+                            )
+                            api.addAreaSeries(
+                                options = AreaSeriesOptions(
+                                    lastValueVisible = false,
+                                    priceLineVisible = false,
+                                    lineColor = IntColor(applyOpacity(AndroidColor.WHITE, 0)),
+                                    topColor = IntColor(chartBgColor),
+                                    bottomColor = IntColor(chartBgColor),
+                                    crosshairMarkerVisible = false
+                                ),
+                                onSeriesCreated = { bbBandMaskSeriesApi = it }
+                            )
+                            api.addLineSeries(
+                                options = LineSeriesOptions(
+                                    color = IntColor(AndroidColor.parseColor("#F23645")),
+                                    lineWidth = LineWidth.ONE,
+                                    lastValueVisible = true,
+                                    priceLineVisible = false
+                                ),
+                                onSeriesCreated = { bbUpperSeriesApi = it }
+                            )
                             api.addLineSeries(
                                 options = LineSeriesOptions(
                                     color = IntColor(AndroidColor.parseColor("#2196F3")),
-                                    lineWidth = LineWidth.ONE
+                                    lineWidth = LineWidth.ONE,
+                                    lastValueVisible = true,
+                                    priceLineVisible = false
                                 ),
                                 onSeriesCreated = { bbMiddleSeriesApi = it }
+                            )
+                            api.addLineSeries(
+                                options = LineSeriesOptions(
+                                    color = IntColor(AndroidColor.parseColor("#00BFA5")),
+                                    lineWidth = LineWidth.ONE,
+                                    lastValueVisible = true,
+                                    priceLineVisible = false
+                                ),
+                                onSeriesCreated = { bbLowerSeriesApi = it }
                             )
                         }
 
@@ -920,7 +1553,7 @@ fun TradingChart(
                                     priceLineVisible = false,
                                     base = 0f,
                                     priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.VOLUME, precision = 0, minMove = 1f),
-                                    priceScaleId = PriceScaleId("volume_pane")
+                                    priceScaleId = PriceScaleId(VOLUME_SCALE_KEY)
                                 ),
                                 onSeriesCreated = {
                                     volumeSeriesApi = it
@@ -936,73 +1569,6 @@ fun TradingChart(
                             )
                         }
 
-                        when (style) {
-                            "bars" -> {
-                                api.addBarSeries(
-                                    options = BarSeriesOptions(
-                                        upColor = chartSettings.symbol.upColor.toIntColor(),
-                                        downColor = chartSettings.symbol.downColor.toIntColor(),
-                                    priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove.toFloat()),
-                                    priceLineVisible = priceLineVisible,
-                                    lastValueVisible = lastValueVisible
-                                    ),
-                                    onSeriesCreated = { api ->
-                                        seriesApi = api
-                                        api.priceScale().applyOptions(
-                                            PriceScaleOptions(
-                                                autoScale = true,
-                                                scaleMargins = mainScaleMargins
-                                            )
-                                        )
-                                    }
-                                )
-                            }
-                            "line" -> {
-                                api.addLineSeries(
-                                    options = LineSeriesOptions(
-                                        color = chartSettings.symbol.upColor.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove.toFloat()),
-                                        priceLineVisible = priceLineVisible,
-                                        lastValueVisible = lastValueVisible
-                                    ),
-                                    onSeriesCreated = { api ->
-                                        seriesApi = api
-                                        api.priceScale().applyOptions(
-                                            PriceScaleOptions(
-                                                autoScale = true,
-                                                scaleMargins = mainScaleMargins
-                                            )
-                                        )
-                                    }
-                                )
-                            }
-                            else -> {
-                                api.addCandlestickSeries(
-                                    options = CandlestickSeriesOptions(
-                                        upColor = chartSettings.symbol.upColor.toIntColor(),
-                                        downColor = chartSettings.symbol.downColor.toIntColor(),
-                                        borderVisible = chartSettings.symbol.borderVisible,
-                                        borderUpColor = chartSettings.symbol.borderColorUp.toIntColor(),
-                                        borderDownColor = chartSettings.symbol.borderColorDown.toIntColor(),
-                                        wickVisible = chartSettings.symbol.wickVisible,
-                                        wickUpColor = chartSettings.symbol.wickColorUp.toIntColor(),
-                                        wickDownColor = chartSettings.symbol.wickColorDown.toIntColor(),
-                                        priceFormat = PriceFormat.priceFormatBuiltIn(type = PriceFormat.Type.PRICE, precision = precision, minMove = minMove.toFloat()),
-                                        priceLineVisible = priceLineVisible,
-                                        lastValueVisible = lastValueVisible
-                                    ),
-                                    onSeriesCreated = { api ->
-                                        seriesApi = api
-                                        api.priceScale().applyOptions(
-                                            PriceScaleOptions(
-                                                autoScale = true,
-                                                scaleMargins = mainScaleMargins
-                                            )
-                                        )
-                                    }
-                                )
-                            }
-                        }
                     }
                 },
                 modifier = Modifier.fillMaxSize(),
@@ -1035,6 +1601,29 @@ fun TradingChart(
                                 style = chartSettings.canvas.crosshairLineStyle.toLineStyle()
                             )
                         )
+                        rightPriceScale = PriceScaleOptions(
+                            borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
+                            entireTextOnly = false,
+                            autoScale = true
+                        )
+                        timeScale = TimeScaleOptions(
+                            borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
+                            visible = true,
+                            timeVisible = true
+                        )
+                        handleScroll = HandleScrollOptions(
+                            pressedMouseMove = true,
+                            horzTouchDrag = true,
+                            vertTouchDrag = false
+                        )
+                        handleScale = HandleScaleOptions(
+                            mouseWheel = true,
+                            pinch = true,
+                            axisPressedMouseMove = AxisPressedMouseMoveOptions(
+                                time = true,
+                                price = true
+                            )
+                        )
                     }
 
                     // Apply series-specific options
@@ -1052,8 +1641,19 @@ fun TradingChart(
                     }
                 }
             )
-        }
+                }
 
+                RsiPaneOverlay(
+                    visible = showInlineRsiPane,
+                    scaleMargins = paneMargins[RSI_SCALE_KEY] ?: PriceScaleMargins(top = 0.72f, bottom = 0.04f),
+                    data = rsiDataState,
+                    rsiPeriod = rsiPeriod,
+                    scaleTextColor = chartSettings.canvas.scaleTextColor,
+                    scaleBorderColor = chartSettings.canvas.scaleLineColor,
+                    scaleFontSize = chartSettings.canvas.scaleFontSize,
+                    axisWidthPx = mainPriceScaleWidthPx
+                )
+            }
         // Top Right Currency Selector
         Box(
             modifier = Modifier
@@ -1166,6 +1766,80 @@ fun TradingChart(
                     )
                 }
 
+                if (showBb) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Text(
+                            text = "BB $bbPeriod SMA close ${formatBandMultiplier(bbStdDev)}",
+                            color = ComposeColor(0xFFB2B5BE),
+                            fontSize = 13.sp
+                        )
+                        bbDataState.latestMiddleBand?.let { middleBand ->
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = formatPrice(middleBand, symbol),
+                                color = ComposeColor(0xFF2962FF),
+                                fontSize = 13.sp
+                            )
+                        }
+                        bbDataState.latestUpperBand?.let { upperBand ->
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = formatPrice(upperBand, symbol),
+                                color = ComposeColor(0xFFF23645),
+                                fontSize = 13.sp
+                            )
+                        }
+                        bbDataState.latestLowerBand?.let { lowerBand ->
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = formatPrice(lowerBand, symbol),
+                                color = ComposeColor(0xFF00BFA5),
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+
+                if (showVwap) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Text(
+                            text = "VWAP hlc3 Session",
+                            color = ComposeColor(0xFFB2B5BE),
+                            fontSize = 13.sp
+                        )
+                        vwapDataState.latestVwap?.let { latestVwap ->
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = formatPrice(latestVwap, symbol),
+                                color = ComposeColor(0xFF2962FF),
+                                fontSize = 13.sp
+                            )
+                        }
+                        vwapDataState.latestUpperBand?.let { upperBand ->
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = formatPrice(upperBand, symbol),
+                                color = ComposeColor(0xFF4CAF50),
+                                fontSize = 13.sp
+                            )
+                        }
+                        vwapDataState.latestLowerBand?.let { lowerBand ->
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = formatPrice(lowerBand, symbol),
+                                color = ComposeColor(0xFF4CAF50),
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+
                 Box(
                     modifier = Modifier
                         .padding(top = 8.dp)
@@ -1238,6 +1912,14 @@ private fun formatPrice(price: Float, symbol: String = ""): String {
     return df.format(price)
 }
 
+private fun formatBandMultiplier(multiplier: Float): String {
+    return if (multiplier % 1f == 0f) {
+        multiplier.toInt().toString()
+    } else {
+        DecimalFormat("#.##", DecimalFormatSymbols(Locale.US)).format(multiplier)
+    }
+}
+
 @Composable
 fun OhlcItem(label: String, value: Float, symbol: String) {
     Row(modifier = Modifier.padding(end = 8.dp)) {
@@ -1245,3 +1927,4 @@ fun OhlcItem(label: String, value: Float, symbol: String) {
         Text(text = formatPrice(value, symbol), color = ComposeColor.White, fontSize = 11.sp)
     }
 }
+

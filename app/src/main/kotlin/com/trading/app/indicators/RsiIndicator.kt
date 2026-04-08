@@ -9,37 +9,42 @@ class RsiIndicator(private val period: Int = 14, private val maPeriod: Int = 14)
     override val color = Color.parseColor("#7E57C2") // Purple
 
     override fun calculate(candles: List<OHLCData>): List<Float?> {
-        if (candles.size <= period) return List(candles.size) { null }
+        if (period <= 0 || candles.size <= period) return List(candles.size) { null }
 
-        val rsiValues = mutableListOf<Float?>()
-        val gains = mutableListOf<Float>()
-        val losses = mutableListOf<Float>()
+        val rsiValues = MutableList<Float?>(candles.size) { null }
+        var gainSum = 0.0
+        var lossSum = 0.0
 
-        for (i in 1 until candles.size) {
-            val change = candles[i].close - candles[i - 1].close
-            gains.add(if (change > 0) change else 0f)
-            losses.add(if (change < 0) -change else 0f)
+        for (index in 1..period) {
+            val change = (candles[index].close - candles[index - 1].close).toDouble()
+            if (change > 0.0) {
+                gainSum += change
+            } else {
+                lossSum -= change
+            }
         }
 
-        var avgGain = gains.take(period).average().toFloat()
-        var avgLoss = losses.take(period).average().toFloat()
+        var avgGain = gainSum / period
+        var avgLoss = lossSum / period
 
-        for (i in 0 until period) {
-            rsiValues.add(null)
+        fun calculateRsiValue(gain: Double, loss: Double): Float {
+            return when {
+                gain == 0.0 && loss == 0.0 -> 50f
+                loss == 0.0 -> 100f
+                gain == 0.0 -> 0f
+                else -> (100.0 - (100.0 / (1.0 + gain / loss))).toFloat()
+            }
         }
-        
-        fun calculateRsiValue(g: Float, l: Float): Float {
-            if (l == 0f) return 100f
-            val rs = g / l
-            return 100f - (100f / (1f + rs))
-        }
 
-        rsiValues.add(calculateRsiValue(avgGain, avgLoss))
+        rsiValues[period] = calculateRsiValue(avgGain, avgLoss)
 
-        for (i in period until gains.size) {
-            avgGain = (avgGain * (period - 1) + gains[i]) / period
-            avgLoss = (avgLoss * (period - 1) + losses[i]) / period
-            rsiValues.add(calculateRsiValue(avgGain, avgLoss))
+        for (index in period + 1 until candles.size) {
+            val change = (candles[index].close - candles[index - 1].close).toDouble()
+            val gain = if (change > 0.0) change else 0.0
+            val loss = if (change < 0.0) -change else 0.0
+            avgGain = ((avgGain * (period - 1)) + gain) / period
+            avgLoss = ((avgLoss * (period - 1)) + loss) / period
+            rsiValues[index] = calculateRsiValue(avgGain, avgLoss)
         }
 
         return rsiValues
