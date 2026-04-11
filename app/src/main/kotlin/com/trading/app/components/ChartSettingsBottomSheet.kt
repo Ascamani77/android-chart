@@ -39,7 +39,7 @@ fun ChartSettingsBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = Color(0xFF1E222D),
+        containerColor = Color(0xFF121212), // Charcoal black
         dragHandle = {
             if (currentPage == "Main") {
                 Box(
@@ -55,16 +55,30 @@ fun ChartSettingsBottomSheet(
     ) {
         when (currentPage) {
             "Main" -> {
+                val scales = settings.scales
+                val isScaleModeLocked = scales.lockRatio
+                val activeCheckColor = Color(0xFFD1D4DC)
+                val disabledCheckColor = Color(0xFF787B86)
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
-                        .padding(bottom = 80.dp)
+                        .padding(bottom = 30.dp)
                 ) {
                     BottomSheetItem(
                         label = "Reset price scale",
                         icon = Icons.Default.Refresh,
                         onClick = {
+                            onUpdate(
+                                settings.copy(
+                                    scales = scales.copy(
+                                        autoScale = true,
+                                        lockRatio = false
+                                    )
+                                )
+                            )
+                            onAutoToggle(true)
                             onResetScale()
                             onDismissRequest()
                         }
@@ -74,45 +88,187 @@ fun ChartSettingsBottomSheet(
                     Divider(color = Color(0xFF2A2E39), thickness = 0.5.dp)
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    BottomSheetItem(label = "Auto (fits data to screen)", onClick = { onAutoToggle(true) })
+                    BottomSheetItem(
+                        label = "Auto (fits data to screen)",
+                        enabled = !isScaleModeLocked,
+                        trailing = {
+                            if (scales.autoScale) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    null,
+                                    tint = if (isScaleModeLocked) disabledCheckColor else activeCheckColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        },
+                        onClick = {
+                            val nextAuto = !scales.autoScale
+                            onUpdate(settings.copy(scales = scales.copy(autoScale = nextAuto)))
+                            onAutoToggle(nextAuto)
+                        }
+                    )
                     BottomSheetItem(
                         label = "Lock price to bar ratio",
-                        trailing = { Text("5.2912", color = Color(0xFF787B86), fontSize = 15.sp) }
+                        trailing = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(scales.lockRatioValue, color = Color(0xFF787B86), fontSize = 15.sp)
+                                if (scales.lockRatio) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(Icons.Default.Check, null, tint = activeCheckColor, modifier = Modifier.size(24.dp))
+                                }
+                            }
+                        },
+                        onClick = {
+                            val nextLock = !scales.lockRatio
+                            onUpdate(
+                                settings.copy(
+                                    scales = scales.copy(
+                                        lockRatio = nextLock,
+                                        autoScale = if (nextLock) false else scales.autoScale
+                                    )
+                                )
+                            )
+                        }
                     )
-                    BottomSheetItem(label = "Scale price chart only")
-                    BottomSheetItem(label = "Invert scale")
+                    BottomSheetItem(
+                        label = "Scale price chart only",
+                        trailing = {
+                            if (scales.scalePriceChartOnly) {
+                                Icon(Icons.Default.Check, null, tint = activeCheckColor, modifier = Modifier.size(24.dp))
+                            }
+                        },
+                        onClick = {
+                            onUpdate(
+                                settings.copy(
+                                    scales = scales.copy(scalePriceChartOnly = !scales.scalePriceChartOnly)
+                                )
+                            )
+                        }
+                    )
+                    BottomSheetItem(
+                        label = "Invert scale",
+                        trailing = {
+                            if (scales.invertScale) {
+                                Icon(Icons.Default.Check, null, tint = activeCheckColor, modifier = Modifier.size(24.dp))
+                            }
+                        },
+                        onClick = {
+                            onUpdate(settings.copy(scales = scales.copy(invertScale = !scales.invertScale)))
+                        }
+                    )
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Divider(color = Color(0xFF2A2E39), thickness = 0.5.dp)
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    var selectedScaleType by remember { mutableStateOf("Regular") }
+                    BottomSheetItem(
+                        label = "Hide header pane",
+                        trailing = {
+                            if (scales.hideHeaderPane) Icon(Icons.Default.Check, null, tint = activeCheckColor, modifier = Modifier.size(24.dp))
+                        },
+                        onClick = { onUpdate(settings.copy(scales = scales.copy(hideHeaderPane = !scales.hideHeaderPane))) }
+                    )
+                    BottomSheetItem(
+                        label = "Hide asset lastviewed pane",
+                        trailing = {
+                            if (scales.hideAssetLastViewedPane) Icon(Icons.Default.Check, null, tint = activeCheckColor, modifier = Modifier.size(24.dp))
+                        },
+                        onClick = { onUpdate(settings.copy(scales = scales.copy(hideAssetLastViewedPane = !scales.hideAssetLastViewedPane))) }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Divider(color = Color(0xFF2A2E39), thickness = 0.5.dp)
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     BottomSheetItem(
                         label = "Regular",
-                        trailing = { if (selectedScaleType == "Regular") Icon(Icons.Default.Check, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(24.dp)) },
-                        onClick = { selectedScaleType = "Regular" }
+                        enabled = !isScaleModeLocked,
+                        trailing = {
+                            if (scales.scaleType == "Regular") {
+                                Icon(
+                                    Icons.Default.Check,
+                                    null,
+                                    tint = if (isScaleModeLocked) disabledCheckColor else activeCheckColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        },
+                        onClick = {
+                            onUpdate(settings.copy(scales = scales.copy(scaleType = "Regular")))
+                            onScaleTypeChange("Regular")
+                        }
                     )
                     BottomSheetItem(
                         label = "Percent",
-                        trailing = { if (selectedScaleType == "Percent") Icon(Icons.Default.Check, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(24.dp)) },
-                        onClick = { selectedScaleType = "Percent" }
+                        enabled = !isScaleModeLocked,
+                        trailing = {
+                            if (scales.scaleType == "Percent") {
+                                Icon(
+                                    Icons.Default.Check,
+                                    null,
+                                    tint = if (isScaleModeLocked) disabledCheckColor else activeCheckColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        },
+                        onClick = {
+                            onUpdate(settings.copy(scales = scales.copy(scaleType = "Percent")))
+                            onScaleTypeChange("Percent")
+                        }
                     )
                     BottomSheetItem(
                         label = "Indexed to 100",
-                        trailing = { if (selectedScaleType == "Indexed") Icon(Icons.Default.Check, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(24.dp)) },
-                        onClick = { selectedScaleType = "Indexed" }
+                        enabled = !isScaleModeLocked,
+                        trailing = {
+                            if (scales.scaleType == "Indexed to 100") {
+                                Icon(
+                                    Icons.Default.Check,
+                                    null,
+                                    tint = if (isScaleModeLocked) disabledCheckColor else activeCheckColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        },
+                        onClick = {
+                            onUpdate(settings.copy(scales = scales.copy(scaleType = "Indexed to 100")))
+                            onScaleTypeChange("Indexed to 100")
+                        }
                     )
                     BottomSheetItem(
                         label = "Logarithmic",
-                        trailing = { if (selectedScaleType == "Logarithmic") Icon(Icons.Default.Check, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(24.dp)) },
-                        onClick = { selectedScaleType = "Logarithmic" }
+                        enabled = !isScaleModeLocked,
+                        trailing = {
+                            if (scales.scaleType == "Logarithmic") {
+                                Icon(
+                                    Icons.Default.Check,
+                                    null,
+                                    tint = if (isScaleModeLocked) disabledCheckColor else activeCheckColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        },
+                        onClick = {
+                            onUpdate(settings.copy(scales = scales.copy(scaleType = "Logarithmic")))
+                            onScaleTypeChange("Logarithmic")
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Divider(color = Color(0xFF2A2E39), thickness = 0.5.dp)
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    BottomSheetItem(label = "Move scale to left")
+                    BottomSheetItem(
+                        label = "Move scale to left",
+                        trailing = {
+                            if (scales.scalesPlacement == "Left") {
+                                Icon(Icons.Default.Check, null, tint = activeCheckColor, modifier = Modifier.size(24.dp))
+                            }
+                        },
+                        onClick = {
+                            val nextPlacement = if (scales.scalesPlacement == "Left") "Right" else "Left"
+                            onUpdate(settings.copy(scales = scales.copy(scalesPlacement = nextPlacement)))
+                        }
+                    )
                     BottomSheetItem(
                         label = "Labels", 
                         trailing = { Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF787B86), modifier = Modifier.size(22.dp)) },
@@ -123,7 +279,17 @@ fun ChartSettingsBottomSheet(
                         trailing = { Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF787B86), modifier = Modifier.size(22.dp)) },
                         onClick = { currentPage = "Lines" }
                     )
-                    BottomSheetItem(label = "Plus button")
+                    BottomSheetItem(
+                        label = "Plus button",
+                        trailing = {
+                            if (scales.plusButton) {
+                                Icon(Icons.Default.Check, null, tint = activeCheckColor, modifier = Modifier.size(24.dp))
+                            }
+                        },
+                        onClick = {
+                            onUpdate(settings.copy(scales = scales.copy(plusButton = !scales.plusButton)))
+                        }
+                    )
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Divider(color = Color(0xFF2A2E39), thickness = 0.5.dp)
@@ -164,7 +330,7 @@ fun LabelsPage(
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = 80.dp)
+            .padding(bottom = 30.dp)
     ) {
         // Header
         Row(
@@ -267,7 +433,7 @@ fun LinesPage(
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = 80.dp)
+            .padding(bottom = 30.dp)
     ) {
         // Header
         Row(
@@ -362,23 +528,25 @@ fun LabelOption(label: String, isChecked: Boolean = false, enabled: Boolean = tr
 fun BottomSheetItem(
     label: String,
     icon: ImageVector? = null,
+    enabled: Boolean = true,
     onClick: () -> Unit = {},
     trailing: @Composable (() -> Unit)? = null
 ) {
+    val contentColor = if (enabled) Color(0xFFD1D4DC) else Color(0xFF787B86).copy(alpha = 0.5f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .clickable(enabled = enabled) { onClick() }
             .padding(horizontal = 24.dp, vertical = 19.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (icon != null) {
-            Icon(icon, null, tint = Color(0xFFD1D4DC), modifier = Modifier.size(26.dp))
+            Icon(icon, null, tint = contentColor, modifier = Modifier.size(26.dp))
             Spacer(modifier = Modifier.width(20.dp))
         }
         Text(
             text = label,
-            color = Color(0xFFD1D4DC),
+            color = contentColor,
             fontSize = 16.sp,
             modifier = Modifier.weight(1f)
         )

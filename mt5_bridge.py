@@ -3,7 +3,11 @@ import json
 import time
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
+from email.utils import parsedate_to_datetime
 from datetime import date, datetime, timedelta, timezone
+from hashlib import md5
+from pathlib import Path
 
 import MetaTrader5 as mt5
 import websockets
@@ -22,10 +26,25 @@ TRADAYS_HEADERS = {
     "Accept": "application/json, text/javascript, */*; q=0.01",
     "Accept-Language": "en-US,en;q=0.9",
 }
+TRADAYS_NEWS_URL = "https://www.tradays.com/en/news/widget/content"
 TRADAYS_IMPORTANCE_MASK = 14
 TRADAYS_CURRENCY_MASK = 262143
 CALENDAR_REFRESH_SECONDS = 60.0
+TRADAYS_REQUEST_TIMEOUT_SECONDS = 10
+TRADAYS_REQUEST_RETRIES = 2
 LOCAL_TZ = datetime.now().astimezone().tzinfo or timezone.utc
+NEWS_AI_SNAPSHOT_PATH = Path(__file__).resolve().parent / "news_ai_payload.json"
+NEWS_LOOKBACK_DAYS = 7
+FALLBACK_NEWS_LIMIT = 700
+MIN_TRADAYS_NEWS_ITEMS = 80
+FALLBACK_NEWS_SOURCES = [
+    ("https://www.investing.com/rss/news_25.rss", "markets"),
+    ("https://www.forexlive.com/feed/news", "forex"),
+    ("https://news.google.com/rss/search?q=forex+market+when:7d&hl=en-US&gl=US&ceid=US:en", "forex"),
+    ("https://news.google.com/rss/search?q=stock+market+when:7d&hl=en-US&gl=US&ceid=US:en", "markets"),
+    ("https://news.google.com/rss/search?q=crypto+market+when:7d&hl=en-US&gl=US&ceid=US:en", "crypto"),
+    ("https://news.google.com/rss/search?q=commodities+market+when:7d&hl=en-US&gl=US&ceid=US:en", "commodities"),
+]
 
 COUNTRY_CODE_MAP = {
     0: "WW",
@@ -228,9 +247,231 @@ def fetch_tradays_calendar(start_date, end_date):
             "currencies": TRADAYS_CURRENCY_MASK,
         }
     )
-    request = urllib.request.Request(f"{TRADAYS_CONTENT_URL}?{params}", headers=TRADAYS_HEADERS)
-    with urllib.request.urlopen(request, timeout=20) as response:
-        return json.loads(response.read().decode("utf-8"))
+    url = f"{TRADAYS_CONTENT_URL}?{params}"
+
+    for attempt in range(TRADAYS_REQUEST_RETRIES):
+        try:
+            request = urllib.request.Request(url, headers=TRADAYS_HEADERS)
+            with urllib.request.urlopen(request, timeout=TRADAYS_REQUEST_TIMEOUT_SECONDS) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except Exception:
+            if attempt == TRADAYS_REQUEST_RETRIES - 1:
+                raise
+            time.sleep(1)
+
+
+def fetch_tradays_news():
+    params = urllib.parse.urlencode(
+        {
+            "limit": 50,
+        }
+    )
+    url = f"{TRADAYS_NEWS_URL}?{params}"
+
+    for attempt in range(TRADAYS_REQUEST_RETRIES):
+        try:
+            request = urllib.request.Request(url, headers=TRADAYS_HEADERS)
+            with urllib.request.urlopen(request, timeout=TRADAYS_REQUEST_TIMEOUT_SECONDS) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except Exception:
+            if attempt == TRADAYS_REQUEST_RETRIES - 1:
+                raise
+            time.sleep(1)
+
+
+def normalize_tradays_news(raw_payload):
+    if isinstance(raw_payload, list):
+        return raw_payload
+    if isinstance(raw_payload, dict):
+        for key in ("items", "data", "result", "news"):
+            value = raw_payload.get(key)
+            if isinstance(value, list):
+                return value
+    return []
+
+
+def write_news_snapshot(payload):
+    try:
+        NEWS_AI_SNAPSHOT_PATH.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception as exc:
+        print(f"News snapshot write error: {exc}")
+
+
+def empty_news_payload():
+    return {
+        "type": "news",
+        "items": [],
+        "lastUpdatedIso": datetime.now(timezone.utc).isoformat()
+    }
+
+
+def _human_time_label(release_dt):
+    now = datetime.now(LOCAL_TZ)
+    diff = now - release_dt
+    if diff.days == 0:
+        if diff.seconds < 3600:
+            mins = max(diff.seconds // 60, 1)
+            return f"{mins} minutes ago"
+        return f"{diff.seconds // 3600} hours ago"
+    if diff.days == 1:
+        return "yesterday"
+    return f"{diff.days} days ago"
+
+
+def _build_news_payload_from_tradays(news_items):
+    cutoff = datetime.now(LOCAL_TZ) - timedelta(days=NEWS_LOOKBACK_DAYS)
+    processed_news = []
+    for item in news_items:
+        if not isinstance(item, dict):
+            continue
+        release_ms = int(item.get("ReleaseDate", 0))
+        release_dt = datetime.fromtimestamp(release_ms / 1000.0, tz=timezone.utc).astimezone(LOCAL_TZ)
+        if release_dt < cutoff:
+            continue
+
+        processed_news.append({
+            "id": int(item.get("Id", 0)),
+            "title": sanitize_metric(item.get("Title")),
+            "timeLabel": _human_time_label(release_dt),
+            "isoDateTime": release_dt.isoformat(),
+            "countryCode": COUNTRY_CODE_MAP.get(int(item.get("Country", 0)), ""),
+            "category": sanitize_metric(item.get("CategoryName")),
+            "detailsUrl": details_url_for_event(item)
+        })
+
+    payload = {
+        "type": "news",
+        "items": processed_news,
+        "lastUpdatedIso": datetime.now(timezone.utc).isoformat()
+    }
+    return payload
+
+
+def _parse_feed_datetime(value):
+    text = sanitize_metric(value)
+    if not text:
+        return None
+
+    # Google/Forex feeds tend to use RFC822 strings.
+    try:
+        parsed = parsedate_to_datetime(text)
+        if parsed is not None:
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(LOCAL_TZ)
+    except Exception:
+        pass
+
+    # Investing feed often uses "YYYY-MM-DD HH:MM:SS".
+    for pattern in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            parsed = datetime.strptime(text, pattern)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(LOCAL_TZ)
+        except Exception:
+            continue
+    return None
+
+
+def _safe_find_text(item, tag_name):
+    element = item.find(tag_name)
+    if element is not None and element.text:
+        return element.text
+    return ""
+
+
+def _build_fallback_rss_news():
+    items = []
+    seen_links = set()
+    cutoff = datetime.now(LOCAL_TZ) - timedelta(days=NEWS_LOOKBACK_DAYS)
+
+    for source_url, default_category in FALLBACK_NEWS_SOURCES:
+        try:
+            request = urllib.request.Request(source_url, headers=TRADAYS_HEADERS)
+            with urllib.request.urlopen(request, timeout=TRADAYS_REQUEST_TIMEOUT_SECONDS) as response:
+                raw = response.read()
+            root = ET.fromstring(raw)
+        except Exception as exc:
+            print(f"RSS fallback fetch error ({source_url}): {exc}")
+            continue
+
+        for entry in root.findall(".//item"):
+            title = sanitize_metric(_safe_find_text(entry, "title"))
+            link = sanitize_metric(_safe_find_text(entry, "link"))
+            if not title or not link or link in seen_links:
+                continue
+
+            seen_links.add(link)
+            release_dt = _parse_feed_datetime(_safe_find_text(entry, "pubDate")) or datetime.now(LOCAL_TZ)
+            if release_dt < cutoff:
+                continue
+            category = sanitize_metric(_safe_find_text(entry, "category")).lower() or default_category
+            digest = md5(link.encode("utf-8")).hexdigest()[:8]
+            item_id = int(digest, 16) & 0x7FFFFFFF
+
+            items.append({
+                "id": item_id,
+                "title": title,
+                "timeLabel": _human_time_label(release_dt),
+                "isoDateTime": release_dt.isoformat(),
+                "countryCode": "WW",
+                "category": category,
+                "detailsUrl": link,
+            })
+
+    items.sort(key=lambda item: item["isoDateTime"], reverse=True)
+    return items[:FALLBACK_NEWS_LIMIT]
+
+
+def _merge_news_items(primary_items, secondary_items, limit):
+    merged = []
+    seen = set()
+
+    for item in primary_items + secondary_items:
+        if not isinstance(item, dict):
+            continue
+        key = (sanitize_metric(item.get("detailsUrl")), sanitize_metric(item.get("title")))
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(item)
+
+    merged.sort(key=lambda item: sanitize_metric(item.get("isoDateTime")), reverse=True)
+    return merged[:limit]
+
+
+def build_news_payload():
+    fallback_items = _build_fallback_rss_news()
+    try:
+        raw_news = fetch_tradays_news()
+        tradays_items = normalize_tradays_news(raw_news)
+        if tradays_items:
+            tradays_payload = _build_news_payload_from_tradays(tradays_items)
+            merged_items = _merge_news_items(
+                primary_items=tradays_payload.get("items", []),
+                secondary_items=fallback_items,
+                limit=FALLBACK_NEWS_LIMIT,
+            )
+            if len(merged_items) >= MIN_TRADAYS_NEWS_ITEMS:
+                return {
+                    "type": "news",
+                    "items": merged_items,
+                    "lastUpdatedIso": datetime.now(timezone.utc).isoformat()
+                }
+            print("Tradays news is too sparse for 7-day window. Enriching with RSS fallback.")
+        print("Tradays news returned no items. Switching to RSS fallback.")
+    except Exception as exc:
+        print(f"Tradays news fetch unavailable: {exc}. Switching to RSS fallback.")
+
+    return {
+        "type": "news",
+        "items": fallback_items,
+        "lastUpdatedIso": datetime.now(timezone.utc).isoformat()
+    }
 
 
 def build_calendar_payload(selected_date):
@@ -376,6 +617,7 @@ async def handle_client(websocket):
     current_tf = mt5.TIMEFRAME_H1
     calendar_selected_date = datetime.now(LOCAL_TZ).date()
     last_calendar_refresh = 0.0
+    calendar_refresh_task = None
 
     async def send_history(symbol, timeframe):
         payload = build_history_payload(symbol, timeframe)
@@ -392,16 +634,32 @@ async def handle_client(websocket):
         now_monotonic = time.monotonic()
         if not force and now_monotonic - last_calendar_refresh < CALENDAR_REFRESH_SECONDS:
             return
+        # Reserve refresh slot so failures do not trigger a retry storm.
+        last_calendar_refresh = now_monotonic
 
         try:
             payload = await asyncio.to_thread(build_calendar_payload, calendar_selected_date)
             await websocket.send(json.dumps(payload, ensure_ascii=False))
-            last_calendar_refresh = now_monotonic
         except Exception as exc:
             print(f"Calendar fetch error: {exc}")
 
+    async def send_news():
+        payload = empty_news_payload()
+        try:
+            payload = await asyncio.to_thread(build_news_payload)
+        except Exception as exc:
+            print(f"News fetch error: {exc}")
+        finally:
+            try:
+                await websocket.send(json.dumps(payload, ensure_ascii=False))
+            except Exception as send_exc:
+                print(f"News send error: {send_exc}")
+            await asyncio.to_thread(write_news_snapshot, payload)
+
     await send_history(current_symbol, current_tf)
-    await send_calendar(force=True)
+    # Keep stream startup fast; external data fetches should not block candles/ticks.
+    calendar_refresh_task = asyncio.create_task(send_calendar(force=True))
+    asyncio.create_task(send_news())
 
     async def listen():
         nonlocal current_symbol, current_tf
@@ -418,6 +676,9 @@ async def handle_client(websocket):
 
                     elif action == "get_calendar":
                         await send_calendar(parse_selected_date(data.get("selectedDate")), force=True)
+
+                    elif action == "get_news":
+                        await send_news()
 
                     elif action == "place_order":
                         matched_symbol = resolve_symbol(data.get("symbol", ""))
@@ -564,7 +825,7 @@ async def handle_client(websocket):
             pass
 
     async def stream():
-        nonlocal last_calendar_refresh
+        nonlocal last_calendar_refresh, calendar_refresh_task
         while True:
             try:
                 tick = mt5.symbol_info_tick(current_symbol)
@@ -658,7 +919,8 @@ async def handle_client(websocket):
                     )
 
                 if time.monotonic() - last_calendar_refresh >= CALENDAR_REFRESH_SECONDS:
-                    await send_calendar(force=True)
+                    if calendar_refresh_task is None or calendar_refresh_task.done():
+                        calendar_refresh_task = asyncio.create_task(send_calendar(force=True))
 
             except Exception as exc:
                 if isinstance(exc, websockets.exceptions.ConnectionClosed):

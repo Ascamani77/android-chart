@@ -54,8 +54,12 @@ data class StatusLineSettings(
 data class ScalesSettings(
     val currencyAndUnit: String = "Always visible",
     val scaleModes: String = "Visible on tap",
+    val autoScale: Boolean = true,
+    val scaleType: String = "Regular", // Options: "Regular", "Percent", "Indexed to 100", "Logarithmic"
     val lockRatio: Boolean = false,
     val lockRatioValue: String = "17.2210131",
+    val scalePriceChartOnly: Boolean = false,
+    val invertScale: Boolean = false,
     val scalesPlacement: String = "Auto",
     val noOverlappingLabels: Boolean = false,
     val plusButton: Boolean = true,
@@ -87,7 +91,9 @@ data class ScalesSettings(
     val symbolLastPriceLabel: Boolean = false,
     val symbolPrevCloseLabel: Boolean = false,
     val prePostMarketPriceLabel: Boolean = false,
-    val highLowPriceLabels: Boolean = false
+    val highLowPriceLabels: Boolean = false,
+    val hideHeaderPane: Boolean = false,
+    val hideAssetLastViewedPane: Boolean = false
 )
 
 data class CanvasSettings(
@@ -187,6 +193,15 @@ data class ChartSettings(
     val alerts: AlertsSettings = AlertsSettings(),
     val events: EventsSettings = EventsSettings(),
     val quickActions: QuickActionsSettings = QuickActionsSettings()
+)
+
+data class TradeNotification(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val symbol: String,
+    val volume: Float,
+    val price: Float,
+    val isBuy: Boolean,
+    val type: String // "executed", "tp_placed", "sl_placed"
 )
 
 data class OHLCData(
@@ -387,4 +402,20 @@ data class ToolItem(
 data class ChartSnapshot(
     val drawings: List<Drawing>,
     val activeIndicators: List<String>
+)
+
+data class NewsItem(
+    val id: Int,
+    val title: String,
+    val timeLabel: String,
+    val isoDateTime: String,
+    val countryCode: String,
+    val category: String,
+    val detailsUrl: String? = null
+)
+
+data class NewsPayload(
+    val type: String,
+    val items: List<NewsItem>,
+    val lastUpdatedIso: String
 )

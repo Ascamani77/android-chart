@@ -58,6 +58,9 @@ fun ExitLevelsModal(
     val totalExitUnits = levels.sumOf { it.units.toDoubleOrNull() ?: 0.0 }
     val orderUnits = initialUnits.toDoubleOrNull() ?: 1.0
     val protectedPercent = if (orderUnits != 0.0) (totalExitUnits / orderUnits) * 100.0 else 0.0
+    val topSectionBackground = Color(0xFF0B0E14)
+    val topSectionHeight = 8.dp
+    val contentHorizontalPadding = 10.dp
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
@@ -65,22 +68,49 @@ fun ExitLevelsModal(
         onDismissRequest = onClose,
         sheetState = sheetState,
         dragHandle = {
-            BottomSheetDefaults.DragHandle(
-                color = Color(0xFF787B86),
-                width = 40.dp,
-                height = 4.dp
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(topSectionBackground)
+                    .padding(top = 4.dp, bottom = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 40.dp, height = 4.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFF787B86))
+                )
+            }
         },
         containerColor = Color.Black,
         scrimColor = Color.Black.copy(alpha = 0.5f),
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+        tonalElevation = 0.dp
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.Black)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(topSectionBackground)
+                    .height(topSectionHeight)
+            )
+
+            Divider(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color.White,
+                thickness = 1.dp
+            )
+
             // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(horizontal = contentHorizontalPadding, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onClose) {
@@ -107,9 +137,8 @@ fun ExitLevelsModal(
 
             Column(
                 modifier = Modifier
-                    .weight(1f)
                     .verticalScroll(scrollState)
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = contentHorizontalPadding)
             ) {
                 // Asset Info
                 Row(
@@ -183,7 +212,7 @@ fun ExitLevelsModal(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 24.dp)
+                        .padding(top = 16.dp, bottom = 12.dp)
                         .clickable {
                             levels = levels + ExitLevel(
                                 id = levels.size + 1, 
@@ -202,7 +231,7 @@ fun ExitLevelsModal(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                    .padding(horizontal = contentHorizontalPadding, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
@@ -238,6 +267,8 @@ fun LevelItem(
     onDelete: () -> Unit
 ) {
     val tickSize = if (symbol.uppercase().contains("BTC")) 1f else if (symbol.length == 6 || symbol.contains("/")) 0.00001f else 0.01f
+    val fieldBackground = Color(0xFF1E222D)
+    val fieldBorder = Color(0xFF2A2E39)
     
     val tpVal = level.tp.replace(",", "").toFloatOrNull() ?: entryPrice
     val slVal = level.sl.replace(",", "").toFloatOrNull() ?: entryPrice
@@ -263,9 +294,9 @@ fun LevelItem(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp)
-                    .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
-                    .border(1.dp, Color(0xFF2A2E39), RoundedCornerShape(4.dp))
-                    .padding(12.dp),
+                    .background(fieldBackground, RoundedCornerShape(4.dp))
+                    .border(1.dp, fieldBorder, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 12.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("TP", color = Color(0xFF089981), fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -279,24 +310,23 @@ fun LevelItem(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .background(Color(0xFF1E222D), RoundedCornerShape(8.dp))
-                    .padding(12.dp)
+                    .padding(top = 10.dp)
             ) {
                 // Units
                 Text("Units", color = Color(0xFF787B86), fontSize = 12.sp)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp)
-                        .border(1.dp, Color(0xFF2962FF), RoundedCornerShape(4.dp))
-                        .padding(8.dp),
+                        .padding(top = 6.dp)
+                        .background(fieldBackground, RoundedCornerShape(4.dp))
+                        .border(1.dp, fieldBorder, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 12.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     BasicTextField(
                         value = level.units,
                         onValueChange = { onUpdate(level.copy(units = it)) },
-                        textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                        textStyle = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         cursorBrush = SolidColor(Color.White),
                         modifier = Modifier.weight(1f)
@@ -306,22 +336,23 @@ fun LevelItem(
                 }
 
                 // Take Profit
-                Row(modifier = Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Take profit, price", color = Color(0xFF787B86), fontSize = 12.sp)
                     Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(14.dp))
                 }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp)
-                        .background(Color(0xFF131722), RoundedCornerShape(4.dp))
-                        .padding(8.dp),
+                        .padding(top = 6.dp)
+                        .background(fieldBackground, RoundedCornerShape(4.dp))
+                        .border(1.dp, fieldBorder, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 12.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     BasicTextField(
                         value = level.tp,
                         onValueChange = { onUpdate(level.copy(tp = it)) },
-                        textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                        textStyle = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         cursorBrush = SolidColor(Color.White),
                         modifier = Modifier.weight(1f)
@@ -332,22 +363,23 @@ fun LevelItem(
                 }
 
                 // Stop Loss
-                Row(modifier = Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Stop loss, price", color = Color(0xFF787B86), fontSize = 12.sp)
                     Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF787B86), modifier = Modifier.size(14.dp))
                 }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp)
-                        .background(Color(0xFF131722), RoundedCornerShape(4.dp))
-                        .padding(8.dp),
+                        .padding(top = 6.dp)
+                        .background(fieldBackground, RoundedCornerShape(4.dp))
+                        .border(1.dp, fieldBorder, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 12.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     BasicTextField(
                         value = level.sl,
                         onValueChange = { onUpdate(level.copy(sl = it)) },
-                        textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                        textStyle = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         cursorBrush = SolidColor(Color.White),
                         modifier = Modifier.weight(1f)

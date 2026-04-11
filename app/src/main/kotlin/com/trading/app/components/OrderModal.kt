@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.trading.app.models.OHLCData
 import com.trading.app.models.Position
 import java.util.*
 import kotlin.math.abs
@@ -42,11 +43,16 @@ fun OrderModal(
     symbol: String,
     bidPrice: Float,
     askPrice: Float,
+    priceChange: Float,
+    chartData: List<OHLCData>,
     onClose: () -> Unit,
     onPlaceOrder: (Position, String, Float?) -> Unit,
-    onTradingSettingsClick: () -> Unit
+    onTradingSettingsClick: () -> Unit,
+    showMarketSideButtons: Boolean = true,
+    initialSide: String = "buy"
 ) {
-    var selectedType by remember { mutableStateOf("buy") }
+    val normalizedInitialSide = if (initialSide.equals("sell", ignoreCase = true)) "sell" else "buy"
+    var selectedType by remember(initialSide) { mutableStateOf(normalizedInitialSide) }
     val orderTypes = listOf(
         "Market Execution",
         "Buy Limit",
@@ -102,7 +108,7 @@ fun OrderModal(
     var slMode by remember { mutableStateOf("Price") }
     var secondarySlMode by remember { mutableStateOf("Ticks") }
     var timeInForce by remember { mutableStateOf("Week") }
-    
+
     // UI State
     var showModeSelector by remember { mutableStateOf<String?>(null) }
     var showPresets by remember { mutableStateOf(false) }
@@ -148,39 +154,76 @@ fun OrderModal(
     val riskPercent = if (balance > 0) (riskAmount / balance) * 100f else 0f
     val tpProfitAmount = units * abs(tpPrice - entryPrice)
     val tpProfitPercent = if (balance > 0) (tpProfitAmount / balance) * 100f else 0f
+    val topSectionBackground = Color(0xFF0B0E14)
+    val topSectionHeight = 8.dp
+    val contentHorizontalPadding = 10.dp
+    val isBullish = priceChange >= 0
+    val livePriceColor = if (isBullish) Color(0xFF089981) else Color(0xFFF23645)
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
     ModalBottomSheet(
         onDismissRequest = onClose,
         sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF787B86), width = 40.dp, height = 4.dp) },
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(topSectionBackground)
+                    .padding(top = 4.dp, bottom = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 40.dp, height = 4.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFF787B86))
+                )
+            }
+        },
         containerColor = Color.Black,
         scrimColor = Color.Black.copy(alpha = 0.5f),
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
         tonalElevation = 0.dp
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .border(
-                    width = 1.dp,
-                    color = Color(0xFF2A2E39),
-                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                )
+            modifier = Modifier.fillMaxSize()
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(topSectionBackground)
+                        .height(topSectionHeight)
+                )
+
+                Divider(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.White,
+                    thickness = 1.dp
+                )
+
                 // Header
-                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = contentHorizontalPadding, vertical = 8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(symbol, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                         Icon(Icons.Default.SwapVert, null, tint = Color.White, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.weight(1f))
-                        Text(formatPriceValue(bidPrice, symbol), color = if (selectedType == "sell") Color(0xFFF23645) else Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            formatPriceValue(bidPrice, symbol),
+                            color = livePriceColor,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(formatPriceValue(askPrice, symbol), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            formatPriceValue(askPrice, symbol),
+                            color = livePriceColor,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                    Text("Ethereum vs US Dollar", color = Color(0xFF787B86), fontSize = 12.sp)
+                    Text(getFullSymbolName(symbol), color = Color(0xFF787B86), fontSize = 12.sp)
                 }
 
                 // Tabs - Scrollable like MT5
@@ -195,7 +238,7 @@ fun OrderModal(
                         val textColor = if (isSelected) {
                             if (tab.contains("Sell") || (tab == "Market Execution" && selectedType == "sell")) Color(0xFFF23645) else Color.White
                         } else Color(0xFF787B86)
-                        
+
                         Text(
                             text = tab,
                             color = textColor,
@@ -209,7 +252,7 @@ fun OrderModal(
                 }
 
                 // Content
-                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = contentHorizontalPadding)) {
                     // Volume
                     Row(
                         modifier = Modifier
@@ -338,17 +381,50 @@ fun OrderModal(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    PendingOrderLineChartPanel(
+                        symbol = symbol,
+                        candles = chartData,
+                        lineColor = if (selectedType == "sell") Color(0xFFF23645) else Color(0xFF2962FF),
+                        marketPrice = marketPrice,
+                        entryPreview = if (selectedTab == "Market Execution") null else limitPriceInput.replace(",", "").toFloatOrNull(),
+                        stopLimitPreview = if (selectedTab.contains("Stop Limit")) stopLimitPriceInput.replace(",", "").toFloatOrNull() else null,
+                        tpPreview = if (tpEnabled) tpPriceInput.replace(",", "").toFloatOrNull() else null,
+                        slPreview = if (slEnabled) slPriceInput.replace(",", "").toFloatOrNull() else null,
+                        isEntryValid = isPriceValid,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(320.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
 
                 // Bottom Buttons
-                if (selectedTab == "Market Execution") {
+                val isMarketExecution = selectedTab == "Market Execution"
+                if (isMarketExecution && showMarketSideButtons) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = contentHorizontalPadding, vertical = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Button(
-                            onClick = { onPlaceOrder(Position(symbol = symbol, type = "sell", entryPrice = bidPrice, volume = units, time = System.currentTimeMillis()), "Market", null); onClose() },
+                            onClick = {
+                                onPlaceOrder(
+                                    Position(
+                                        symbol = symbol,
+                                        type = "sell",
+                                        entryPrice = bidPrice,
+                                        volume = units,
+                                        time = System.currentTimeMillis()
+                                    ),
+                                    "Market Execution",
+                                    null
+                                )
+                                onClose()
+                            },
                             modifier = Modifier.weight(1f).height(50.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF23645)),
                             shape = RoundedCornerShape(8.dp)
@@ -356,7 +432,20 @@ fun OrderModal(
                             Text("Sell", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
                         Button(
-                            onClick = { onPlaceOrder(Position(symbol = symbol, type = "buy", entryPrice = askPrice, volume = units, time = System.currentTimeMillis()), "Market", null); onClose() },
+                            onClick = {
+                                onPlaceOrder(
+                                    Position(
+                                        symbol = symbol,
+                                        type = "buy",
+                                        entryPrice = askPrice,
+                                        volume = units,
+                                        time = System.currentTimeMillis()
+                                    ),
+                                    "Market Execution",
+                                    null
+                                )
+                                onClose()
+                            },
                             modifier = Modifier.weight(1f).height(50.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2962FF)),
                             shape = RoundedCornerShape(8.dp)
@@ -365,26 +454,64 @@ fun OrderModal(
                         }
                     }
                 } else {
+                    val isActionEnabled = if (isMarketExecution) true else isPriceValid
                     Button(
                         onClick = { 
-                            if (isPriceValid) {
+                            if (isMarketExecution) {
+                                val marketEntryPrice = if (selectedType == "buy") askPrice else bidPrice
                                 onPlaceOrder(
-                                    Position(symbol = symbol, type = selectedType, entryPrice = entryPrice, volume = units, time = System.currentTimeMillis(), tp = if (tpEnabled) tpPrice else null, sl = if (slEnabled) slPrice else null), 
+                                    Position(
+                                        symbol = symbol,
+                                        type = selectedType,
+                                        entryPrice = marketEntryPrice,
+                                        volume = units,
+                                        time = System.currentTimeMillis(),
+                                        tp = if (tpEnabled) tpPrice else null,
+                                        sl = if (slEnabled) slPrice else null
+                                    ),
+                                    "Market Execution",
+                                    null
+                                )
+                                onClose()
+                            } else if (isPriceValid) {
+                                onPlaceOrder(
+                                    Position(
+                                        symbol = symbol,
+                                        type = selectedType,
+                                        entryPrice = entryPrice,
+                                        volume = units,
+                                        time = System.currentTimeMillis(),
+                                        tp = if (tpEnabled) tpPrice else null,
+                                        sl = if (slEnabled) slPrice else null
+                                    ),
                                     selectedTab,
                                     stopLimitPriceInput.toFloatOrNull()
                                 )
                                 onClose()
                             }
                         },
-                        enabled = isPriceValid,
-                        modifier = Modifier.fillMaxWidth().padding(16.dp).height(50.dp),
+                        enabled = isActionEnabled,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = contentHorizontalPadding, vertical = 16.dp)
+                            .height(50.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (selectedType == "buy") Color(0xFF2962FF) else Color(0xFFF23645),
                             disabledContainerColor = Color(0xFF2A2E39)
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(if (isPriceValid) "Place $selectedTab" else "Invalid Price", color = if (isPriceValid) Color.White else Color(0xFF787B86), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        val actionText = when {
+                            isMarketExecution -> "Place ${if (selectedType == "buy") "Buy" else "Sell"} Market"
+                            isPriceValid -> "Place $selectedTab"
+                            else -> "Invalid Price"
+                        }
+                        Text(
+                            actionText,
+                            color = if (isActionEnabled) Color.White else Color(0xFF787B86),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -462,7 +589,32 @@ fun OrderModal(
     }
     
     if (showExitLevelsModal) {
-        ExitLevelsModal(symbol = symbol, orderType = if (selectedTab == "Market") (if (selectedType == "buy") "Buy" else "Sell") else selectedTab, entryPrice = entryPrice, initialUnits = unitsInput, initialTp = tpPriceInput, initialSl = slPriceInput, onClose = { showExitLevelsModal = false }, onConfirm = { showExitLevelsModal = false })
+        ExitLevelsModal(
+            symbol = symbol,
+            orderType = if (selectedTab == "Market Execution") (if (selectedType == "buy") "Buy" else "Sell") else selectedTab,
+            entryPrice = entryPrice,
+            initialUnits = unitsInput,
+            initialTp = tpPriceInput,
+            initialSl = slPriceInput,
+            onClose = { showExitLevelsModal = false },
+            onConfirm = { confirmedLevels ->
+                val appliedLevel = confirmedLevels.lastOrNull()
+                if (appliedLevel != null) {
+                    val sanitizedUnits = appliedLevel.units.trim()
+                    val sanitizedTp = appliedLevel.tp.replace(",", "").trim()
+                    val sanitizedSl = appliedLevel.sl.replace(",", "").trim()
+
+                    if (sanitizedUnits.isNotEmpty()) {
+                        unitsInput = sanitizedUnits
+                    }
+                    tpPriceInput = sanitizedTp
+                    slPriceInput = sanitizedSl
+                    tpEnabled = sanitizedTp.toFloatOrNull() != null
+                    slEnabled = sanitizedSl.toFloatOrNull() != null
+                }
+                showExitLevelsModal = false
+            }
+        )
     }
 }
 

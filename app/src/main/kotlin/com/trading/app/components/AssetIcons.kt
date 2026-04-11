@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -82,19 +85,36 @@ fun AssetIcon(symbol: SymbolInfo, modifier: Modifier = Modifier, size: Int = 32)
                 }
                 FlagImage(currency = country, modifier = Modifier.size(size.dp))
             }
-            type.contains("commodity") || ticker.contains("XAU") || ticker.contains("XAG") -> {
-                Box(
-                    modifier = Modifier
-                        .size(size.dp)
-                        .background(Color(0xFFFFB300), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        if (ticker.contains("XAU")) "Au" else if (ticker.contains("XAG")) "Ag" else ticker.take(1),
-                        color = Color.White,
-                        fontSize = (size * 0.45).sp,
-                        fontWeight = FontWeight.Bold
-                    )
+            type.contains("commodity") || ticker.contains("XAU") || ticker.contains("XAG") || ticker == "USOIL" -> {
+                if (ticker == "USOIL") {
+                    Box(
+                        modifier = Modifier
+                            .size(size.dp)
+                            .background(Color(0xFF171719), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Using a simple drop icon represented by a vector or custom shape
+                        Icon(
+                            imageVector = Icons.Default.WaterDrop,
+                            contentDescription = "Oil",
+                            tint = Color.White,
+                            modifier = Modifier.size((size * 0.6).dp)
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(size.dp)
+                            .background(Color(0xFFFFB300), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (ticker.contains("XAU")) "Au" else if (ticker.contains("XAG")) "Ag" else ticker.take(1),
+                            color = Color.White,
+                            fontSize = (size * 0.45).sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
             else -> {
@@ -179,6 +199,7 @@ fun ExchangeIcon(exchange: String, modifier: Modifier = Modifier) {
         "fxcm" -> Color(0xFF003399)
         "bitstamp" -> Color(0xFF4CAF50)
         "pepperstone" -> Color(0xFF003399)
+        "exness" -> Color(0xFFFFB115)
         else -> Color(0xFF787B86)
     }
     Box(

@@ -21,13 +21,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trading.app.models.Position
+import com.trading.app.models.SymbolInfo
 import java.util.Locale
 
 @Composable
 fun PositionsTab(
     positions: List<Position>,
     currentPrice: Float,
+    selectedPositionId: String? = null,
+    visibility: PaperTradingVisibility = PaperTradingVisibility(),
     onPositionClick: (Position) -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     labelColor: Color = Color(0xFF787B86)
 ) {
     if (positions.isEmpty()) {
@@ -46,16 +50,35 @@ fun PositionsTab(
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
             items(positions) { position ->
-                PositionItem(position, currentPrice, onClick = { onPositionClick(position) })
-                Divider(color = Color(0xFF2A2E39), thickness = 1.dp)
+                PositionItem(
+                    position, 
+                    currentPrice, 
+                    isSelected = position.id == selectedPositionId,
+                    visibility = visibility,
+                    onClick = { onPositionClick(position) },
+                    onSettingsClick = onSettingsClick
+                )
+                Divider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = Color(0xFF2A2E39), 
+                    thickness = 1.dp
+                )
             }
         }
     }
 }
 
 @Composable
-private fun PositionItem(position: Position, lastPrice: Float, onClick: () -> Unit) {
+private fun PositionItem(
+    position: Position, 
+    lastPrice: Float, 
+    isSelected: Boolean,
+    visibility: PaperTradingVisibility,
+    onClick: () -> Unit,
+    onSettingsClick: () -> Unit
+) {
     val labelColor = Color(0xFF787B86)
+    val itemBackground = if (isSelected) Color(0xFF1E222D) else Color.Transparent
     
     // Calculations
     val isBuy = position.type == "buy"
@@ -70,10 +93,20 @@ private fun PositionItem(position: Position, lastPrice: Float, onClick: () -> Un
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .background(itemBackground)
             .clickable { onClick() }
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            AssetIcon(
+                symbol = SymbolInfo(
+                    ticker = position.symbol.split(":").last(),
+                    name = "",
+                    type = "forex"
+                ),
+                size = 24,
+                modifier = Modifier.padding(end = 8.dp)
+            )
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
@@ -83,37 +116,54 @@ private fun PositionItem(position: Position, lastPrice: Float, onClick: () -> Un
                 Text(
                     "EXNESS:${position.symbol.uppercase()}",
                     color = Color.White,
-                    fontSize = 11.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
-            Icon(Icons.Default.DragHandle, null, tint = Color(0xFF2A2E39), modifier = Modifier.size(18.dp))
+            // Custom 3-line vertical drag handle (|||), reduced boldness and height by 20%
+            Row(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clickable { onSettingsClick() },
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(3) {
+                    Box(
+                        modifier = Modifier
+                            .width(3.2.dp)
+                            .height(20.4.dp)
+                            .clip(RoundedCornerShape(1.6.dp))
+                            .background(labelColor)
+                    )
+                }
+            }
         }
         
         Text(
             "${position.symbol.uppercase()} VS US DOLLAR",
             color = labelColor,
-            fontSize = 11.sp,
+            fontSize = 14.sp,
             modifier = Modifier.padding(top = 4.dp, start = 0.dp)
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Column(modifier = Modifier.padding(start = 0.dp)) {
-            PositionDetailRow("Side", if (isBuy) "Long" else "Short", if (isBuy) Color(0xFF2962FF) else Color(0xFFF23645))
-            PositionDetailRow("Qty", String.format(Locale.US, "%.2f", position.volume))
-            PositionDetailRow("Avg Fill Price", String.format(Locale.US, "%,.2f", position.entryPrice))
-            PositionDetailRow("Take Profit", position.tp?.let { String.format(Locale.US, "%,.2f", it) } ?: "")
-            PositionDetailRow("Stop Loss", position.sl?.let { String.format(Locale.US, "%,.2f", it) } ?: "")
-            PositionDetailRow("Last Price", String.format(Locale.US, "%,.2f", lastPrice))
-            PositionDetailRow("Unrealized P&L", String.format(Locale.US, "%s%,.2f USD", if (pnl >= 0) "" else "", pnl), pnlColor)
-            PositionDetailRow("Unrealized P&L %", String.format(Locale.US, "%.2f%%", pnlPercentage), pnlColor)
-            PositionDetailRow("Trade Value", String.format(Locale.US, "%,.2f USD", tradeValue))
-            PositionDetailRow("Market Value", String.format(Locale.US, "%,.2f USD", marketValue))
-            PositionDetailRow("Leverage", position.leverage)
-            PositionDetailRow("Margin", String.format(Locale.US, "%.2f USD", position.margin))
-            PositionDetailRow("Expiration Date", "—")
+            if (visibility.side) PositionDetailRow("Side", if (isBuy) "Long" else "Short", if (isBuy) Color(0xFF2962FF) else Color(0xFFF23645))
+            if (visibility.qty) PositionDetailRow("Qty", String.format(Locale.US, "%.2f", position.volume))
+            if (visibility.avgFillPrice) PositionDetailRow("Avg Fill Price", String.format(Locale.US, "%,.2f", position.entryPrice))
+            if (visibility.takeProfit) PositionDetailRow("Take Profit", position.tp?.let { String.format(Locale.US, "%,.2f", it) } ?: "")
+            if (visibility.stopLoss) PositionDetailRow("Stop Loss", position.sl?.let { String.format(Locale.US, "%,.2f", it) } ?: "")
+            if (visibility.lastPrice) PositionDetailRow("Last Price", String.format(Locale.US, "%,.2f", lastPrice))
+            if (visibility.unrealizedPnl) PositionDetailRow("Unrealized P&L", String.format(Locale.US, "%s%,.2f USD", if (pnl >= 0) "" else "", pnl), pnlColor)
+            if (visibility.unrealizedPnlPercentage) PositionDetailRow("Unrealized P&L %", String.format(Locale.US, "%.2f%%", pnlPercentage), pnlColor)
+            if (visibility.tradeValue) PositionDetailRow("Trade Value", String.format(Locale.US, "%,.2f USD", tradeValue))
+            if (visibility.marketValue) PositionDetailRow("Market Value", String.format(Locale.US, "%,.2f USD", marketValue))
+            if (visibility.leverage) PositionDetailRow("Leverage", position.leverage)
+            if (visibility.margin) PositionDetailRow("Margin", String.format(Locale.US, "%.2f USD", position.margin))
+            if (visibility.expirationDate) PositionDetailRow("Expiration Date", "—")
         }
     }
 }
@@ -129,13 +179,13 @@ private fun PositionDetailRow(label: String, value: String, valueColor: Color = 
         Text(
             text = label,
             color = Color(0xFF787B86),
-            fontSize = 14.sp,
+            fontSize = 15.sp,
             modifier = Modifier.width(160.dp) // Increased width to add more space between label and value
         )
         Text(
             text = value,
             color = valueColor,
-            fontSize = 14.sp,
+            fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
             textAlign = androidx.compose.ui.text.style.TextAlign.Start
         )

@@ -125,19 +125,20 @@ fun QuickActionsButton(
                 val strokeWidth = 2.25.dp.toPx()
                 val iconColor = Color(0xFF787B86)
                 
+                // Vertical stack of vertical (tall) diamonds
                 val topPath = Path().apply {
                     moveTo(size.width / 2, size.height * 0.1f)
-                    lineTo(size.width * 0.9f, size.height * 0.4f)
-                    lineTo(size.width / 2, size.height * 0.7f)
-                    lineTo(size.width * 0.1f, size.height * 0.4f)
+                    lineTo(size.width * 0.75f, size.height * 0.35f)
+                    lineTo(size.width / 2, size.height * 0.6f)
+                    lineTo(size.width * 0.25f, size.height * 0.35f)
                     close()
                 }
 
                 val bottomPath = Path().apply {
-                    moveTo(size.width / 2, size.height * 0.35f)
-                    lineTo(size.width * 0.9f, size.height * 0.65f)
-                    lineTo(size.width / 2, size.height * 0.95f)
-                    lineTo(size.width * 0.1f, size.height * 0.65f)
+                    moveTo(size.width / 2, size.height * 0.4f)
+                    lineTo(size.width * 0.75f, size.height * 0.65f)
+                    lineTo(size.width / 2, size.height * 0.9f)
+                    lineTo(size.width * 0.25f, size.height * 0.65f)
                     close()
                 }
 

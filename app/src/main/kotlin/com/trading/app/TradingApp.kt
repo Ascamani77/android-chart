@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.trading.app.components.*
 import com.trading.app.models.*
 import com.trading.app.data.CalendarSnapshotStore
+import com.trading.app.data.NewsSnapshotStore
 import com.trading.app.data.Mt5Service
 import com.trading.app.data.Mt5ReverseBridge
 import com.google.gson.Gson
@@ -97,6 +98,21 @@ private fun shiftMonth(isoDate: String, monthDelta: Int): String {
     val calendar = parseIsoCalendar(isoDate)
     calendar.add(Calendar.MONTH, monthDelta)
     return formatIsoCalendar(calendar)
+}
+
+private fun persistNewsAiPayload(
+    context: Context,
+    sharedPrefs: android.content.SharedPreferences,
+    payloadJson: String
+) {
+    try {
+        sharedPrefs.edit().putString("news_payload", payloadJson).apply()
+        context.openFileOutput("news_ai_payload.json", Context.MODE_PRIVATE).use { stream ->
+            stream.write(payloadJson.toByteArray(Charsets.UTF_8))
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("TradingApp", "Failed to persist news payload", e)
+    }
 }
 
 @Composable
@@ -217,10 +233,12 @@ fun TradingApp() {
     
     val reverseBridge = remember { 
         Mt5ReverseBridge(
-            pcIpAddress = "10.222.138.133",
+            pcIpAddress = "10.233.78.133",
             port = 8081
         )
     }
+    val tradeNotifications = remember { mutableStateListOf<TradeNotification>() }
+    val notificationsToDismiss = remember { mutableStateListOf<String>() }
 
     // MT5 data is now live from mt5_bridge.py
     LaunchedEffect(Unit) {
@@ -277,14 +295,35 @@ fun TradingApp() {
     var showCaptureModal by remember { mutableStateOf(false) }
     var showIndicatorSettingsModal by remember { mutableStateOf<String?>(null) }
     var showTimeZoneModal by remember { mutableStateOf(false) }
-    var showNewsPage by remember { mutableStateOf(false) }
     var showCalendarPage by remember { mutableStateOf(false) }
+    var showCalendarFilterPage by remember { mutableStateOf(false) }
+    var calendarFilters by remember { mutableStateOf(CalendarFilters()) }
     var showDrawingsModal by remember { mutableStateOf(false) }
+    var showNewsPage by remember { mutableStateOf(false) }
+    val cachedNewsPayload = remember {
+        sharedPrefs.getString("news_payload", null)?.let {
+            try {
+                gson.fromJson(it, NewsPayload::class.java)
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+    val newsItems = remember {
+        mutableStateListOf<NewsItem>().apply { addAll(cachedNewsPayload?.items ?: emptyList()) }
+    }
+    var isNewsLoading by remember { mutableStateOf(cachedNewsPayload == null) }
     var showAnalysisHubModal by remember { mutableStateOf(false) }
     var showChartTypeModal by remember { mutableStateOf(false) }
     var showFloatingTradingButtons by remember { mutableStateOf(false) }
     var showOrderModal by remember { mutableStateOf(false) }
+    var showSimpleOrderPage by remember { mutableStateOf(false) }
+    var orderModalChartData by remember { mutableStateOf<List<OHLCData>>(emptyList()) }
+    var orderModalInitialSide by remember { mutableStateOf("buy") }
+    var orderModalShowMarketSideButtons by remember { mutableStateOf(true) }
     var selectedPositionToModify by remember { mutableStateOf<Position?>(null) }
+    var showModifyModal by remember { mutableStateOf(false) }
+    var showPositionActionsModal by remember { mutableStateOf(false) }
 
     // Quick Actions State
     var showQuickActions by remember { mutableStateOf(false) }
@@ -309,6 +348,9 @@ fun TradingApp() {
                     null
                 }
             }
+        NewsSnapshotStore.latestPayload = cachedNewsPayload
+        NewsSnapshotStore.latestAiPayloadJson =
+            if (cachedNewsPayload == null) "" else gson.toJson(cachedNewsPayload)
     }
 
     // Responsive Reposition & Safe Area Awareness
@@ -491,6 +533,9 @@ fun TradingApp() {
                                 onScrollDone = { targetTimestamp = null },
                                 onLongPress = { showChartSettingsBottomSheet = true },
                                 onSettingsClick = { showChartSettingsBottomSheet = true },
+                                onDataLoaded = { candles ->
+                                    orderModalChartData = candles
+                                },
                                 selectedTimeZone = selectedTz.label,
                                 onQuoteUpdate = { currentLiveQuote = it },
                                 positions = (positions + localPositions).distinctBy { it.id },
@@ -505,9 +550,9 @@ fun TradingApp() {
                                 },
                                 onPositionDelete = { id ->
                                     val pos = positions.find { it.id == id } ?: localPositions.find { it.id == id }
-                                    pos?.let { 
+                                    pos?.let {
                                         android.util.Log.d("TradingApp", "Closing position: ${it.id} for ${it.symbol}")
-                                        reverseBridge.closePosition(it) 
+                                        reverseBridge.closePosition(it)
                                     }
                                     positions.removeAll { it.id == id }
                                     localPositions.removeAll { it.id == id }
@@ -579,8 +624,20 @@ fun TradingApp() {
                                 isCalendarVisible = showCalendarPage,
                                 calendarRequestDateIso = calendarSelectedDateIso,
                                 calendarRequestVersion = calendarRequestVersion,
+                                isNewsVisible = showNewsPage,
+                                onNewsUpdate = { payload ->
+                                    android.util.Log.d("TradingApp", "Received news update: ${payload.items.size} items")
+                                    newsItems.clear()
+                                    newsItems.addAll(payload.items)
+                                    isNewsLoading = false
+                                    val newsJson = gson.toJson(payload)
+                                    NewsSnapshotStore.latestPayload = payload
+                                    NewsSnapshotStore.latestAiPayloadJson = newsJson
+                                    persistNewsAiPayload(context, sharedPrefs, newsJson)
+                                },
                                 isTradingBarVisible = showFloatingTradingButtons,
-                                reverseBridge = reverseBridge
+                                reverseBridge = reverseBridge,
+                                onTradeNotification = { tradeNotifications.add(it) }
                             )
                         }
 
@@ -599,7 +656,10 @@ fun TradingApp() {
                 }
 
                 if (!isFullscreen) {
-                    val isHeaderHidden = !chartSettings.canvas.headerVisible || (chartSettings.canvas.headerVisibility == "Auto-hide" && !isSidebarVisible)
+                    val isHeaderHidden =
+                        chartSettings.scales.hideHeaderPane ||
+                            !chartSettings.canvas.headerVisible ||
+                            (chartSettings.canvas.headerVisibility == "Auto-hide" && !isSidebarVisible)
                     
                     val renderHeader = @Composable {
                         AnimatedVisibility(
@@ -629,7 +689,10 @@ fun TradingApp() {
                                 settings = chartSettings,
                                 isAtBottom = true,
                                 onGoToClick = { showGoToDateModal = true },
-                                onNewsClick = { showNewsPage = true },
+                                onNewsClick = {
+                                    isNewsLoading = true
+                                    showNewsPage = true
+                                },
                                 onChatClick = { /* activeTab = "Chat"; isBottomPanelVisible = true */ },
                                 onDrawingClick = { showDrawingsModal = true },
                                 onMoreClick = { showAnalysisHubModal = true },
@@ -637,6 +700,8 @@ fun TradingApp() {
                                     if (chartSettings.trading.oneClickTrading) {
                                         showFloatingTradingButtons = !showFloatingTradingButtons
                                     } else {
+                                        orderModalInitialSide = "buy"
+                                        orderModalShowMarketSideButtons = true
                                         showOrderModal = true
                                     }
                                 },
@@ -659,7 +724,7 @@ fun TradingApp() {
                                     }
                                 },
                                 activeTab = if (isBottomPanelVisible) activeTab else null,
-                                recentPairs = recentPairs,
+                                recentPairs = if (chartSettings.scales.hideAssetLastViewedPane) emptyList() else recentPairs,
                                 currentSymbol = symbol,
                                 currentTimeframe = timeframe,
                                 onPairSelect = { s: String, t: String ->
@@ -686,7 +751,11 @@ fun TradingApp() {
 
             // News Page Overlay
             if (showNewsPage) {
-                NewsPage(onBack = { showNewsPage = false })
+                NewsPage(
+                    newsItems = newsItems,
+                    isLoading = isNewsLoading,
+                    onBack = { showNewsPage = false }
+                )
             }
 
             if (showCalendarPage) {
@@ -695,8 +764,7 @@ fun TradingApp() {
                     isLoading = isCalendarLoading,
                     onBack = { showCalendarPage = false },
                     onRefresh = {
-                        isCalendarLoading = true
-                        calendarRequestVersion += 1
+                        showCalendarFilterPage = true
                     },
                     onSelectDate = { isoDate ->
                         val currentPayload = calendarDisplayPayload
@@ -723,15 +791,25 @@ fun TradingApp() {
                 )
             }
 
+            if (showCalendarFilterPage) {
+                CalendarFilterPage(
+                    filters = calendarFilters,
+                    onFiltersChange = { calendarFilters = it },
+                    onBack = { showCalendarFilterPage = false }
+                )
+            }
+
+
             // Paper Trading Panel Overlay
             if (showPaperTradingPanel) {
                 PaperTradingPanel(
                     onClose = { showPaperTradingPanel = false },
                     onPositionClick = { pos ->
                         selectedPositionToModify = pos
-                        showPaperTradingPanel = false
+                        showPositionActionsModal = true
                     },
                     positions = positions,
+                    selectedPositionId = selectedPositionToModify?.id,
                     orders = orders,
                     orderHistory = orderHistory,
                     balanceHistory = balanceHistory,
@@ -741,7 +819,39 @@ fun TradingApp() {
                 )
             }
 
-            if (selectedPositionToModify != null) {
+            if (showPositionActionsModal && selectedPositionToModify != null) {
+                val pos = selectedPositionToModify!!
+                PositionActionsModal(
+                    position = pos,
+                    lastPrice = currentLiveQuote?.lastPrice ?: pos.entryPrice,
+                    onClose = { showPositionActionsModal = false },
+                    onModify = { 
+                        showPositionActionsModal = false
+                        showModifyModal = true 
+                    },
+                    onClosePosition = {
+                        val p = positions.find { it.id == pos.id } ?: localPositions.find { it.id == pos.id }
+                        p?.let { reverseBridge.closePosition(it) }
+                        positions.removeAll { it.id == pos.id }
+                        localPositions.removeAll { it.id == pos.id }
+                        showPositionActionsModal = false
+                    },
+                    onNewOrder = {
+                        symbol = pos.symbol
+                        orderModalInitialSide = if (pos.type.equals("sell", ignoreCase = true)) "sell" else "buy"
+                        showPositionActionsModal = false
+                        showSimpleOrderPage = true
+                    },
+                    onViewChart = {
+                        // Switch symbol and close panel to see chart
+                        symbol = pos.symbol
+                        showPaperTradingPanel = false
+                        showPositionActionsModal = false
+                    }
+                )
+            }
+
+            if (showModifyModal && selectedPositionToModify != null) {
                 val pos = selectedPositionToModify!!
                 ModifyTpSlModal(
                     symbol = pos.symbol,
@@ -752,9 +862,10 @@ fun TradingApp() {
                     initialTp = pos.tp,
                     initialSl = pos.sl,
                     initialPartialOrders = pos.partialOrders,
-                    allPositions = (positions + localPositions).distinctBy { it.id },
                     currentPrice = currentLiveQuote?.lastPrice ?: 0f,
                     onConfirm = { tp, sl, partials ->
+                        val oldTp = pos.tp
+                        val oldSl = pos.sl
                         val updatedPos = pos.copy(tp = tp, sl = sl, partialOrders = partials)
                         reverseBridge.modifyPosition(updatedPos, tp, sl)
                         // Update local state
@@ -762,28 +873,42 @@ fun TradingApp() {
                         if (idxLocal != -1) localPositions[idxLocal] = updatedPos
                         val idxRemote = positions.indexOfFirst { it.id == pos.id }
                         if (idxRemote != -1) positions[idxRemote] = updatedPos
+
+                        if (tp != null && tp != oldTp) {
+                            tradeNotifications.add(
+                                TradeNotification(
+                                    symbol = pos.symbol,
+                                    volume = pos.volume,
+                                    price = tp,
+                                    isBuy = pos.type.equals("buy", ignoreCase = true),
+                                    type = "tp_placed"
+                                )
+                            )
+                        }
+                        if (sl != null && sl != oldSl) {
+                            tradeNotifications.add(
+                                TradeNotification(
+                                    symbol = pos.symbol,
+                                    volume = pos.volume,
+                                    price = sl,
+                                    isBuy = pos.type.equals("buy", ignoreCase = true),
+                                    type = "sl_placed"
+                                )
+                            )
+                        }
                         
+                        showModifyModal = false
                         selectedPositionToModify = null
                     },
-                    onCancel = { selectedPositionToModify = null },
-                    onClosePosition = { id ->
-                        val p = positions.find { it.id == id } ?: localPositions.find { it.id == id }
-                        p?.let { reverseBridge.closePosition(it) }
-                        positions.removeAll { it.id == id }
-                        localPositions.removeAll { it.id == id }
-                    },
-                    onPositionUpdate = { updated ->
-                        reverseBridge.modifyPosition(updated, updated.tp, updated.sl)
-                        val idxLocal = localPositions.indexOfFirst { it.id == updated.id }
-                        if (idxLocal != -1) localPositions[idxLocal] = updated
-                        val idxRemote = positions.indexOfFirst { it.id == updated.id }
-                        if (idxRemote != -1) positions[idxRemote] = updated
+                    onCancel = { 
+                        showModifyModal = false
+                        selectedPositionToModify = null 
                     }
                 )
             }
 
             // Backdrop for Quick Actions
-            if (showQuickActions && !showNewsPage && !showCalendarPage) {
+            if (showQuickActions && chartSettings.scales.plusButton && !showNewsPage && !showCalendarPage) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -797,7 +922,7 @@ fun TradingApp() {
             }
 
             // Floating Draggable Quick Actions Button
-            if (!showNewsPage && !showCalendarPage) {
+            if (chartSettings.scales.plusButton && !showNewsPage && !showCalendarPage) {
                 QuickActionsButton(
                     onClick = { showQuickActions = !showQuickActions },
                     offset = quickActionsButtonOffset,
@@ -808,7 +933,7 @@ fun TradingApp() {
             }
 
             // Quick Actions Modal
-            if (showQuickActions && !showNewsPage && !showCalendarPage) {
+            if (showQuickActions && chartSettings.scales.plusButton && !showNewsPage && !showCalendarPage) {
                 QuickActionsModal(
                     isFullscreen = isFullscreen,
                     onFullscreenToggle = { isFullscreen = !isFullscreen },
@@ -945,6 +1070,11 @@ fun TradingApp() {
                 onChartTypeClick = { 
                     showChartTypeModal = true
                     showAnalysisHubModal = false
+                },
+                onNewsClick = {
+                    isNewsLoading = true
+                    showNewsPage = true
+                    showAnalysisHubModal = false
                 }
             )
         }
@@ -960,11 +1090,22 @@ fun TradingApp() {
                 symbol = symbol,
                 bidPrice = currentLiveQuote?.bid ?: 0f,
                 askPrice = currentLiveQuote?.ask ?: 0f,
+                priceChange = currentLiveQuote?.change ?: 0f,
+                chartData = orderModalChartData,
                 onClose = { showOrderModal = false },
                 onPlaceOrder = { position, orderType, stopLimitPrice ->
                     if (orderType == "Market Execution") {
                         reverseBridge.placePosition(position)
                         positions.add(position)
+                        tradeNotifications.add(
+                            TradeNotification(
+                                symbol = position.symbol,
+                                volume = position.volume,
+                                price = position.entryPrice,
+                                isBuy = position.type == "buy",
+                                type = "executed"
+                            )
+                        )
                     } else {
                         val order = Order(
                             symbol = position.symbol,
@@ -986,7 +1127,49 @@ fun TradingApp() {
                     showOrderModal = false
                     settingsInitialTab = "Trading"
                     showSettingsModal = true
-                }
+                },
+                showMarketSideButtons = orderModalShowMarketSideButtons,
+                initialSide = orderModalInitialSide
+            )
+        }
+        if (showSimpleOrderPage) {
+            SimpleOrderPage(
+                symbol = symbol,
+                bidPrice = currentLiveQuote?.bid ?: 0f,
+                askPrice = currentLiveQuote?.ask ?: 0f,
+                priceChange = currentLiveQuote?.change ?: 0f,
+                onClose = { showSimpleOrderPage = false },
+                onPlaceOrder = { position, orderType, stopLimitPrice ->
+                    if (orderType == "Market Execution") {
+                        reverseBridge.placePosition(position)
+                        positions.add(position)
+                        tradeNotifications.add(
+                            TradeNotification(
+                                symbol = position.symbol,
+                                volume = position.volume,
+                                price = position.entryPrice,
+                                isBuy = position.type == "buy",
+                                type = "executed"
+                            )
+                        )
+                    } else {
+                        val order = Order(
+                            symbol = position.symbol,
+                            type = position.type,
+                            orderType = orderType,
+                            status = "Working",
+                            price = position.entryPrice,
+                            stopLimitPrice = stopLimitPrice,
+                            volume = position.volume,
+                            time = position.time,
+                            tp = position.tp,
+                            sl = position.sl
+                        )
+                        reverseBridge.placeOrder(order)
+                        orders.add(order)
+                    }
+                },
+                initialSide = orderModalInitialSide
             )
         }
         showIndicatorSettingsModal?.let { indicatorId ->

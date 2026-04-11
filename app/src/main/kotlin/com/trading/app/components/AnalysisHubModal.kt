@@ -1,5 +1,6 @@
 package com.trading.app.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,7 +47,7 @@ fun AnalysisHubModal(
     ModalBottomSheet(
         onDismissRequest = onClose,
         sheetState = sheetState,
-        containerColor = Color(0xFF131722),
+        containerColor = Color(0xFF121212),
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -57,7 +58,8 @@ fun AnalysisHubModal(
                     .background(Color(0xFF363A45))
             )
         },
-        windowInsets = WindowInsets(0)
+        windowInsets = WindowInsets(0),
+        modifier = Modifier.fillMaxHeight(0.93f)
     ) {
         Column(
             modifier = Modifier
@@ -137,8 +139,9 @@ fun AnalysisHubModal(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(90.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E222D)),
-                shape = RoundedCornerShape(12.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF121212)),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color(0xFF2A2E39))
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
@@ -315,7 +318,8 @@ fun HubToolButton(
         modifier = modifier
             .height(84.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF1E222D))
+            .background(Color(0xFF121212))
+            .border(1.dp, Color(0xFF2A2E39), RoundedCornerShape(12.dp))
             .clickable { onClick() }
             .padding(8.dp),
         contentAlignment = Alignment.Center

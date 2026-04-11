@@ -11,7 +11,7 @@ import org.json.JSONObject
  * This ensures a two-way synchronization where app actions are reflected on the MT5 chart.
  */
 class Mt5ReverseBridge(
-    private val pcIpAddress: String = "10.222.138.133",
+    private val pcIpAddress: String = "10.233.78.133",
     private val port: Int = 8081
 ) {
     private val client = OkHttpClient()

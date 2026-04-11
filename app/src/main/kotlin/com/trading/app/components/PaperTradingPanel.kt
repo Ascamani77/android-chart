@@ -25,6 +25,7 @@ fun PaperTradingPanel(
     onClose: () -> Unit,
     onPositionClick: (Position) -> Unit = {},
     positions: List<Position> = emptyList(),
+    selectedPositionId: String? = null,
     orders: List<Order> = emptyList(),
     orderHistory: List<Order> = emptyList(),
     balanceHistory: List<com.trading.app.models.BalanceRecord> = emptyList(),
@@ -36,6 +37,9 @@ fun PaperTradingPanel(
     var activeTab by remember { mutableStateOf("Positions") }
     val tabs = listOf("Positions", "Orders", "Order History", "Balance History", "Trading Journal")
     
+    var showVisibilitySettings by remember { mutableStateOf(false) }
+    var visibilitySettings by remember { mutableStateOf(PaperTradingVisibility()) }
+
     val labelColor = Color(0xFF787B86)
     val horizontalMargin = 16.dp
 
@@ -88,40 +92,46 @@ fun PaperTradingPanel(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Account Stats Grid
-        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                AccountStatItem("Account balance", String.format(Locale.US, "%,.2f", displayBalance), Modifier.weight(1f))
-                AccountStatItem("Equity", String.format(Locale.US, "%,.2f", equity), Modifier.weight(1f))
-                val realizedColor = if (realizedPnl >= 0) Color(0xFF089981) else Color(0xFFF23645)
-                val realizedSign = if (realizedPnl >= 0) "+" else ""
-                AccountStatItem(
-                    "Realized P&L", 
-                    String.format(Locale.US, "%s%,.2f", realizedSign, realizedPnl), 
-                    Modifier.weight(1f), 
-                    realizedColor
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                val unrealizedColor = if (totalUnrealizedPnl >= 0) Color(0xFF089981) else Color(0xFFF23645)
-                val sign = if (totalUnrealizedPnl >= 0) "+" else ""
-                AccountStatItem(
-                    "Unrealized P&L", 
-                    String.format(Locale.US, "%s%,.2f", sign, totalUnrealizedPnl), 
-                    Modifier.weight(1f), 
-                    unrealizedColor
-                )
-                AccountStatItem("Account margin", String.format(Locale.US, "%.2f", totalMargin), Modifier.weight(1f), showInfo = true)
-                AccountStatItem("Free margin", String.format(Locale.US, "%,.2f", availableFunds), Modifier.weight(1f), showInfo = true)
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                AccountStatItem("Orders margin", String.format(Locale.US, "%.2f", ordersMargin), Modifier.weight(1f), showInfo = true)
-                AccountStatItem("Margin level", String.format(Locale.US, "%.2f%%", marginBuffer), Modifier.weight(1f), showInfo = true)
-                Spacer(modifier = Modifier.weight(1f))
-            }
+    val isConnected = accountInfo != null
+    
+    fun formatValue(value: Double, pattern: String = "%,.2f", showSign: Boolean = false): String {
+        if (!isConnected) return "---"
+        val sign = if (showSign && value >= 0) "+" else ""
+        return sign + String.format(Locale.US, pattern, value)
+    }
+
+    // Account Stats Grid
+    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            AccountStatItem("Account balance", formatValue(displayBalance), Modifier.weight(1f))
+            AccountStatItem("Equity", formatValue(equity), Modifier.weight(1f))
+            val realizedColor = if (!isConnected) Color(0xFFD1D4DC) else if (realizedPnl >= 0) Color(0xFF089981) else Color(0xFFF23645)
+            AccountStatItem(
+                "Realized P&L", 
+                formatValue(realizedPnl, showSign = true), 
+                Modifier.weight(1f), 
+                realizedColor
+            )
         }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            val unrealizedColor = if (!isConnected) Color(0xFFD1D4DC) else if (totalUnrealizedPnl >= 0) Color(0xFF089981) else Color(0xFFF23645)
+            AccountStatItem(
+                "Unrealized P&L", 
+                formatValue(totalUnrealizedPnl, showSign = true), 
+                Modifier.weight(1f), 
+                unrealizedColor
+            )
+            AccountStatItem("Account margin", formatValue(totalMargin), Modifier.weight(1f), showInfo = true)
+            AccountStatItem("Free margin", formatValue(availableFunds), Modifier.weight(1f), showInfo = true)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            AccountStatItem("Orders margin", formatValue(ordersMargin), Modifier.weight(1f), showInfo = true)
+            AccountStatItem("Margin level", formatValue(marginBuffer, "%.2f%%"), Modifier.weight(1f), showInfo = true)
+            Spacer(modifier = Modifier.weight(1f))
+        }
+    }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -189,14 +199,25 @@ fun PaperTradingPanel(
                     }
                 }
             }
-            Divider(modifier = Modifier.padding(horizontal = horizontalMargin), color = Color(0xFF2A2E39), thickness = 2.dp)
+            Divider(modifier = Modifier.padding(horizontal = horizontalMargin), color = Color(0xFF2A2E39), thickness = 4.dp)
         }
 
         // Independent Tab Content
         Box(modifier = Modifier.fillMaxSize()) {
             when (activeTab) {
-                "Positions" -> PositionsTab(positions, currentPrice, onPositionClick = onPositionClick)
-                "Orders" -> OrdersTab(orders)
+                "Positions" -> PositionsTab(
+                    positions = positions, 
+                    currentPrice = currentPrice,
+                    selectedPositionId = selectedPositionId,
+                    visibility = visibilitySettings,
+                    onPositionClick = onPositionClick,
+                    onSettingsClick = { showVisibilitySettings = true }
+                )
+                "Orders" -> OrdersTab(
+                    orders = orders,
+                    visibility = visibilitySettings,
+                    onSettingsClick = { showVisibilitySettings = true }
+                )
                 "Order History" -> OrderHistoryTab(orderHistory)
                 "Balance History" -> BalanceHistoryTab(balanceHistory)
                 "Trading Journal" -> TradingJournalTab()
@@ -207,6 +228,14 @@ fun PaperTradingPanel(
                 }
             }
         }
+    }
+
+    if (showVisibilitySettings) {
+        PaperTradingSettingsModal(
+            visibility = visibilitySettings,
+            onVisibilityChange = { visibilitySettings = it },
+            onClose = { showVisibilitySettings = false }
+        )
     }
 }
 

@@ -23,16 +23,18 @@ fun OrderItemHeader(order: Order, labelColor: Color = Color(0xFF787B86)) {
     val symbolUpper = order.symbol.uppercase()
     
     Box(modifier = Modifier.fillMaxWidth()) {
-        // Triple Bar Icon at the top right (looks like '000' or vertical bars)
+        // Triple Bar Icon at the top right (|||), reduced boldness and height by 20%
         Row(
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 0.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 0.dp).size(22.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             repeat(3) {
                 Box(
                     modifier = Modifier
-                        .width(2.dp)
-                        .height(11.dp)
+                        .width(3.2.dp)
+                        .height(14.4.dp)
+                        .clip(RoundedCornerShape(1.6.dp))
                         .background(Color(0xFF2A2E39))
                 )
             }

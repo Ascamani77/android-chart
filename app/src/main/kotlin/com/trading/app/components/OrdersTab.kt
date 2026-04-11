@@ -24,11 +24,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trading.app.models.Order
+import com.trading.app.models.SymbolInfo
 import java.util.Locale
 
 @Composable
 fun OrdersTab(
     orders: List<Order>,
+    visibility: PaperTradingVisibility = PaperTradingVisibility(),
+    onOrderClick: (Order) -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     labelColor: Color = Color(0xFF787B86)
 ) {
     var activeSubTab by remember { mutableStateOf("All") }
@@ -80,7 +84,9 @@ fun OrdersTab(
             items(filteredOrders) { order ->
                 OrderItemComponent(
                     order = order,
-                    showStatus = activeSubTab.equals("All", ignoreCase = true)
+                    visibility = visibility,
+                    showStatus = activeSubTab.equals("All", ignoreCase = true),
+                    onSettingsClick = onSettingsClick
                 )
                 Divider(color = Color(0xFF2A2E39), thickness = 1.dp)
             }
@@ -89,28 +95,59 @@ fun OrdersTab(
 }
 
 @Composable
-private fun OrderItemComponent(order: Order, showStatus: Boolean) {
+private fun OrderItemComponent(
+    order: Order, 
+    visibility: PaperTradingVisibility,
+    showStatus: Boolean,
+    onSettingsClick: () -> Unit
+) {
     val labelColor = Color(0xFF787B86)
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            AssetIcon(
+                symbol = SymbolInfo(
+                    ticker = order.symbol.split(":").last(),
+                    name = "",
+                    type = "forex"
+                ),
+                size = 24,
+                modifier = Modifier.padding(end = 8.dp)
+            )
             Box(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF2962FF)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                Text(text = "EXNESS:${order.symbol.uppercase().split(":").last()}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(text = "EXNESS:${order.symbol.uppercase().split(":").last()}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.weight(1f))
-            Icon(Icons.Default.DragHandle, null, tint = Color(0xFF2A2E39), modifier = Modifier.size(18.dp))
+            // Custom 3-line vertical drag handle (|||), reduced boldness and height by 20%
+            Row(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clickable { onSettingsClick() },
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(3) {
+                    Box(
+                        modifier = Modifier
+                            .width(3.2.dp)
+                            .height(20.4.dp)
+                            .clip(RoundedCornerShape(1.6.dp))
+                            .background(labelColor)
+                    )
+                }
+            }
         }
-        Text(text = "GOLD VS US DOLLAR", color = labelColor, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, start = 0.dp))
+        Text(text = "GOLD VS US DOLLAR", color = labelColor, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp, start = 0.dp))
         Spacer(modifier = Modifier.height(16.dp))
         Column(modifier = Modifier.padding(start = 0.dp)) {
             val isBuy = order.type.equals("buy", ignoreCase = true)
-            OrderDetailRow("Side", if (isBuy) "Buy" else "Sell", if (isBuy) Color(0xFF2962FF) else Color(0xFFF23645))
-            OrderDetailRow("Type", order.orderType)
-            OrderDetailRow("Qty", order.volume.toInt().toString())
-            OrderDetailRow("Fill Price", String.format(Locale.US, "%,.2f", order.averagePrice))
-            OrderDetailRow("Take Profit", "")
-            OrderDetailRow("Stop Loss", "")
+            if (visibility.side) OrderDetailRow("Side", if (isBuy) "Buy" else "Sell", if (isBuy) Color(0xFF2962FF) else Color(0xFFF23645))
+            if (visibility.type) OrderDetailRow("Type", order.orderType)
+            if (visibility.qty) OrderDetailRow("Qty", order.volume.toInt().toString())
+            if (visibility.fillPrice) OrderDetailRow("Fill Price", String.format(Locale.US, "%,.2f", order.averagePrice))
+            if (visibility.takeProfit) OrderDetailRow("Take Profit", "")
+            if (visibility.stopLoss) OrderDetailRow("Stop Loss", "")
             
-            if (showStatus) {
+            if (showStatus && visibility.status) {
                 val statusColor = when (order.status.lowercase()) {
                     "filled" -> Color(0xFF089981)
                     "rejected" -> Color(0xFFF23645)
@@ -121,11 +158,11 @@ private fun OrderItemComponent(order: Order, showStatus: Boolean) {
             }
 
             val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-            OrderDetailRow("Placing Time", dateFormat.format(java.util.Date(order.time)))
-            OrderDetailRow("Order ID", order.id)
-            OrderDetailRow("Expiry", order.expiry?.let { dateFormat.format(java.util.Date(it)) } ?: "—")
-            OrderDetailRow("Leverage", order.leverage)
-            OrderDetailRow("Margin", String.format(Locale.US, "%.2f USD", order.margin))
+            if (visibility.placingTime) OrderDetailRow("Placing Time", dateFormat.format(java.util.Date(order.time)))
+            if (visibility.orderId) OrderDetailRow("Order ID", order.id)
+            if (visibility.expiry) OrderDetailRow("Expiry", order.expiry?.let { dateFormat.format(java.util.Date(it)) } ?: "—")
+            if (visibility.leverage) OrderDetailRow("Leverage", order.leverage)
+            if (visibility.margin) OrderDetailRow("Margin", String.format(Locale.US, "%.2f USD", order.margin))
         }
     }
 }
@@ -133,7 +170,7 @@ private fun OrderItemComponent(order: Order, showStatus: Boolean) {
 @Composable
 private fun OrderDetailRow(label: String, value: String, valueColor: Color = Color(0xFFD1D4DC)) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(text = label, color = Color(0xFF787B86), fontSize = 14.sp, modifier = Modifier.width(130.dp))
-        Text(text = value, color = valueColor, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(text = label, color = Color(0xFF787B86), fontSize = 15.sp, modifier = Modifier.width(130.dp))
+        Text(text = value, color = valueColor, fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }

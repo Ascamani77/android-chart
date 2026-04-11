@@ -1,5 +1,7 @@
 package com.trading.app.data
 
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.google.gson.Gson
 import com.trading.app.components.SymbolQuote
@@ -14,7 +16,7 @@ import java.util.Locale
 import java.util.TimeZone
 
 class Mt5Service(
-    private val pcIpAddress: String = "10.222.138.133",
+    private val pcIpAddress: String = "10.233.78.133",
     private val port: Int = 8081,
     private val onHistoryUpdate: (String, List<OHLCData>) -> Unit,
     private val onQuoteUpdate: (SymbolQuote) -> Unit,
@@ -23,12 +25,32 @@ class Mt5Service(
     private val onOrdersUpdate: (List<com.trading.app.models.Order>) -> Unit = {},
     private val onHistoryOrdersUpdate: (List<com.trading.app.models.Order>) -> Unit = {},
     private val onBalanceHistoryUpdate: (List<com.trading.app.models.BalanceRecord>) -> Unit = {},
-    private val onCalendarUpdate: (EconomicCalendarPayload) -> Unit = {}
+    private val onCalendarUpdate: (EconomicCalendarPayload) -> Unit = {},
+    private val onNewsUpdate: (com.trading.app.models.NewsPayload) -> Unit = {}
 ) {
     private val client = OkHttpClient()
     private var webSocket: WebSocket? = null
+    private var isConnecting = false
+    private var isManuallyDisconnected = false
+    private val endpointHosts: List<String> by lazy { buildEndpointHosts(pcIpAddress) }
+    private var endpointIndex = 0
+    private val reconnectHandler = Handler(Looper.getMainLooper())
+    private val reconnectRunnable = Runnable {
+        if (!isManuallyDisconnected) {
+            Log.i(TAG, "Attempting WebSocket reconnect (host=${nextHost()})...")
+            connect()
+        }
+    }
     private val gson = Gson()
     private val pendingMessages = mutableListOf<String>()
+
+    private inline fun dispatchToMain(crossinline action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            action()
+        } else {
+            reconnectHandler.post { action() }
+        }
+    }
 
     data class AccountInfo(
         val balance: Double,
@@ -51,6 +73,23 @@ class Mt5Service(
         } else {
             symbol
         }
+    }
+
+    private fun buildEndpointHosts(preferredHost: String): List<String> {
+        val preferred = preferredHost.trim()
+        val hosts = mutableListOf<String>()
+        if (preferred.isNotBlank()) {
+            hosts.add(preferred)
+        }
+        hosts.add("127.0.0.1")
+        hosts.add("10.0.2.2")
+        hosts.add("localhost")
+        return hosts.distinctBy { it.lowercase(Locale.US) }
+    }
+
+    private fun nextHost(): String {
+        val index = endpointIndex.mod(endpointHosts.size)
+        return endpointHosts[index]
     }
 
     private fun parseIsoDateToEpochSeconds(value: String): Long {
@@ -85,16 +124,22 @@ class Mt5Service(
     }
 
     fun connect() {
-        val url = "ws://$pcIpAddress:$port"
-        Log.d(TAG, "Connecting to $url")
+        if (isConnecting) return
+        isManuallyDisconnected = false
+        reconnectHandler.removeCallbacks(reconnectRunnable)
+
+        val host = nextHost()
+        val url = "ws://$host:$port"
+        Log.d(TAG, "Connecting to $url (candidate ${endpointIndex + 1}/${endpointHosts.size})")
         
         val request = Request.Builder()
             .url(url)
             .build()
-        
+        isConnecting = true
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.i(TAG, "WebSocket Connected")
+                Log.i(TAG, "WebSocket Connected on $host")
+                isConnecting = false
                 synchronized(pendingMessages) {
                     pendingMessages.forEach(webSocket::send)
                     pendingMessages.clear()
@@ -166,13 +211,17 @@ class Mt5Service(
                         }
                         val orderedHistory = history.sortedBy(OHLCData::time)
                         Log.d(TAG, "Parsed ${orderedHistory.size} candles for $symbol")
-                        onHistoryUpdate(symbol, orderedHistory)
+                        dispatchToMain {
+                            onHistoryUpdate(symbol, orderedHistory)
+                        }
                     } else if (type == "tick") {
                         val symbol = cleanSymbol(root.optString("symbol", root.optString("name", "")))
                         val quote = gson.fromJson(text, SymbolQuote::class.java)
                         // Ensure name is set
                         val finalQuote = (if (quote.name.isNullOrEmpty()) quote.copy(name = symbol) else quote).copy(name = symbol)
-                        onQuoteUpdate(finalQuote)
+                        dispatchToMain {
+                            onQuoteUpdate(finalQuote)
+                        }
                     } else if (type == "account") {
                         val accountInfo = AccountInfo(
                             balance = root.optDouble("balance", 0.0),
@@ -184,7 +233,9 @@ class Mt5Service(
                             ordersMargin = root.optDouble("ordersMargin", 0.0),
                             marginBuffer = root.optDouble("marginBuffer", 0.0)
                         )
-                        onAccountUpdate(accountInfo)
+                        dispatchToMain {
+                            onAccountUpdate(accountInfo)
+                        }
                     } else if (type == "positions") {
                         val dataArray = root.optJSONArray("data") ?: return
                         val positions = mutableListOf<com.trading.app.models.Position>()
@@ -203,7 +254,9 @@ class Mt5Service(
                                 margin = obj.optDouble("margin", 0.0).toFloat()
                             ))
                         }
-                        onPositionsUpdate(positions)
+                        dispatchToMain {
+                            onPositionsUpdate(positions)
+                        }
                     } else if (type == "orders") {
                         val dataArray = root.optJSONArray("data") ?: return
                         val orders = mutableListOf<com.trading.app.models.Order>()
@@ -223,7 +276,9 @@ class Mt5Service(
                                 sl = if (obj.has("sl")) obj.optDouble("sl").toFloat() else null
                             ))
                         }
-                        onOrdersUpdate(orders)
+                        dispatchToMain {
+                            onOrdersUpdate(orders)
+                        }
                     } else if (type == "order_history") {
                         val dataArray = root.optJSONArray("data") ?: return
                         val history = mutableListOf<com.trading.app.models.Order>()
@@ -243,7 +298,9 @@ class Mt5Service(
                                 leverage = obj.optString("leverage", "1:100")
                             ))
                         }
-                        onHistoryOrdersUpdate(history)
+                        dispatchToMain {
+                            onHistoryOrdersUpdate(history)
+                        }
                     } else if (type == "balance_history") {
                         val dataArray = root.optJSONArray("data") ?: return
                         val balanceHistory = mutableListOf<com.trading.app.models.BalanceRecord>()
@@ -258,7 +315,9 @@ class Mt5Service(
                                 action = obj.optString("action", "Trade")
                             ))
                         }
-                        onBalanceHistoryUpdate(balanceHistory)
+                        dispatchToMain {
+                            onBalanceHistoryUpdate(balanceHistory)
+                        }
                     } else if (type == "calendar") {
                         val display = gson.fromJson(
                             root.getJSONObject("display").toString(),
@@ -268,7 +327,14 @@ class Mt5Service(
                             root.getJSONObject("ai").toString(),
                             EconomicCalendarAiPayload::class.java
                         )
-                        onCalendarUpdate(EconomicCalendarPayload(display = display, ai = ai))
+                        dispatchToMain {
+                            onCalendarUpdate(EconomicCalendarPayload(display = display, ai = ai))
+                        }
+                    } else if (type == "news") {
+                        val newsPayload = gson.fromJson(text, com.trading.app.models.NewsPayload::class.java)
+                        dispatchToMain {
+                            onNewsUpdate(newsPayload)
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Parse error: ${e.message}")
@@ -276,7 +342,17 @@ class Mt5Service(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e(TAG, "WebSocket Failure: ${t.message}")
+                Log.e(TAG, "WebSocket Failure on $host: ${t.message}")
+                this@Mt5Service.webSocket = null
+                isConnecting = false
+                scheduleReconnect()
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                Log.w(TAG, "WebSocket Closed on $host: code=$code reason=$reason")
+                this@Mt5Service.webSocket = null
+                isConnecting = false
+                scheduleReconnect()
             }
         })
     }
@@ -306,9 +382,16 @@ class Mt5Service(
         sendAction("get_calendar", params)
     }
 
+    fun requestNews() {
+        sendAction("get_news", emptyMap())
+    }
+
     fun disconnect() {
+        isManuallyDisconnected = true
+        reconnectHandler.removeCallbacks(reconnectRunnable)
         webSocket?.close(1000, "App closing")
         webSocket = null
+        isConnecting = false
     }
 
     private fun sendOrQueue(message: String) {
@@ -319,5 +402,14 @@ class Mt5Service(
         synchronized(pendingMessages) {
             pendingMessages.add(message)
         }
+    }
+
+    private fun scheduleReconnect() {
+        if (isManuallyDisconnected) return
+        if (endpointHosts.size > 1) {
+            endpointIndex = (endpointIndex + 1) % endpointHosts.size
+        }
+        reconnectHandler.removeCallbacks(reconnectRunnable)
+        reconnectHandler.postDelayed(reconnectRunnable, 2000L)
     }
 }

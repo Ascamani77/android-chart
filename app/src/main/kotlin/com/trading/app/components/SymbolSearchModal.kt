@@ -91,7 +91,10 @@ fun SymbolSearchModal(
             
             // Metals
             SymbolInfo("XAUUSD", "Gold / US Dollar", "OANDA", "commodity cfd"),
-            SymbolInfo("XAUUSD", "Gold vs US Dollar", "Pepperstone", "commodity cfd")
+            SymbolInfo("XAUUSD", "Gold vs US Dollar", "Pepperstone", "commodity cfd"),
+            
+            // Oil
+            SymbolInfo("USOIL", "WTI CRUDE OIL", "TVC", "commodity cfd")
         )
     }
 

@@ -36,7 +36,7 @@ fun DrawingsModal(
     ModalBottomSheet(
         onDismissRequest = onClose,
         sheetState = sheetState,
-        containerColor = Color(0xFF131722),
+        containerColor = Color(0xFF121212),
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -48,7 +48,7 @@ fun DrawingsModal(
             )
         },
         windowInsets = WindowInsets(0),
-        modifier = Modifier.fillMaxSize() // Fill max size so it can go full screen
+        modifier = Modifier.fillMaxHeight(0.93f)
     ) {
         Column(
             modifier = Modifier

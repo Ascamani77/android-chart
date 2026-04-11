@@ -32,6 +32,7 @@ import com.trading.app.models.EconomicCalendarPayload
 import com.trading.app.models.SymbolInfo
 import com.tradingview.lightweightcharts.api.interfaces.SeriesApi
 import com.tradingview.lightweightcharts.api.series.common.PriceLine
+import com.tradingview.lightweightcharts.api.options.enums.PriceAxisPosition
 import com.tradingview.lightweightcharts.api.options.models.*
 import com.tradingview.lightweightcharts.api.series.models.*
 import com.tradingview.lightweightcharts.view.ChartsView
@@ -75,7 +76,7 @@ data class SymbolQuote(
     val time: Long = 0L
 )
 
-private fun getFullSymbolName(symbol: String): String {
+fun getFullSymbolName(symbol: String): String {
     return when (symbol.uppercase()) {
         "BTCUSD" -> "Bitcoin / U.S. Dollar"
         "ETHUSD" -> "Ethereum / U.S. Dollar"
@@ -86,6 +87,7 @@ private fun getFullSymbolName(symbol: String): String {
         "USDCAD" -> "U.S. Dollar / Canadian Dollar"
         "USDCHF" -> "U.S. Dollar / Swiss Franc"
         "NZDUSD" -> "New Zealand Dollar / U.S. Dollar"
+        "USOIL" -> "CFDs on Crude Oil (WTI)"
         else -> symbol
     }
 }
@@ -101,6 +103,15 @@ private fun getFullChartColor(colorSetting: String, customBg: String): Int {
         "Dark Blue" -> android.graphics.Color.parseColor("#0a0e27")
         "OLED Black" -> android.graphics.Color.parseColor("#0d0f1a")
         else -> try { android.graphics.Color.parseColor(customBg) } catch (e: Exception) { android.graphics.Color.BLACK }
+    }
+}
+
+private fun toPriceScaleMode(scaleType: String): PriceScaleMode {
+    return when (scaleType) {
+        "Percent" -> PriceScaleMode.PERCENTAGE
+        "Indexed to 100" -> PriceScaleMode.INDEXED_TO_100
+        "Logarithmic" -> PriceScaleMode.LOGARITHMIC
+        else -> PriceScaleMode.NORMAL
     }
 }
 
@@ -138,7 +149,26 @@ private fun applyTickToCandles(
     tickTimestampSeconds: Long,
     tickVolume: Float
 ): List<OHLCData> {
-    if (candles.isEmpty()) return candles
+    if (!lastPrice.isFinite() || lastPrice <= 0f) return candles
+
+    if (candles.isEmpty()) {
+        val seededTime = if (tickTimestampSeconds > 0L) {
+            alignToTimeframeStart(tickTimestampSeconds, timeframe)
+        } else {
+            0L
+        }
+        if (seededTime <= 0L) return candles
+        return listOf(
+            OHLCData(
+                time = seededTime,
+                open = lastPrice,
+                high = lastPrice,
+                low = lastPrice,
+                close = lastPrice,
+                volume = tickVolume.coerceAtLeast(0f)
+            )
+        )
+    }
 
     val orderedCandles = candles.sortedBy(OHLCData::time)
     val interval = timeframeToSeconds(timeframe)
@@ -348,6 +378,8 @@ fun TradingChart(
     isCalendarVisible: Boolean = false,
     calendarRequestDateIso: String? = null,
     calendarRequestVersion: Int = 0,
+    isNewsVisible: Boolean = false,
+    onNewsUpdate: (com.trading.app.models.NewsPayload) -> Unit = {},
     onDoubleClick: (Float) -> Unit = {},
     reverseBridge: Mt5ReverseBridge? = null
 ) {
@@ -396,6 +428,14 @@ fun TradingChart(
 
     val updatedOnQuoteUpdate = rememberUpdatedState(onQuoteUpdate)
     val updatedOnDataLoaded = rememberUpdatedState(onDataLoaded)
+    val updatedOnAccountUpdate = rememberUpdatedState(onAccountUpdate)
+    val updatedOnPositionsUpdate = rememberUpdatedState(onPositionsUpdate)
+    val updatedOnOrdersUpdate = rememberUpdatedState(onOrdersUpdate)
+    val updatedOnHistoryOrdersUpdate = rememberUpdatedState(onHistoryOrdersUpdate)
+    val updatedOnBalanceHistoryUpdate = rememberUpdatedState(onBalanceHistoryUpdate)
+    val updatedOnCalendarUpdate = rememberUpdatedState(onCalendarUpdate)
+    val updatedOnNewsUpdate = rememberUpdatedState(onNewsUpdate)
+
     val currentSymbol = rememberUpdatedState(symbol)
     val currentTimeframe = rememberUpdatedState(timeframe)
     val showInlineRsiPane = showRsi
@@ -459,11 +499,32 @@ fun TradingChart(
 
     val mt5Service = remember {
         Mt5Service(
-            pcIpAddress = "10.222.138.133",
+            pcIpAddress = "10.233.78.133",
             port = 8081,
             onHistoryUpdate = { receivedSymbol, history ->
                 if (receivedSymbol.isEmpty() || receivedSymbol.equals(currentSymbol.value, ignoreCase = true)) {
-                    val orderedHistory = history.sortedBy(OHLCData::time)
+                    val orderedHistory = history
+                        .asSequence()
+                        .mapNotNull { candle ->
+                            if (candle.time <= 0L) return@mapNotNull null
+                            if (!candle.open.isFinite() || !candle.high.isFinite() || !candle.low.isFinite() || !candle.close.isFinite()) {
+                                return@mapNotNull null
+                            }
+                            val high = maxOf(candle.high, candle.open, candle.close)
+                            val low = minOf(candle.low, candle.open, candle.close)
+                            OHLCData(
+                                time = candle.time,
+                                open = candle.open,
+                                high = high,
+                                low = low,
+                                close = candle.close,
+                                volume = candle.volume.coerceAtLeast(0f)
+                            )
+                        }
+                        .sortedBy(OHLCData::time)
+                        .distinctBy(OHLCData::time)
+                        .toList()
+
                     ohlcData = orderedHistory
                     // notify host that new data has been loaded
                     updatedOnDataLoaded.value(orderedHistory)
@@ -492,13 +553,14 @@ fun TradingChart(
                 }
             },
             onAccountUpdate = { accountInfo ->
-                onAccountUpdate(accountInfo)
+                updatedOnAccountUpdate.value(accountInfo)
             },
-            onPositionsUpdate = { onPositionsUpdate(it) },
-            onOrdersUpdate = { onOrdersUpdate(it) },
-            onHistoryOrdersUpdate = { onHistoryOrdersUpdate(it) },
-            onBalanceHistoryUpdate = { onBalanceHistoryUpdate(it) },
-            onCalendarUpdate = { onCalendarUpdate(it) }
+            onPositionsUpdate = { updatedOnPositionsUpdate.value(it) },
+            onOrdersUpdate = { updatedOnOrdersUpdate.value(it) },
+            onHistoryOrdersUpdate = { updatedOnHistoryOrdersUpdate.value(it) },
+            onBalanceHistoryUpdate = { updatedOnBalanceHistoryUpdate.value(it) },
+            onCalendarUpdate = { updatedOnCalendarUpdate.value(it) },
+            onNewsUpdate = { updatedOnNewsUpdate.value(it) }
         )
     }
 
@@ -516,6 +578,12 @@ fun TradingChart(
     LaunchedEffect(isCalendarVisible, calendarRequestDateIso, calendarRequestVersion) {
         if (isCalendarVisible) {
             mt5Service.requestCalendar(calendarRequestDateIso)
+        }
+    }
+
+    LaunchedEffect(isNewsVisible) {
+        if (isNewsVisible) {
+            mt5Service.requestNews()
         }
     }
 
@@ -727,7 +795,8 @@ fun TradingChart(
         showMacd,
         showVolume,
         showAtr,
-        chartSettings.canvas.scaleLineColor
+        chartSettings.canvas.scaleLineColor,
+        chartSettings.scales
     ) {
         val mainScaleMargins = paneMargins["main"]!!
         val rsiScaleMargins = paneMargins[RSI_SCALE_KEY] ?: PriceScaleMargins(top = 0.72f, bottom = 0.04f)
@@ -735,10 +804,17 @@ fun TradingChart(
         val volumeScaleMargins = paneMargins[VOLUME_SCALE_KEY] ?: PriceScaleMargins(0.82f, 0.02f)
         val atrScaleMargins = paneMargins[ATR_SCALE_KEY] ?: PriceScaleMargins(0.82f, 0.02f)
         val scaleBorderColor = chartSettings.canvas.scaleLineColor.toIntColor()
+        val scales = chartSettings.scales
+        val activeScaleMode = toPriceScaleMode(scales.scaleType)
+        val autoScaleEnabled = scales.autoScale && !scales.lockRatio
+        val scalePosition = if (scales.scalesPlacement == "Left") PriceAxisPosition.LEFT else PriceAxisPosition.RIGHT
 
         seriesApi?.priceScale()?.applyOptions(
             PriceScaleOptions(
-                autoScale = true,
+                autoScale = autoScaleEnabled,
+                mode = activeScaleMode,
+                invertScale = scales.invertScale,
+                position = scalePosition,
                 scaleMargins = mainScaleMargins
             )
         )
@@ -1015,8 +1091,9 @@ fun TradingChart(
     var positionPriceLineOwner by remember { mutableStateOf<SeriesApi?>(null) }
     // Using positions.toList() to ensure the effect re-runs when the list content changes
     val positionsSnapshot = positions.toList()
-    LaunchedEffect(positionsSnapshot, seriesApi, symbol) {
+    LaunchedEffect(positionsSnapshot, seriesApi, symbol, currentQuoteState) {
         val api = seriesApi ?: return@LaunchedEffect
+        val lastPrice = currentQuoteState?.lastPrice ?: 0f
         
         // Remove previous position lines
         if (positionPriceLineOwner === api) {
@@ -1026,8 +1103,17 @@ fun TradingChart(
         positionPriceLineOwner = api
 
         positionsSnapshot.filter { it.symbol.equals(symbol, ignoreCase = true) }.forEach { position ->
-            val color = if (position.type.equals("buy", ignoreCase = true)) "#2962FF" else "#F2A52C"
+            val color = if (position.type.equals("buy", ignoreCase = true)) "#089981" else "#F23645"
+            val isBuy = position.type.equals("buy", ignoreCase = true)
             
+            val pnl = if (lastPrice > 0) {
+                (lastPrice - position.entryPrice) * position.volume * (if (isBuy) 1f else -1f)
+            } else 0f
+            
+            val pnlText = if (lastPrice > 0) {
+                " [${if (pnl >= 0) "+" else ""}${String.format("%.2f", pnl)}]"
+            } else ""
+
             // Entry Line
             positionPriceLines.add(
                 api.createPriceLine(
@@ -1038,13 +1124,16 @@ fun TradingChart(
                         lineStyle = LineStyle.SOLID,
                         lineVisible = true,
                         axisLabelVisible = true,
-                        title = "${position.type.uppercase()} ${position.volume}"
+                        title = "${position.type.uppercase()} ${position.volume} $pnlText"
                     )
                 )
             )
 
             // TP Line
             position.tp?.let { tp ->
+                val tpPnl = (tp - position.entryPrice) * position.volume * (if (isBuy) 1f else -1f)
+                val tpPnlText = " [${if (tpPnl >= 0) "+" else ""}${String.format("%.2f", tpPnl)}]"
+                
                 positionPriceLines.add(
                     api.createPriceLine(
                         PriceLineOptions(
@@ -1054,7 +1143,7 @@ fun TradingChart(
                             lineStyle = LineStyle.DASHED,
                             lineVisible = true,
                             axisLabelVisible = true,
-                            title = "TP"
+                            title = "TP$tpPnlText"
                         )
                     )
                 )
@@ -1062,6 +1151,9 @@ fun TradingChart(
 
             // SL Line
             position.sl?.let { sl ->
+                val slPnl = (sl - position.entryPrice) * position.volume * (if (isBuy) 1f else -1f)
+                val slPnlText = " [${if (slPnl >= 0) "+" else ""}${String.format("%.2f", slPnl)}]"
+                
                 positionPriceLines.add(
                     api.createPriceLine(
                         PriceLineOptions(
@@ -1071,7 +1163,7 @@ fun TradingChart(
                             lineStyle = LineStyle.DASHED,
                             lineVisible = true,
                             axisLabelVisible = true,
-                            title = "SL"
+                            title = "SL$slPnlText"
                         )
                     )
                 )
@@ -1094,7 +1186,7 @@ fun TradingChart(
         orderPriceLineOwner = api
 
         ordersSnapshot.filter { it.symbol.equals(symbol, ignoreCase = true) }.forEach { order ->
-            val color = if (order.type.equals("buy", ignoreCase = true)) "#2962FF" else "#F2A52C"
+            val color = if (order.type.equals("buy", ignoreCase = true)) "#089981" else "#F23645"
             
             // Order Price Line
             orderPriceLines.add(
@@ -1113,6 +1205,10 @@ fun TradingChart(
 
             // TP Line for Order
             order.tp?.let { tp ->
+                val isBuy = order.type.equals("buy", ignoreCase = true)
+                val tpPnl = (tp - order.price) * order.volume * (if (isBuy) 1f else -1f)
+                val tpPnlText = " [${if (tpPnl >= 0) "+" else ""}${String.format("%.2f", tpPnl)}]"
+                
                 orderPriceLines.add(
                     api.createPriceLine(
                         PriceLineOptions(
@@ -1122,7 +1218,7 @@ fun TradingChart(
                             lineStyle = LineStyle.DASHED,
                             lineVisible = true,
                             axisLabelVisible = true,
-                            title = "TP"
+                            title = "TP$tpPnlText"
                         )
                     )
                 )
@@ -1130,6 +1226,10 @@ fun TradingChart(
 
             // SL Line for Order
             order.sl?.let { sl ->
+                val isBuy = order.type.equals("buy", ignoreCase = true)
+                val slPnl = (sl - order.price) * order.volume * (if (isBuy) 1f else -1f)
+                val slPnlText = " [${if (slPnl >= 0) "+" else ""}${String.format("%.2f", slPnl)}]"
+                
                 orderPriceLines.add(
                     api.createPriceLine(
                         PriceLineOptions(
@@ -1139,7 +1239,7 @@ fun TradingChart(
                             lineStyle = LineStyle.DASHED,
                             lineVisible = true,
                             axisLabelVisible = true,
-                            title = "SL"
+                            title = "SL$slPnlText"
                         )
                     )
                 )
@@ -1172,6 +1272,10 @@ fun TradingChart(
                                 val macdScaleMargins = paneMargins[MACD_SCALE_KEY] ?: PriceScaleMargins(0.82f, 0.02f)
                                 val volumeScaleMargins = paneMargins[VOLUME_SCALE_KEY] ?: PriceScaleMargins(0.82f, 0.02f)
                                 val atrScaleMargins = paneMargins[ATR_SCALE_KEY] ?: PriceScaleMargins(0.82f, 0.02f)
+                                val scales = chartSettings.scales
+                                val activeScaleMode = toPriceScaleMode(scales.scaleType)
+                                val autoScaleEnabled = scales.autoScale && !scales.lockRatio
+                                val useLeftPriceScale = scales.scalesPlacement == "Left"
 
                                 val precision = when {
                                     isBitcoin -> 0
@@ -1216,7 +1320,20 @@ fun TradingChart(
                             rightPriceScale = PriceScaleOptions(
                                 borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
                                 entireTextOnly = false,
-                                autoScale = true
+                                autoScale = autoScaleEnabled,
+                                mode = activeScaleMode,
+                                invertScale = scales.invertScale,
+                                position = PriceAxisPosition.RIGHT,
+                                visible = !useLeftPriceScale
+                            )
+                            leftPriceScale = PriceScaleOptions(
+                                borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
+                                entireTextOnly = false,
+                                autoScale = autoScaleEnabled,
+                                mode = activeScaleMode,
+                                invertScale = scales.invertScale,
+                                position = PriceAxisPosition.LEFT,
+                                visible = useLeftPriceScale
                             )
                             timeScale = TimeScaleOptions(
                                 borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
@@ -1232,7 +1349,7 @@ fun TradingChart(
                                 mouseWheel = true,
                                 pinch = true,
                                 axisPressedMouseMove = AxisPressedMouseMoveOptions(
-                                    time = true,
+                                    time = !scales.scalePriceChartOnly,
                                     price = true
                                 )
                             )
@@ -1573,6 +1690,11 @@ fun TradingChart(
                 },
                 modifier = Modifier.fillMaxSize(),
                 update = { chartsView ->
+                    val scales = chartSettings.scales
+                    val activeScaleMode = toPriceScaleMode(scales.scaleType)
+                    val autoScaleEnabled = scales.autoScale && !scales.lockRatio
+                    val useLeftPriceScale = scales.scalesPlacement == "Left"
+
                     chartsView.api.applyOptions {
                         layout = LayoutOptions(
                             background = SolidColor(color = IntColor(chartBgColor)),
@@ -1604,7 +1726,20 @@ fun TradingChart(
                         rightPriceScale = PriceScaleOptions(
                             borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
                             entireTextOnly = false,
-                            autoScale = true
+                            autoScale = autoScaleEnabled,
+                            mode = activeScaleMode,
+                            invertScale = scales.invertScale,
+                            position = PriceAxisPosition.RIGHT,
+                            visible = !useLeftPriceScale
+                        )
+                        leftPriceScale = PriceScaleOptions(
+                            borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
+                            entireTextOnly = false,
+                            autoScale = autoScaleEnabled,
+                            mode = activeScaleMode,
+                            invertScale = scales.invertScale,
+                            position = PriceAxisPosition.LEFT,
+                            visible = useLeftPriceScale
                         )
                         timeScale = TimeScaleOptions(
                             borderColor = chartSettings.canvas.scaleLineColor.toIntColor(),
@@ -1620,7 +1755,7 @@ fun TradingChart(
                             mouseWheel = true,
                             pinch = true,
                             axisPressedMouseMove = AxisPressedMouseMoveOptions(
-                                time = true,
+                                time = !scales.scalePriceChartOnly,
                                 price = true
                             )
                         )
