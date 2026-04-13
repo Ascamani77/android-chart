@@ -78,7 +78,7 @@ private fun PositionItem(
     onSettingsClick: () -> Unit
 ) {
     val labelColor = Color(0xFF787B86)
-    val itemBackground = if (isSelected) Color(0xFF1E222D) else Color.Transparent
+    val itemBackground = if (isSelected) Color(0xFF121212) else Color.Transparent
     
     // Calculations
     val isBuy = position.type == "buy"

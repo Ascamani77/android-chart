@@ -160,7 +160,7 @@ fun FlagImage(currency: String, modifier: Modifier = Modifier) {
         contentDescription = currency,
         modifier = modifier
             .clip(CircleShape)
-            .background(Color(0xFF1E222D)),
+            .background(Color(0xFF121212)),
         contentScale = ContentScale.Crop
     )
 }

@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.trading.app.data.BinanceService
 import com.trading.app.data.Mt5Service
 import com.trading.app.data.Mt5ReverseBridge
 import com.trading.app.models.ChartSettings
@@ -79,15 +80,31 @@ data class SymbolQuote(
 fun getFullSymbolName(symbol: String): String {
     return when (symbol.uppercase()) {
         "BTCUSD" -> "Bitcoin / U.S. Dollar"
+        "BTCUSDT" -> "Bitcoin / TetherUS"
         "ETHUSD" -> "Ethereum / U.S. Dollar"
+        "ETHUSDT" -> "Ethereum / TetherUS"
         "EURUSD" -> "Euro / U.S. Dollar"
-        "USDJPY" -> "U.S. Dollar / Japanese Yen"
         "GBPUSD" -> "British Pound / U.S. Dollar"
+        "USDJPY" -> "U.S. Dollar / Japanese Yen"
         "AUDUSD" -> "Australian Dollar / US Dollar"
         "USDCAD" -> "U.S. Dollar / Canadian Dollar"
         "USDCHF" -> "U.S. Dollar / Swiss Franc"
-        "NZDUSD" -> "New Zealand Dollar / U.S. Dollar"
-        "USOIL" -> "CFDs on Crude Oil (WTI)"
+        "USOIL" -> "WTI Crude Oil"
+        "BRENTOIL" -> "Brent Crude Oil"
+        "XAUUSD" -> "Gold / US Dollar"
+        "XAGUSD" -> "Silver / US Dollar"
+        "AAPL" -> "Apple Inc."
+        "MSFT" -> "Microsoft Corporation"
+        "AMZN" -> "Amazon.com, Inc."
+        "NVDA" -> "NVIDIA Corporation"
+        "TSLA" -> "Tesla, Inc."
+        "SPX" -> "S&P 500 Index"
+        "NASDAQ100" -> "Nasdaq 100 Index"
+        "DJIA" -> "Dow Jones Industrial Average"
+        "US10Y" -> "United States 10Y Gov Bond"
+        "US02Y" -> "United States 2Y Gov Bond"
+        "DGS2" -> "US 2-Year Treasury Yield"
+        "DGS10" -> "US 10-Year Treasury Yield"
         else -> symbol
     }
 }
@@ -365,6 +382,8 @@ fun TradingChart(
     onDataLoaded: (List<OHLCData>) -> Unit = {},
     selectedTimeZone: String = "UTC",
     onQuoteUpdate: (SymbolQuote) -> Unit = {},
+    onAnyQuoteUpdate: (SymbolQuote) -> Unit = {},
+    watchlistSymbols: List<String> = emptyList(),
     positions: List<Position> = emptyList(),
     onPositionUpdate: (Position) -> Unit = {},
     onPositionDelete: (String) -> Unit = {},
@@ -373,13 +392,14 @@ fun TradingChart(
     orders: List<Order> = emptyList(),
     onOrdersUpdate: (List<Order>) -> Unit = {},
     onHistoryOrdersUpdate: (List<Order>) -> Unit = {},
-    onBalanceHistoryUpdate: (List<com.trading.app.models.BalanceRecord>) -> Unit = {},
+    onBalanceHistoryUpdate: (List<BalanceRecord>) -> Unit = {},
     onCalendarUpdate: (EconomicCalendarPayload) -> Unit = {},
     isCalendarVisible: Boolean = false,
     calendarRequestDateIso: String? = null,
     calendarRequestVersion: Int = 0,
     isNewsVisible: Boolean = false,
     onNewsUpdate: (com.trading.app.models.NewsPayload) -> Unit = {},
+    onSymbolsUpdate: (List<SymbolInfo>) -> Unit = {},
     onDoubleClick: (Float) -> Unit = {},
     reverseBridge: Mt5ReverseBridge? = null
 ) {
@@ -427,6 +447,7 @@ fun TradingChart(
     var bidAskPriceLineOwner by remember { mutableStateOf<SeriesApi?>(null) }
 
     val updatedOnQuoteUpdate = rememberUpdatedState(onQuoteUpdate)
+    val updatedOnAnyQuoteUpdate = rememberUpdatedState(onAnyQuoteUpdate)
     val updatedOnDataLoaded = rememberUpdatedState(onDataLoaded)
     val updatedOnAccountUpdate = rememberUpdatedState(onAccountUpdate)
     val updatedOnPositionsUpdate = rememberUpdatedState(onPositionsUpdate)
@@ -435,6 +456,7 @@ fun TradingChart(
     val updatedOnBalanceHistoryUpdate = rememberUpdatedState(onBalanceHistoryUpdate)
     val updatedOnCalendarUpdate = rememberUpdatedState(onCalendarUpdate)
     val updatedOnNewsUpdate = rememberUpdatedState(onNewsUpdate)
+    val updatedOnSymbolsUpdate = rememberUpdatedState(onSymbolsUpdate)
 
     val currentSymbol = rememberUpdatedState(symbol)
     val currentTimeframe = rememberUpdatedState(timeframe)
@@ -497,11 +519,50 @@ fun TradingChart(
         else -> LineStyle.SOLID
     }
 
+    val binanceService = remember {
+        BinanceService(
+            onQuoteUpdate = { quote: SymbolQuote ->
+                val isTarget = quote.name.equals(currentSymbol.value, ignoreCase = true)
+                
+                if (isTarget && ohlcData.isNotEmpty()) {
+                    val prevClose = ohlcData.getOrNull(ohlcData.size - 2)?.close ?: quote.lastPrice
+                    val change = quote.lastPrice - prevClose
+                    val changePercent = if (prevClose != 0f) (change / prevClose) * 100f else 0f
+                    
+                    val updatedQuote = quote.copy(
+                        name = currentSymbol.value,
+                        change = change,
+                        changePercent = changePercent
+                    )
+                    
+                    currentQuoteState = updatedQuote
+                    ohlcData = applyTickToCandles(
+                        candles = ohlcData,
+                        timeframe = currentTimeframe.value,
+                        lastPrice = updatedQuote.lastPrice,
+                        tickTimestampSeconds = normalizeEpochSeconds(updatedQuote.time),
+                        tickVolume = updatedQuote.volume
+                    )
+                    updatedOnQuoteUpdate.value(updatedQuote)
+                }
+                updatedOnAnyQuoteUpdate.value(quote)
+            },
+            onHistoryUpdate = { receivedSymbol: String, history: List<OHLCData> ->
+                val isTarget = receivedSymbol.equals(currentSymbol.value, ignoreCase = true)
+                
+                if (isTarget) {
+                    ohlcData = history
+                    updatedOnDataLoaded.value(history)
+                }
+            }
+        )
+    }
+
     val mt5Service = remember {
         Mt5Service(
             pcIpAddress = "10.233.78.133",
             port = 8081,
-            onHistoryUpdate = { receivedSymbol, history ->
+            onHistoryUpdate = { receivedSymbol: String, history: List<OHLCData> ->
                 if (receivedSymbol.isEmpty() || receivedSymbol.equals(currentSymbol.value, ignoreCase = true)) {
                     val orderedHistory = history
                         .asSequence()
@@ -526,53 +587,78 @@ fun TradingChart(
                         .toList()
 
                     ohlcData = orderedHistory
-                    // notify host that new data has been loaded
                     updatedOnDataLoaded.value(orderedHistory)
-                    Log.d(LOG_TAG, "onHistoryUpdate: received ${orderedHistory.size} candles for $receivedSymbol")
+                    Log.d(LOG_TAG, "onHistoryUpdate (MT5): received ${orderedHistory.size} candles for $receivedSymbol")
                 }
             },
-            onQuoteUpdate = { quote ->
+            onQuoteUpdate = { quote: SymbolQuote ->
+                var outgoingQuote = quote
                 if (quote.name.equals(currentSymbol.value, ignoreCase = true)) {
-                    val prevClose = ohlcData.getOrNull(ohlcData.size - 2)?.close ?: quote.lastPrice
-                    val change = quote.lastPrice - prevClose
-                    val changePercent = if (prevClose != 0f) (change / prevClose) * 100f else 0f
+                    // Symbol Routing: Only symbols ending in USDT use BinanceService for main chart data
+                    val isCryptoBinance = currentSymbol.value.endsWith("USDT", ignoreCase = true)
                     
-                    val updatedQuote = quote.copy(
-                        change = change,
-                        changePercent = changePercent
-                    )
-                    currentQuoteState = updatedQuote
-                    ohlcData = applyTickToCandles(
-                        candles = ohlcData,
-                        timeframe = currentTimeframe.value,
-                        lastPrice = updatedQuote.lastPrice,
-                        tickTimestampSeconds = normalizeEpochSeconds(updatedQuote.time),
-                        tickVolume = updatedQuote.volume
-                    )
-                    updatedOnQuoteUpdate.value(updatedQuote)
+                    if (!isCryptoBinance && ohlcData.isNotEmpty()) {
+                        val prevClose = ohlcData.getOrNull(ohlcData.size - 2)?.close ?: quote.lastPrice
+                        val change = quote.lastPrice - prevClose
+                        val changePercent = if (prevClose != 0f) (change / prevClose) * 100f else 0f
+                        
+                        val updatedQuote = quote.copy(
+                            change = change,
+                            changePercent = changePercent
+                        )
+                        outgoingQuote = updatedQuote
+                        currentQuoteState = updatedQuote
+                        ohlcData = applyTickToCandles(
+                            candles = ohlcData,
+                            timeframe = currentTimeframe.value,
+                            lastPrice = updatedQuote.lastPrice,
+                            tickTimestampSeconds = normalizeEpochSeconds(updatedQuote.time),
+                            tickVolume = updatedQuote.volume
+                        )
+                        updatedOnQuoteUpdate.value(updatedQuote)
+                    }
                 }
+                updatedOnAnyQuoteUpdate.value(outgoingQuote)
             },
-            onAccountUpdate = { accountInfo ->
+            onAccountUpdate = { accountInfo: Mt5Service.AccountInfo ->
                 updatedOnAccountUpdate.value(accountInfo)
             },
-            onPositionsUpdate = { updatedOnPositionsUpdate.value(it) },
-            onOrdersUpdate = { updatedOnOrdersUpdate.value(it) },
-            onHistoryOrdersUpdate = { updatedOnHistoryOrdersUpdate.value(it) },
-            onBalanceHistoryUpdate = { updatedOnBalanceHistoryUpdate.value(it) },
-            onCalendarUpdate = { updatedOnCalendarUpdate.value(it) },
-            onNewsUpdate = { updatedOnNewsUpdate.value(it) }
+            onPositionsUpdate = { positions: List<Position> -> updatedOnPositionsUpdate.value(positions) },
+            onOrdersUpdate = { orders: List<Order> -> updatedOnOrdersUpdate.value(orders) },
+            onHistoryOrdersUpdate = { history: List<Order> -> updatedOnHistoryOrdersUpdate.value(history) },
+            onBalanceHistoryUpdate = { balanceRecords: List<BalanceRecord> -> updatedOnBalanceHistoryUpdate.value(balanceRecords) },
+            onCalendarUpdate = { calendar: EconomicCalendarPayload -> updatedOnCalendarUpdate.value(calendar) },
+            onNewsUpdate = { news: com.trading.app.models.NewsPayload -> updatedOnNewsUpdate.value(news) },
+            onSymbolsUpdate = { symbols: List<SymbolInfo> -> updatedOnSymbolsUpdate.value(symbols) }
         )
     }
 
     LaunchedEffect(Unit) {
         mt5Service.connect()
+        mt5Service.requestSymbols()
+        binanceService.connect()
         reverseBridge?.connect()
     }
 
     LaunchedEffect(symbol, timeframe) {
         ohlcData = emptyList()
         currentQuoteState = null
-        mt5Service.subscribe(symbol, timeframe)
+        if (symbol.endsWith("USDT", ignoreCase = true)) {
+            binanceService.subscribe(symbol)
+            binanceService.fetchHistory(symbol, timeframe)
+        } else {
+            mt5Service.subscribe(symbol, timeframe)
+        }
+    }
+
+    LaunchedEffect(symbol, watchlistSymbols) {
+        val symbols = (watchlistSymbols + symbol)
+            .asSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinctBy { it.uppercase(Locale.US) }
+            .toList()
+        mt5Service.updateWatchlist(symbols)
     }
 
     LaunchedEffect(isCalendarVisible, calendarRequestDateIso, calendarRequestVersion) {
@@ -1102,7 +1188,15 @@ fun TradingChart(
         positionPriceLines.clear()
         positionPriceLineOwner = api
 
-        positionsSnapshot.filter { it.symbol.equals(symbol, ignoreCase = true) }.forEach { position ->
+        positionsSnapshot.filter { pos ->
+            val s1 = symbol.uppercase()
+            val s2 = pos.symbol.uppercase()
+            s1 == s2 || 
+            (s1 == "BTCUSDT" && s2 == "BTCUSD") || 
+            (s1 == "BTCUSD" && s2 == "BTCUSDT") ||
+            (s1 == "ETHUSDT" && s2 == "ETHUSD") || 
+            (s1 == "ETHUSD" && s2 == "ETHUSDT")
+        }.forEach { position ->
             val color = if (position.type.equals("buy", ignoreCase = true)) "#089981" else "#F23645"
             val isBuy = position.type.equals("buy", ignoreCase = true)
             
@@ -1185,7 +1279,15 @@ fun TradingChart(
         orderPriceLines.clear()
         orderPriceLineOwner = api
 
-        ordersSnapshot.filter { it.symbol.equals(symbol, ignoreCase = true) }.forEach { order ->
+        ordersSnapshot.filter { ord ->
+            val s1 = symbol.uppercase()
+            val s2 = ord.symbol.uppercase()
+            s1 == s2 || 
+            (s1 == "BTCUSDT" && s2 == "BTCUSD") || 
+            (s1 == "BTCUSD" && s2 == "BTCUSDT") ||
+            (s1 == "ETHUSDT" && s2 == "ETHUSD") || 
+            (s1 == "ETHUSD" && s2 == "ETHUSDT")
+        }.forEach { order ->
             val color = if (order.type.equals("buy", ignoreCase = true)) "#089981" else "#F23645"
             
             // Order Price Line
@@ -1980,7 +2082,7 @@ fun TradingChart(
                         .padding(top = 8.dp)
                         .size(24.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(ComposeColor(0xFF1E222D))
+                        .background(ComposeColor(0xFF121212))
                         .border(1.dp, ComposeColor(0xFF363A45), RoundedCornerShape(4.dp))
                         .clickable { onVolumeToggle(!showVolume) },
                     contentAlignment = Alignment.Center
@@ -2062,4 +2164,3 @@ fun OhlcItem(label: String, value: Float, symbol: String) {
         Text(text = formatPrice(value, symbol), color = ComposeColor.White, fontSize = 11.sp)
     }
 }
-

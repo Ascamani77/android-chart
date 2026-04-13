@@ -99,7 +99,7 @@ fun ChartTypeModal(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .border(1.dp, Color(0xFF363A45), RoundedCornerShape(12.dp))
-                        .background(Color(0xFF1E222D).copy(alpha = 0.5f))
+                        .background(Color(0xFF121212).copy(alpha = 0.5f))
                         .padding(16.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -137,7 +137,7 @@ fun ChartTypeModal(
                         modifier = Modifier
                             .height(84.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isActive) Color.White else Color(0xFF1E222D))
+                            .background(if (isActive) Color.White else Color(0xFF121212))
                             .clickable { 
                                 onStyleChange(type.id)
                                 onClose()

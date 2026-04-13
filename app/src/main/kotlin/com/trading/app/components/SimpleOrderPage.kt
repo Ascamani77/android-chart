@@ -126,7 +126,7 @@ fun SimpleOrderPage(
 
     val charcoalBlack = Color(0xFF171719) 
     val bodyBg = Color(0xFF000000)
-    val inputBg = Color(0xFF1E222D)
+    val inputBg = Color(0xFF121212)
     val borderColor = Color(0xFF2A2E39)
     val labelColor = Color(0xFF9BA0AB)
     val buyColor = Color(0xFF2962FF)

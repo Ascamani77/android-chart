@@ -322,7 +322,7 @@ fun TradingSmallDropdown(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.background(Color(0xFF1E222D)).border(1.dp, Color(0xFF363A45))
+            modifier = Modifier.background(Color(0xFF121212)).border(1.dp, Color(0xFF363A45))
         ) {
             options.forEach { option ->
                 DropdownMenuItem(

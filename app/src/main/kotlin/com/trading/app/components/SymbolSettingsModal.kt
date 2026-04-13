@@ -379,7 +379,7 @@ fun ColorPickerModal(
             modifier = Modifier
                 .width(320.dp)
                 .wrapContentHeight(),
-            color = Color(0xFF1E222D),
+            color = Color(0xFF121212),
             shape = RoundedCornerShape(8.dp)
         ) {
             if (showMixer) {

@@ -51,7 +51,7 @@ fun TradeNotificationPopup(
         enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
         exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
     ) {
-        val backgroundColor = Color(0xFF1E222D)
+        val backgroundColor = Color(0xFF2A2E39)
         val title = when (notification.type) {
             "executed" -> "Market order executed on"
             "tp_placed" -> "Take Profit order placed on"
@@ -73,7 +73,7 @@ fun TradeNotificationPopup(
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(start = 4.dp, end = 12.dp, top = 2.dp, bottom = 2.dp),
+                .padding(vertical = 2.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             Row(

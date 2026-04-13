@@ -135,26 +135,65 @@ TIMEFRAME_MAP = {
     "1d": mt5.TIMEFRAME_D1,
 }
 
+SYMBOL_ALIASES = {
+    "SPX": ["US500m", "US500_x100m"],
+    "NASDAQ100": ["USTECm", "USTEC_x100m"],
+    "DJIA": ["US30m", "US30_x10m"],
+    "BRENTOIL": ["UKOILm"],
+}
+
 
 def clean_symbol(symbol):
     if not symbol:
         return symbol
     symbol_upper = symbol.upper()
-    if symbol_upper.endswith("M"):
-        return symbol[:-1]
+    # Handle common broker suffixes
+    for suffix in [".M", ".PRO", ".ECN", ".S", ".SPOT", "M", "+"]:
+        if symbol_upper.endswith(suffix):
+            return symbol[: -len(suffix)]
     return symbol
 
 
 def resolve_symbol(symbol):
-    all_symbols = [item.name for item in mt5.symbols_get()]
-    return next(
-        (
-            item
-            for item in all_symbols
-            if item.upper() == symbol.upper() or item.upper() == f"{symbol}M".upper()
-        ),
-        symbol,
-    )
+    if not symbol:
+        return symbol
+
+    symbol_upper = symbol.upper()
+    all_symbols_info = mt5.symbols_get()
+    if not all_symbols_info:
+        return symbol
+
+    # 0. Preferred aliases for user-facing display symbols.
+    for alias in SYMBOL_ALIASES.get(symbol_upper, []):
+        alias_upper = alias.upper()
+        for s in all_symbols_info:
+            if s.name.upper() == alias_upper:
+                mt5.symbol_select(s.name, True)
+                return s.name
+
+    # 1. Exact match
+    for s in all_symbols_info:
+        if s.name.upper() == symbol_upper:
+            mt5.symbol_select(s.name, True)
+            return s.name
+
+    # 2. Try common suffixes
+    suffixes = [".m", ".pro", ".ecn", ".s", ".spot", "m", "+"]
+    for suffix in suffixes:
+        target = (symbol + suffix).upper()
+        for s in all_symbols_info:
+            if s.name.upper() == target:
+                mt5.symbol_select(s.name, True)
+                return s.name
+
+    # 3. Try cleaning the input and then matching
+    cleaned_input = clean_symbol(symbol).upper()
+    for s in all_symbols_info:
+        if clean_symbol(s.name).upper() == cleaned_input:
+            mt5.symbol_select(s.name, True)
+            return s.name
+
+    return symbol
 
 
 def sanitize_metric(value):
@@ -570,8 +609,15 @@ def build_calendar_payload(selected_date):
 
 
 def build_history_payload(symbol, timeframe):
-    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 200)
+    # Ensure symbol is selected in Market Watch for history access
+    resolved = resolve_symbol(symbol)
+    if not mt5.symbol_select(resolved, True):
+        print(f"Failed to select symbol: {resolved}")
+        return None
+
+    rates = mt5.copy_rates_from_pos(resolved, timeframe, 0, 200)
     if rates is None:
+        print(f"copy_rates_from_pos failed for {resolved}")
         return None
 
     history = []
@@ -611,13 +657,131 @@ def build_history_payload(symbol, timeframe):
     }
 
 
+def _rate_field(rate, field_name, field_index, default_value=0.0):
+    try:
+        return float(rate[field_name])
+    except Exception:
+        try:
+            return float(rate[field_index])
+        except Exception:
+            return default_value
+
+
+# Cache for daily data to avoid redundant MT5 calls during high-frequency polling
+DAILY_DATA_CACHE = {}
+
+def get_daily_info(symbol):
+    now = time.time()
+    if symbol in DAILY_DATA_CACHE:
+        cached_time, data = DAILY_DATA_CACHE[symbol]
+        # Refresh every hour
+        if now - cached_time < 3600:
+            return data
+
+    daily_rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_D1, 0, 3)
+    if daily_rates is not None and len(daily_rates) >= 2:
+        latest_bar = daily_rates[-1]
+        previous_bar = daily_rates[-2]
+
+        data = {
+            "open": _rate_field(latest_bar, "open", 1, 0.0),
+            "high": _rate_field(latest_bar, "high", 2, 0.0),
+            "low": _rate_field(latest_bar, "low", 3, 0.0),
+            "close": _rate_field(latest_bar, "close", 4, 0.0),
+            "prev_close": _rate_field(previous_bar, "close", 4, 0.0),
+            "time": int(_rate_field(latest_bar, "time", 0, 0))
+        }
+        DAILY_DATA_CACHE[symbol] = (now, data)
+        return data
+    return None
+
+def build_tick_payload(symbol):
+    resolved = resolve_symbol(symbol)
+    mt5.symbol_select(resolved, True)
+
+    tick = mt5.symbol_info_tick(resolved)
+    if tick is None:
+        return None
+
+    info = mt5.symbol_info(resolved)
+    daily = get_daily_info(resolved)
+
+    bar_open = daily["open"] if daily else 0.0
+    bar_high = daily["high"] if daily else 0.0
+    bar_low = daily["low"] if daily else 0.0
+    bar_close = daily["close"] if daily else 0.0
+    prev_close = daily["prev_close"] if daily else (bar_open or bar_close)
+    bar_time = daily["time"] if daily else 0
+
+    bid = float(getattr(tick, "bid", 0.0) or 0.0)
+    ask = float(getattr(tick, "ask", 0.0) or 0.0)
+    last_from_tick = float(getattr(tick, "last", 0.0) or 0.0)
+    volume = float(getattr(tick, "volume", 0.0) or 0.0)
+    tick_time = int(getattr(tick, "time", 0) or 0)
+
+    if info is not None:
+        if bid <= 0.0:
+            bid = float(getattr(info, "bid", 0.0) or 0.0)
+        if ask <= 0.0:
+            ask = float(getattr(info, "ask", 0.0) or 0.0)
+        if last_from_tick <= 0.0:
+            last_from_tick = float(getattr(info, "last", 0.0) or 0.0)
+
+    last_price_candidates = [value for value in [bid, ask, last_from_tick, bar_close, bar_open] if value and value > 0.0]
+    if not last_price_candidates:
+        return None
+
+    last_price = last_price_candidates[0]
+
+    if bid <= 0.0:
+        bid = last_price
+    if ask <= 0.0:
+        ask = last_price
+    if tick_time <= 0:
+        tick_time = bar_time
+
+    spread = max(ask - bid, 0.0)
+    open_price = bar_open if bar_open > 0.0 else last_price
+    high_price = bar_high if bar_high > 0.0 else last_price
+    low_price = bar_low if bar_low > 0.0 else last_price
+    prev_close = prev_close if prev_close and prev_close > 0.0 else open_price
+
+    change = last_price - prev_close
+    change_percent = (change / prev_close * 100.0) if prev_close else 0.0
+
+    return {
+        "type": "tick",
+        "symbol": clean_symbol(resolved),
+        "name": clean_symbol(resolved),
+        "lastPrice": last_price,
+        "bid": bid,
+        "ask": ask,
+        "open": open_price,
+        "high": high_price,
+        "low": low_price,
+        "prevClose": prev_close,
+        "change": change,
+        "changePercent": change_percent,
+        "volume": volume,
+        "spread": spread,
+        "time": tick_time,
+    }
+
+
 async def handle_client(websocket):
     print(f"Android connected: {websocket.remote_address}")
     current_symbol = resolve_symbol("BTCUSD")
+    mt5.symbol_select(current_symbol, True)
     current_tf = mt5.TIMEFRAME_H1
+    watchlist_symbols = {current_symbol}
     calendar_selected_date = datetime.now(LOCAL_TZ).date()
     last_calendar_refresh = 0.0
     calendar_refresh_task = None
+
+    def stream_symbols():
+        symbols = set(watchlist_symbols)
+        symbols.add(current_symbol)
+        return sorted(symbols)
 
     async def send_history(symbol, timeframe):
         payload = build_history_payload(symbol, timeframe)
@@ -662,7 +826,7 @@ async def handle_client(websocket):
     asyncio.create_task(send_news())
 
     async def listen():
-        nonlocal current_symbol, current_tf
+        nonlocal current_symbol, current_tf, watchlist_symbols
         try:
             async for message in websocket:
                 try:
@@ -671,14 +835,56 @@ async def handle_client(websocket):
 
                     if action == "subscribe":
                         current_symbol = resolve_symbol(data.get("symbol", current_symbol))
+                        mt5.symbol_select(current_symbol, True)
                         current_tf = TIMEFRAME_MAP.get(data.get("timeframe", "1h"), mt5.TIMEFRAME_H1)
+                        watchlist_symbols.add(current_symbol)
                         await send_history(current_symbol, current_tf)
+
+                    elif action == "watchlist_update":
+                        symbols = data.get("symbols", [])
+                        if not isinstance(symbols, list):
+                            symbols = []
+                        resolved_symbols = []
+                        for item in symbols:
+                            symbol_value = str(item).strip()
+                            if not symbol_value:
+                                continue
+                            res = resolve_symbol(symbol_value)
+                            # Force selection to keep it "hot" in MT5
+                            mt5.symbol_select(res, True)
+                            resolved_symbols.append(res)
+
+                        # Keep the background stream sticky so symbols stay hot after chart switches.
+                        watchlist_symbols.update(resolved_symbols)
+
+                        # Immediate update for the expanded watchlist
+                        for watched_symbol in stream_symbols():
+                            tick_payload = build_tick_payload(watched_symbol)
+                            if tick_payload:
+                                await websocket.send(json.dumps(tick_payload))
 
                     elif action == "get_calendar":
                         await send_calendar(parse_selected_date(data.get("selectedDate")), force=True)
 
                     elif action == "get_news":
                         await send_news()
+
+                    elif action == "get_symbols":
+                        all_symbols = mt5.symbols_get()
+                        if all_symbols:
+                            payload = {
+                                "type": "symbols",
+                                "data": [
+                                    {
+                                        "ticker": clean_symbol(s.name),
+                                        "symbol": s.name,
+                                        "name": s.description if s.description else clean_symbol(s.name),
+                                        "type": "forex" if s.path.startswith("Forex") else "crypto" if "Crypto" in s.path else "stock"
+                                    }
+                                    for s in all_symbols
+                                ]
+                            }
+                            await websocket.send(json.dumps(payload))
 
                     elif action == "place_order":
                         matched_symbol = resolve_symbol(data.get("symbol", ""))
@@ -825,98 +1031,97 @@ async def handle_client(websocket):
             pass
 
     async def stream():
-        nonlocal last_calendar_refresh, calendar_refresh_task
+        nonlocal last_calendar_refresh, calendar_refresh_task, watchlist_symbols
+        last_account_refresh = 0.0
         while True:
             try:
-                tick = mt5.symbol_info_tick(current_symbol)
-                if tick:
-                    await websocket.send(
-                        json.dumps(
-                            {
-                                "type": "tick",
-                                "name": clean_symbol(current_symbol),
-                                "lastPrice": float(tick.bid),
-                                "bid": float(tick.bid),
-                                "ask": float(tick.ask),
-                                "time": int(tick.time),
-                                "volume": float(tick.volume),
-                            }
-                        )
-                    )
+                # 1. High-frequency Tick Updates (every iteration)
+                for watched_symbol in stream_symbols():
+                    try:
+                        tick_payload = build_tick_payload(watched_symbol)
+                        if tick_payload:
+                            await websocket.send(json.dumps(tick_payload))
+                    except Exception as symbol_exc:
+                        print(f"Tick error for {watched_symbol}: {symbol_exc}")
 
-                account = mt5.account_info()
-                terminal = mt5.terminal_info()
-                if account and terminal:
-                    await websocket.send(
-                        json.dumps(
-                            {
-                                "type": "account",
-                                "balance": float(account.balance),
-                                "equity": float(account.equity),
-                                "unrealizedPnl": float(account.profit),
-                                "margin": float(account.margin),
-                                "availableFunds": float(account.margin_free),
-                                "trade_allowed": terminal.trade_allowed,
-                            }
-                        )
-                    )
+                # 2. Lower-frequency Account/Position Updates (every ~2 seconds)
+                now_monotonic = time.monotonic()
+                if now_monotonic - last_account_refresh >= 2.0:
+                    last_account_refresh = now_monotonic
 
-                positions = mt5.positions_get()
-                if positions is not None:
-                    await websocket.send(
-                        json.dumps(
-                            {
-                                "type": "positions",
-                                "data": [
-                                    {
-                                        "ticket": item.ticket,
-                                        "symbol": clean_symbol(item.symbol),
-                                        "type": "buy"
-                                        if item.type == mt5.POSITION_TYPE_BUY
-                                        else "sell",
-                                        "price_open": float(item.price_open),
-                                        "volume_current": float(item.volume),
-                                        "time_setup": int(item.time) * 1000,
-                                        "tp": float(item.tp),
-                                        "sl": float(item.sl),
-                                        "profit": float(item.profit),
-                                    }
-                                    for item in positions
-                                ],
-                            }
+                    account = mt5.account_info()
+                    terminal = mt5.terminal_info()
+                    if account and terminal:
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "account",
+                                    "balance": float(account.balance),
+                                    "equity": float(account.equity),
+                                    "unrealizedPnl": float(account.profit),
+                                    "margin": float(account.margin),
+                                    "availableFunds": float(account.margin_free),
+                                    "trade_allowed": terminal.trade_allowed,
+                                }
+                            )
                         )
-                    )
 
-                orders = mt5.orders_get()
-                if orders is not None:
-                    type_map = {
-                        mt5.ORDER_TYPE_BUY_LIMIT: "Buy Limit",
-                        mt5.ORDER_TYPE_SELL_LIMIT: "Sell Limit",
-                        mt5.ORDER_TYPE_BUY_STOP: "Buy Stop",
-                        mt5.ORDER_TYPE_SELL_STOP: "Sell Stop",
-                        mt5.ORDER_TYPE_BUY_STOP_LIMIT: "Buy Stop Limit",
-                        mt5.ORDER_TYPE_SELL_STOP_LIMIT: "Sell Stop Limit",
-                    }
-                    await websocket.send(
-                        json.dumps(
-                            {
-                                "type": "orders",
-                                "data": [
-                                    {
-                                        "ticket": item.ticket,
-                                        "symbol": clean_symbol(item.symbol),
-                                        "type": "buy" if item.type in [0, 2, 4, 6] else "sell",
-                                        "type_name": type_map.get(item.type, "Pending"),
-                                        "price_open": float(item.price_open),
-                                        "volume_initial": float(item.volume_initial),
-                                        "time_setup": int(item.time_setup) * 1000,
-                                        "status": "Working",
-                                    }
-                                    for item in orders
-                                ],
-                            }
+                    positions = mt5.positions_get()
+                    if positions is not None:
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "positions",
+                                    "data": [
+                                        {
+                                            "ticket": item.ticket,
+                                            "symbol": clean_symbol(item.symbol),
+                                            "type": "buy"
+                                            if item.type == mt5.POSITION_TYPE_BUY
+                                            else "sell",
+                                            "price_open": float(item.price_open),
+                                            "volume_current": float(item.volume),
+                                            "time_setup": int(item.time) * 1000,
+                                            "tp": float(item.tp),
+                                            "sl": float(item.sl),
+                                            "profit": float(item.profit),
+                                        }
+                                        for item in positions
+                                    ],
+                                }
+                            )
                         )
-                    )
+
+                    orders = mt5.orders_get()
+                    if orders is not None:
+                        type_map = {
+                            mt5.ORDER_TYPE_BUY_LIMIT: "Buy Limit",
+                            mt5.ORDER_TYPE_SELL_LIMIT: "Sell Limit",
+                            mt5.ORDER_TYPE_BUY_STOP: "Buy Stop",
+                            mt5.ORDER_TYPE_SELL_STOP: "Sell Stop",
+                            mt5.ORDER_TYPE_BUY_STOP_LIMIT: "Buy Stop Limit",
+                            mt5.ORDER_TYPE_SELL_STOP_LIMIT: "Sell Stop Limit",
+                        }
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "orders",
+                                    "data": [
+                                        {
+                                            "ticket": item.ticket,
+                                            "symbol": clean_symbol(item.symbol),
+                                            "type": "buy if item.type in [0, 2, 4, 6] else \"sell\"",
+                                            "type_name": type_map.get(item.type, "Pending"),
+                                            "price_open": float(item.price_open),
+                                            "volume_initial": float(item.volume_initial),
+                                            "time_setup": int(item.time_setup) * 1000,
+                                            "status": "Working",
+                                        }
+                                        for item in orders
+                                    ],
+                                }
+                            )
+                        )
 
                 if time.monotonic() - last_calendar_refresh >= CALENDAR_REFRESH_SECONDS:
                     if calendar_refresh_task is None or calendar_refresh_task.done():
@@ -927,7 +1132,8 @@ async def handle_client(websocket):
                     break
                 print(f"Stream error: {exc}")
 
-            await asyncio.sleep(0.5)
+            # Polling delay: 0.2s keeps the stream responsive and symbols "hot" without pinning CPU
+            await asyncio.sleep(0.2)
 
     try:
         await asyncio.gather(listen(), stream())

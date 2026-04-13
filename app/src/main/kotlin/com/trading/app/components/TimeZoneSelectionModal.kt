@@ -35,7 +35,7 @@ fun TimeZoneSelectionModal(
             modifier = Modifier
                 .fillMaxWidth(0.9f)
                 .fillMaxHeight(0.8f),
-            color = Color(0xFF1E222D),
+            color = Color(0xFF121212),
             shape = RoundedCornerShape(8.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {

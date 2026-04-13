@@ -124,7 +124,7 @@ fun Header(
                     DropdownMenu(
                         expanded = showTimeframeMenu,
                         onDismissRequest = { showTimeframeMenu = false },
-                        modifier = Modifier.background(Color(0xFF1E222D)).width(220.dp)
+                        modifier = Modifier.background(Color(0xFF121212)).width(220.dp)
                     ) {
                         DropdownMenuItem(
                             text = {

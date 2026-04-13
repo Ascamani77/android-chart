@@ -40,7 +40,7 @@ fun TradingPanel(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF1E222D))
+                .background(Color(0xFF121212))
                 .padding(horizontal = 0.dp), // Changed from 8.dp to 0.dp to let first item content be 16.dp from edge
             verticalAlignment = Alignment.CenterVertically
         ) {

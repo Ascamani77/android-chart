@@ -335,7 +335,7 @@ private fun CalendarEventRow(event: EconomicCalendarDisplayEvent) {
         }
     }
 
-    Divider(color = Color(0xFF1E222D), thickness = 0.5.dp)
+    Divider(color = Color(0xFF121212), thickness = 0.5.dp)
 }
 
 @Composable

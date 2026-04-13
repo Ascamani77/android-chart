@@ -220,7 +220,7 @@ fun SettingsModal(
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp)
                                     .border(1.dp, Color(0xFF2A2E39), RoundedCornerShape(8.dp)),
-                                color = Color(0xFF1E222D),
+                                color = Color(0xFF121212),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Column(

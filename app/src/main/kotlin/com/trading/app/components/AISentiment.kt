@@ -25,7 +25,7 @@ fun AISentiment(
             .fillMaxWidth()
             .padding(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1E222D)
+            containerColor = Color(0xFF121212)
         ),
         shape = RoundedCornerShape(8.dp)
     ) {

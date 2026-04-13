@@ -48,7 +48,7 @@ fun GoToDateModal(
                 .fillMaxWidth(0.95f)
                 .wrapContentHeight(),
             shape = RoundedCornerShape(8.dp),
-            color = Color(0xFF1E222D)
+            color = Color(0xFF121212)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 // Header

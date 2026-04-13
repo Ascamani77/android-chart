@@ -33,7 +33,7 @@ fun ChartContextMenu(
                 .width(220.dp)
                 .wrapContentHeight(),
             shape = RoundedCornerShape(8.dp),
-            color = Color(0xFF1E222D),
+            color = Color(0xFF121212),
             border = BorderStroke(1.dp, Color(0xFF434651))
         ) {
             Column(modifier = Modifier.padding(vertical = 8.dp)) {

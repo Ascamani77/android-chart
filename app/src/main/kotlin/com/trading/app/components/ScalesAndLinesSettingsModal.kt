@@ -109,7 +109,7 @@ fun ScalesAndLinesSettingsModal(
                                 .width(120.dp)
                                 .height(36.dp)
                                 .background(
-                                    if (tempSettings.lockRatio) Color.Transparent else Color(0xFF1E222D),
+                                    if (tempSettings.lockRatio) Color.Transparent else Color(0xFF121212),
                                     RoundedCornerShape(4.dp)
                                 )
                                 .border(1.dp, Color(0xFF363A45), RoundedCornerShape(4.dp))
@@ -466,7 +466,7 @@ fun SettingsDropdownRow(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 modifier = Modifier
-                    .background(Color(0xFF1E222D))
+                    .background(Color(0xFF121212))
                     .border(1.dp, Color(0xFF363A45))
             ) {
                 options.forEach { option ->
@@ -526,7 +526,7 @@ fun SettingsLabelDropdownRow(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 modifier = Modifier
-                    .background(Color(0xFF1E222D))
+                    .background(Color(0xFF121212))
                     .border(1.dp, Color(0xFF363A45))
             ) {
                 options.forEach { option ->
@@ -571,7 +571,7 @@ fun SymbolLinePreview(lineColor: String = "#FFFFFF", onLineColorClick: () -> Uni
         modifier = Modifier
             .width(80.dp)
             .height(32.dp)
-            .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+            .background(Color(0xFF121212), RoundedCornerShape(4.dp))
             .border(1.dp, Color(0xFF363A45), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp)
     ) {
@@ -615,7 +615,7 @@ fun AdvancedColorPickerModal(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(8.dp),
-            color = Color(0xFF1E222D),
+            color = Color(0xFF121212),
             modifier = Modifier.width(300.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {

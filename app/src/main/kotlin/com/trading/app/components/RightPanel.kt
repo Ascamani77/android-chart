@@ -26,17 +26,35 @@ fun RightPanel(
     isWatchlistVisible: Boolean,
     onSidebarToggle: () -> Unit,
     onWatchlistToggle: () -> Unit,
-    backgroundColor: Color = Color(0xFF1E222D)
+    backgroundColor: Color = Color(0xFF121212)
 ) {
     val watchlist = listOf(
         "BTCUSD" to 65432.10,
+        "BTCUSDT" to 65435.50,
         "ETHUSD" to 3456.78,
-        "AAPL" to 182.45,
+        "ETHUSDT" to 3458.20,
+        "EURUSD" to 1.0850,
+        "GBPUSD" to 1.2650,
+        "USDJPY" to 151.20,
+        "AUDUSD" to 0.6540,
+        "USDCAD" to 1.3520,
+        "USDCHF" to 0.8850,
+        "USOIL" to 82.30,
+        "BRENTOIL" to 86.40,
+        "US02Y" to 4.65,
+        "US10Y" to 4.25,
+        "DGS2" to 4.62,
+        "DGS10" to 4.22,
+        "SPX" to 5240.50,
+        "NASDAQ100" to 18350.20,
+        "DJIA" to 39450.80,
         "TSLA" to 175.20,
-        "MSFT" to 415.60,
+        "AAPL" to 182.45,
         "NVDA" to 890.15,
-        "GOLD" to 2150.30,
-        "EURUSD" to 1.0850
+        "MSFT" to 415.60,
+        "AMZN" to 178.30,
+        "XAGUSD" to 24.50,
+        "XAUUSD" to 2150.30
     )
 
     Row(modifier = Modifier.fillMaxHeight()) {
@@ -139,7 +157,7 @@ fun RightPanel(
                             ) {
                                 Column {
                                     Text(itemSymbol, color = if (isActive) Color(0xFF2962FF) else Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    Text("Description", color = Color(0xFF787B86), fontSize = 11.sp)
+                                    Text(getFullSymbolName(itemSymbol), color = Color(0xFF787B86), fontSize = 11.sp, maxLines = 1)
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(String.format(Locale.US, "%.2f", price), color = Color.White, fontSize = 13.sp)
@@ -158,7 +176,7 @@ fun RightPanel(
                             .padding(12.dp)
                     ) {
                         Text(symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("BITCOIN / US DOLLAR", color = Color(0xFF787B86), fontSize = 12.sp)
+                        Text(getFullSymbolName(symbol).uppercase(), color = Color(0xFF787B86), fontSize = 12.sp)
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         

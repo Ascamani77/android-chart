@@ -97,7 +97,7 @@ fun EventsSettingsModal(
                             modifier = Modifier
                                 .width(120.dp)
                                 .height(36.dp)
-                                .background(if (tempSettings.ideas) Color.Transparent else Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                                .background(if (tempSettings.ideas) Color.Transparent else Color(0xFF121212), RoundedCornerShape(4.dp))
                                 .border(1.dp, Color(0xFF363A45), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 8.dp),
                             contentAlignment = Alignment.CenterStart
@@ -137,7 +137,7 @@ fun EventsSettingsModal(
                             modifier = Modifier
                                 .width(80.dp)
                                 .height(36.dp)
-                                .background(if (tempSettings.eventsBreaks) Color.Transparent else Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                                .background(if (tempSettings.eventsBreaks) Color.Transparent else Color(0xFF121212), RoundedCornerShape(4.dp))
                                 .border(1.dp, Color(0xFF363A45), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 8.dp)
                                 .clickable(enabled = tempSettings.eventsBreaks) {

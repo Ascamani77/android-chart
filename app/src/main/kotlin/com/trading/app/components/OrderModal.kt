@@ -258,7 +258,7 @@ fun OrderModal(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 16.dp)
-                            .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                            .background(Color(0xFF121212), RoundedCornerShape(4.dp))
                             .border(1.dp, Color(0xFF2A2E39), RoundedCornerShape(4.dp))
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -304,7 +304,7 @@ fun OrderModal(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
-                                .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                                .background(Color(0xFF121212), RoundedCornerShape(4.dp))
                                 .border(1.dp, if (!isPriceValid) Color(0xFFF23645) else if (selectedType == "sell") Color(0xFFF23645).copy(alpha = 0.4f) else Color(0xFF2A2E39), RoundedCornerShape(4.dp))
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -327,7 +327,7 @@ fun OrderModal(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
-                                    .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                                    .background(Color(0xFF121212), RoundedCornerShape(4.dp))
                                     .border(1.dp, if (selectedType == "sell") Color(0xFFF23645).copy(alpha = 0.4f) else Color(0xFF2A2E39), RoundedCornerShape(4.dp))
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -349,7 +349,7 @@ fun OrderModal(
                     Button(
                         onClick = { showExitLevelsModal = true },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp).height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E222D)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF121212)),
                         shape = RoundedCornerShape(4.dp),
                         border = BorderStroke(1.dp, Color(0xFF2A2E39))
                     ) {
@@ -520,7 +520,7 @@ fun OrderModal(
             // Selector Overlays (Units, SecondaryUnits, TP, SL, TIF)
             if (showModeSelector != null) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable { showModeSelector = null }) {
-                    Surface(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 32.dp), color = Color(0xFF1E222D), shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)) {
+                    Surface(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 32.dp), color = Color(0xFF121212), shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)) {
                         Column(modifier = Modifier.padding(vertical = 8.dp)) {
                             val currentMode = when(showModeSelector) { "Units" -> unitsMode; "SecondaryUnits" -> secondaryUnitsMode; "TP" -> tpMode; "SecondaryTP" -> secondaryTpMode; "SL" -> slMode; "SecondarySL" -> secondarySlMode; else -> timeInForce }
                             val options = when(showModeSelector) {
@@ -552,7 +552,7 @@ fun OrderModal(
             // Presets and More menu...
             if (showPresets) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable { showPresets = false }) {
-                    Surface(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 32.dp), color = Color(0xFF1E222D), shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)) {
+                    Surface(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 32.dp), color = Color(0xFF121212), shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)) {
                         Column(modifier = Modifier.padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(Icons.Outlined.RocketLaunch, null, tint = Color(0xFF787B86), modifier = Modifier.size(64.dp))
@@ -570,7 +570,7 @@ fun OrderModal(
             }
             if (showMoreMenu) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable { showMoreMenu = false }) {
-                    Surface(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 32.dp), color = Color(0xFF1E222D), shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)) {
+                    Surface(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 32.dp), color = Color(0xFF121212), shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)) {
                         Column(modifier = Modifier.padding(vertical = 8.dp)) {
                             Row(modifier = Modifier.fillMaxWidth().clickable { showMoreMenu = false; onTradingSettingsClick() }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.Settings, null, tint = Color.White, modifier = Modifier.size(20.dp))

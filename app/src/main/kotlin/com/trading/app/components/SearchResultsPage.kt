@@ -148,8 +148,8 @@ fun SearchResultItem(
         Surface(
             modifier = Modifier
                 .size(44.dp)
-                .background(Color(0xFF1E222D), RoundedCornerShape(8.dp)),
-            color = Color(0xFF1E222D),
+                .background(Color(0xFF121212), RoundedCornerShape(8.dp)),
+            color = Color(0xFF121212),
             shape = RoundedCornerShape(8.dp)
         ) {
             Icon(

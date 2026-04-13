@@ -74,7 +74,7 @@ fun ColorPickerDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            color = Color(0xFF1E222D),
+            color = Color(0xFF121212),
             shape = RoundedCornerShape(8.dp),
             border = BorderStroke(1.dp, Color(0xFF363A45))
         ) {
@@ -246,7 +246,7 @@ fun CustomColorMixer(
                 modifier = Modifier
                     .weight(1f)
                     .height(36.dp)
-                    .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                    .background(Color(0xFF121212), RoundedCornerShape(4.dp))
                     .border(1.dp, Color(0xFF434651), RoundedCornerShape(4.dp))
                     .padding(horizontal = 8.dp, vertical = 8.dp),
                 readOnly = true,

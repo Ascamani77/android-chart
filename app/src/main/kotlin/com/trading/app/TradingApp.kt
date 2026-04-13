@@ -100,6 +100,10 @@ private fun shiftMonth(isoDate: String, monthDelta: Int): String {
     return formatIsoCalendar(calendar)
 }
 
+private fun recentPairQuoteKey(symbol: String, timeframe: String): String {
+    return "${symbol}_$timeframe".uppercase(Locale.US)
+}
+
 private fun persistNewsAiPayload(
     context: Context,
     sharedPrefs: android.content.SharedPreferences,
@@ -163,6 +167,22 @@ fun TradingApp() {
 
     // Live Data State
     var currentLiveQuote by remember { mutableStateOf<SymbolQuote?>(null) }
+    var isConnected by remember { mutableStateOf(false) }
+    val recentPairQuotes = remember { mutableStateMapOf<String, SymbolQuote>() }
+    val symbolQuotesByTicker = remember { mutableStateMapOf<String, SymbolQuote>() }
+    val availableQuotes = remember {
+        mutableStateListOf<SymbolInfo>().apply { addAll(defaultQuoteSymbols()) }
+    }
+    val alwaysLiveSymbols = remember {
+        mutableStateListOf<String>().apply {
+            addAll(
+                defaultQuoteSymbols()
+                    .map { quote -> quote.brokerSymbol.ifBlank { quote.ticker } }
+                    .distinctBy { it.uppercase(Locale.US) }
+            )
+        }
+    }
+    val visibleQuoteSymbols = remember { mutableStateListOf<String>() }
 
     // Recent pairs state
     val recentPairs = remember { 
@@ -176,6 +196,38 @@ fun TradingApp() {
         mutableStateListOf<Pair<String, String>>().apply { addAll(list) }
     }
 
+    fun brokerSymbolForTicker(symbol: String): String {
+        val normalizedSymbol = symbol.trim()
+        if (normalizedSymbol.isEmpty()) return normalizedSymbol
+
+        val knownSymbol = availableQuotes.firstOrNull { quote ->
+            quote.ticker.equals(normalizedSymbol, ignoreCase = true) ||
+                quote.brokerSymbol.equals(normalizedSymbol, ignoreCase = true)
+        } ?: defaultQuoteSymbols().firstOrNull { quote ->
+            quote.ticker.equals(normalizedSymbol, ignoreCase = true) ||
+                quote.brokerSymbol.equals(normalizedSymbol, ignoreCase = true)
+        }
+
+        return knownSymbol?.brokerSymbol?.ifBlank { knownSymbol.ticker } ?: normalizedSymbol
+    }
+
+    fun rememberAlwaysLiveSymbols(symbols: Iterable<String>) {
+        val existingSymbols = alwaysLiveSymbols
+            .asSequence()
+            .map { it.uppercase(Locale.US) }
+            .toHashSet()
+
+        symbols
+            .asSequence()
+            .map(::brokerSymbolForTicker)
+            .filter { it.isNotEmpty() }
+            .forEach { watchedSymbol ->
+                if (existingSymbols.add(watchedSymbol.uppercase(Locale.US))) {
+                    alwaysLiveSymbols.add(watchedSymbol)
+                }
+            }
+    }
+
     LaunchedEffect(symbol, timeframe) {
         val newPair = symbol to timeframe
         val exists = recentPairs.any { it.first == symbol && it.second == timeframe }
@@ -187,6 +239,10 @@ fun TradingApp() {
             }
             sharedPrefs.edit().putString("recent_pairs", gson.toJson(recentPairs.toList())).apply()
         }
+
+        val normalizedSymbol = symbol.trim()
+        rememberAlwaysLiveSymbols(listOf(normalizedSymbol))
+        currentLiveQuote = symbolQuotesByTicker[normalizedSymbol.uppercase(Locale.US)]
     }
 
     // Persist settings whenever relevant parts change
@@ -237,12 +293,23 @@ fun TradingApp() {
             port = 8081
         )
     }
+    
+    val mt5Service = remember {
+        Mt5Service(
+            pcIpAddress = "10.233.78.133",
+            port = 8081,
+            onHistoryUpdate = { _, _ -> },
+            onQuoteUpdate = { _ -> },
+            onConnectionStatusUpdate = { isConnected = it }
+        )
+    }
+
     val tradeNotifications = remember { mutableStateListOf<TradeNotification>() }
     val notificationsToDismiss = remember { mutableStateListOf<String>() }
 
     // MT5 data is now live from mt5_bridge.py
     LaunchedEffect(Unit) {
-        // Dummy data removed to show live MT5 data
+        mt5Service.connect()
     }
 
     // Timezone list
@@ -283,7 +350,7 @@ fun TradingApp() {
     var isAnalyzing by remember { mutableStateOf(false) }
 
     // Modal Visibility
-    var showSymbolSearch by remember { mutableStateOf(false) }
+    var showQuotes by remember { mutableStateOf(false) }
     var showIndicatorModal by remember { mutableStateOf(false) }
     var showGoToDateModal by remember { mutableStateOf(false) }
     var targetTimestamp by remember { mutableStateOf<Long?>(null) }
@@ -537,7 +604,30 @@ fun TradingApp() {
                                     orderModalChartData = candles
                                 },
                                 selectedTimeZone = selectedTz.label,
-                                onQuoteUpdate = { currentLiveQuote = it },
+                                onQuoteUpdate = { quote ->
+                                    currentLiveQuote = quote
+                                    recentPairQuotes[recentPairQuoteKey(symbol, timeframe)] = quote
+                                    symbolQuotesByTicker[quote.name.uppercase(Locale.US)] = quote
+                                },
+                                onAnyQuoteUpdate = { quote ->
+                                    symbolQuotesByTicker[quote.name.uppercase(Locale.US)] = quote
+                                    val matchingPairs = recentPairs.filter { (pairSymbol, _) ->
+                                        pairSymbol.equals(quote.name, ignoreCase = true)
+                                    }
+                                    matchingPairs.forEach { (pairSymbol, pairTimeframe) ->
+                                        recentPairQuotes[recentPairQuoteKey(pairSymbol, pairTimeframe)] = quote
+                                    }
+                                },
+                                onSymbolsUpdate = { symbols ->
+                                    val mergedQuotes = mergeQuoteCatalog(symbols)
+                                    availableQuotes.clear()
+                                    availableQuotes.addAll(mergedQuotes)
+                                },
+                                watchlistSymbols = (
+                                    alwaysLiveSymbols +
+                                        visibleQuoteSymbols +
+                                        recentPairs.map { (pairSymbol, _) -> brokerSymbolForTicker(pairSymbol) }
+                                ).distinctBy { it.uppercase(Locale.US) },
                                 positions = (positions + localPositions).distinctBy { it.id },
                                 onPositionUpdate = { updated ->
                                     if (updated.id.startsWith("temp_")) {
@@ -639,6 +729,10 @@ fun TradingApp() {
                                 reverseBridge = reverseBridge,
                                 onTradeNotification = { tradeNotifications.add(it) }
                             )
+
+                            if (!isConnected) {
+                                ConnectingToServerOverlay(backgroundColor = appBackgroundColor)
+                            }
                         }
 
                         if (!isFullscreen && isBottomPanelVisible) {
@@ -671,7 +765,7 @@ fun TradingApp() {
                                 symbol = symbol,
                                 timeframe = timeframe,
                                 chartStyle = chartStyle,
-                                onSymbolClick = { showSymbolSearch = true },
+                                onSymbolClick = { showQuotes = true },
                                 onTimeframeClick = { timeframe = it },
                                 onStyleChange = { chartStyle = it },
                                 onIndicatorClick = { showIndicatorModal = true },
@@ -734,6 +828,7 @@ fun TradingApp() {
                                 backgroundColor = appBackgroundColor,
                                 settings = chartSettings,
                                 currentQuote = currentLiveQuote,
+                                recentPairQuotes = recentPairQuotes,
                                 onAccountUpdate = { mt5AccountInfo = it }
                             )
                         }
@@ -970,10 +1065,26 @@ fun TradingApp() {
         }
 
         // Modals (Symbol Search, Currency, Indicators, Settings, Tool Search, Alert, Capture, TimeZone)
-        if (showSymbolSearch) {
-            SymbolSearchModal(
-                onClose = { showSymbolSearch = false },
-                onSymbolSelect = { symbol = it }
+        if (showQuotes) {
+            Quotes(
+                onClose = { showQuotes = false },
+                quotes = availableQuotes,
+                onQuoteSelect = {
+                    rememberAlwaysLiveSymbols(listOf(it))
+                    symbol = it
+                },
+                quotesByTicker = symbolQuotesByTicker,
+                onVisibleSymbolsChanged = { symbols ->
+                    visibleQuoteSymbols.clear()
+                    visibleQuoteSymbols.addAll(
+                        symbols
+                            .asSequence()
+                            .map(::brokerSymbolForTicker)
+                            .filter { it.isNotEmpty() }
+                            .distinctBy { it.uppercase(Locale.US) }
+                            .toList()
+                    )
+                }
             )
         }
         if (showCurrencyModal) {

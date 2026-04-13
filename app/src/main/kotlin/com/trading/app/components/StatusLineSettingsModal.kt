@@ -106,7 +106,7 @@ fun StatusLineSettingsModal(
                                 modifier = Modifier
                                     .width(160.dp)
                                     .height(36.dp)
-                                    .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                                    .background(Color(0xFF121212), RoundedCornerShape(4.dp))
                                     .border(1.dp, Color(0xFF434651), RoundedCornerShape(4.dp))
                                     .clickable { titleDropdownExpanded = true }
                                     .padding(horizontal = 8.dp),
@@ -120,7 +120,7 @@ fun StatusLineSettingsModal(
                             DropdownMenu(
                                 expanded = titleDropdownExpanded,
                                 onDismissRequest = { titleDropdownExpanded = false },
-                                modifier = Modifier.background(Color(0xFF1E222D)).border(1.dp, Color(0xFF363A45))
+                                modifier = Modifier.background(Color(0xFF121212)).border(1.dp, Color(0xFF363A45))
                             ) {
                                 listOf("Name", "Symbol", "Symbol and name").forEach { option ->
                                     DropdownMenuItem(
@@ -211,7 +211,7 @@ fun StatusLineSettingsModal(
                         Box(
                             modifier = Modifier
                                 .size(44.dp, 36.dp)
-                                .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                                .background(Color(0xFF121212), RoundedCornerShape(4.dp))
                                 .border(1.dp, Color(0xFF434651), RoundedCornerShape(4.dp))
                                 .clickable { },
                             contentAlignment = Alignment.Center

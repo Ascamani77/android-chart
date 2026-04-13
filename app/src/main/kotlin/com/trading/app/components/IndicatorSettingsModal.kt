@@ -35,7 +35,7 @@ fun IndicatorSettingsModal(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E222D))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 // Header

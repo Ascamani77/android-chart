@@ -9,6 +9,7 @@ import com.trading.app.models.EconomicCalendarAiPayload
 import com.trading.app.models.EconomicCalendarDisplayPayload
 import com.trading.app.models.EconomicCalendarPayload
 import com.trading.app.models.OHLCData
+import com.trading.app.models.SymbolInfo
 import okhttp3.*
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -26,11 +27,14 @@ class Mt5Service(
     private val onHistoryOrdersUpdate: (List<com.trading.app.models.Order>) -> Unit = {},
     private val onBalanceHistoryUpdate: (List<com.trading.app.models.BalanceRecord>) -> Unit = {},
     private val onCalendarUpdate: (EconomicCalendarPayload) -> Unit = {},
-    private val onNewsUpdate: (com.trading.app.models.NewsPayload) -> Unit = {}
+    private val onNewsUpdate: (com.trading.app.models.NewsPayload) -> Unit = {},
+    private val onSymbolsUpdate: (List<SymbolInfo>) -> Unit = {},
+    private val onConnectionStatusUpdate: (Boolean) -> Unit = {}
 ) {
     private val client = OkHttpClient()
     private var webSocket: WebSocket? = null
     private var isConnecting = false
+    private var isConnected = false
     private var isManuallyDisconnected = false
     private val endpointHosts: List<String> by lazy { buildEndpointHosts(pcIpAddress) }
     private var endpointIndex = 0
@@ -43,6 +47,7 @@ class Mt5Service(
     }
     private val gson = Gson()
     private val pendingMessages = mutableListOf<String>()
+    private val brokerSymbolsByDisplayKey = mutableMapOf<String, String>()
 
     private inline fun dispatchToMain(crossinline action: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -68,10 +73,34 @@ class Mt5Service(
     }
 
     private fun cleanSymbol(symbol: String): String {
-        return if (symbol.endsWith("m", ignoreCase = true)) {
-            symbol.dropLast(1)
-        } else {
-            symbol
+        val upper = symbol.uppercase(Locale.US)
+        val suffixes = listOf(".M", ".PRO", ".ECN", ".S", ".SPOT", "M", "+")
+        for (suffix in suffixes) {
+            if (upper.endsWith(suffix)) {
+                return symbol.substring(0, symbol.length - suffix.length)
+            }
+        }
+        return symbol
+    }
+
+    private fun rememberBrokerSymbol(rawSymbol: String, displaySymbol: String = cleanSymbol(rawSymbol)) {
+        val normalizedRawSymbol = rawSymbol.trim()
+        val normalizedDisplaySymbol = displaySymbol.trim()
+        if (normalizedRawSymbol.isEmpty() || normalizedDisplaySymbol.isEmpty()) return
+
+        synchronized(brokerSymbolsByDisplayKey) {
+            brokerSymbolsByDisplayKey[normalizedDisplaySymbol.uppercase(Locale.US)] = normalizedRawSymbol
+            brokerSymbolsByDisplayKey[cleanSymbol(normalizedRawSymbol).uppercase(Locale.US)] = normalizedRawSymbol
+        }
+    }
+
+    private fun outboundSymbol(symbol: String): String {
+        val normalizedSymbol = symbol.trim()
+        if (normalizedSymbol.isEmpty()) return normalizedSymbol
+
+        val key = cleanSymbol(normalizedSymbol).uppercase(Locale.US)
+        synchronized(brokerSymbolsByDisplayKey) {
+            return brokerSymbolsByDisplayKey[key] ?: normalizedSymbol
         }
     }
 
@@ -140,6 +169,8 @@ class Mt5Service(
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.i(TAG, "WebSocket Connected on $host")
                 isConnecting = false
+                isConnected = true
+                dispatchToMain { onConnectionStatusUpdate(true) }
                 synchronized(pendingMessages) {
                     pendingMessages.forEach(webSocket::send)
                     pendingMessages.clear()
@@ -152,7 +183,9 @@ class Mt5Service(
                     val type = root.optString("type")
                     
                     if (type == "history") {
-                        val symbol = cleanSymbol(root.optString("symbol", root.optString("name", "")))
+                        val rawSymbol = root.optString("symbol", root.optString("name", ""))
+                        val symbol = cleanSymbol(rawSymbol)
+                        rememberBrokerSymbol(rawSymbol, symbol)
                         val dataArray = root.optJSONArray("data") ?: return
                         
                         val history = mutableListOf<OHLCData>()
@@ -215,7 +248,9 @@ class Mt5Service(
                             onHistoryUpdate(symbol, orderedHistory)
                         }
                     } else if (type == "tick") {
-                        val symbol = cleanSymbol(root.optString("symbol", root.optString("name", "")))
+                        val rawSymbol = root.optString("symbol", root.optString("name", ""))
+                        val symbol = cleanSymbol(rawSymbol)
+                        rememberBrokerSymbol(rawSymbol, symbol)
                         val quote = gson.fromJson(text, SymbolQuote::class.java)
                         // Ensure name is set
                         val finalQuote = (if (quote.name.isNullOrEmpty()) quote.copy(name = symbol) else quote).copy(name = symbol)
@@ -241,9 +276,11 @@ class Mt5Service(
                         val positions = mutableListOf<com.trading.app.models.Position>()
                         for (i in 0 until dataArray.length()) {
                             val obj = dataArray.getJSONObject(i)
+                            val rawSymbol = obj.optString("symbol")
+                            rememberBrokerSymbol(rawSymbol)
                             positions.add(com.trading.app.models.Position(
                                 id = obj.optString("id", obj.optString("ticket")),
-                                symbol = cleanSymbol(obj.optString("symbol")),
+                                symbol = cleanSymbol(rawSymbol),
                                 type = obj.optString("type"),
                                 entryPrice = obj.optDouble("entryPrice", obj.optDouble("price_open")).toFloat(),
                                 volume = obj.optDouble("volume", obj.optDouble("volume_current")).toFloat(),
@@ -262,9 +299,11 @@ class Mt5Service(
                         val orders = mutableListOf<com.trading.app.models.Order>()
                         for (i in 0 until dataArray.length()) {
                             val obj = dataArray.getJSONObject(i)
+                            val rawSymbol = obj.optString("symbol")
+                            rememberBrokerSymbol(rawSymbol)
                             orders.add(com.trading.app.models.Order(
                                 id = obj.optString("id", obj.optString("ticket")),
-                                symbol = cleanSymbol(obj.optString("symbol")),
+                                symbol = cleanSymbol(rawSymbol),
                                 type = obj.optString("type"), // buy/sell
                                 orderType = obj.optString("orderType", obj.optString("type_name")), // Limit/Stop/Market
                                 status = obj.optString("status", "Working"),
@@ -284,9 +323,11 @@ class Mt5Service(
                         val history = mutableListOf<com.trading.app.models.Order>()
                         for (i in 0 until dataArray.length()) {
                             val obj = dataArray.getJSONObject(i)
+                            val rawSymbol = obj.optString("symbol")
+                            rememberBrokerSymbol(rawSymbol)
                             history.add(com.trading.app.models.Order(
                                 id = obj.optString("id", obj.optString("ticket")),
-                                symbol = cleanSymbol(obj.optString("symbol")),
+                                symbol = cleanSymbol(rawSymbol),
                                 type = obj.optString("type"),
                                 orderType = obj.optString("orderType", obj.optString("type_name")),
                                 status = obj.optString("status", "Filled"), // Filled/Cancelled/Rejected
@@ -335,6 +376,28 @@ class Mt5Service(
                         dispatchToMain {
                             onNewsUpdate(newsPayload)
                         }
+                    } else if (type == "symbols") {
+                        val dataArray = root.optJSONArray("data") ?: root.optJSONArray("items") ?: return
+                        val symbols = mutableListOf<SymbolInfo>()
+                        for (i in 0 until dataArray.length()) {
+                            val obj = dataArray.optJSONObject(i) ?: continue
+                            val rawSymbol = obj.optString("symbol", obj.optString("ticker", ""))
+                            val ticker = cleanSymbol(obj.optString("ticker", rawSymbol))
+                            if (ticker.isBlank()) continue
+                            rememberBrokerSymbol(rawSymbol, ticker)
+                            symbols.add(
+                                SymbolInfo(
+                                    ticker = ticker,
+                                    name = obj.optString("name", ticker),
+                                    exchange = "",
+                                    type = obj.optString("type", "forex"),
+                                    brokerSymbol = rawSymbol.ifBlank { ticker }
+                                )
+                            )
+                        }
+                        dispatchToMain {
+                            onSymbolsUpdate(symbols)
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Parse error: ${e.message}")
@@ -345,6 +408,8 @@ class Mt5Service(
                 Log.e(TAG, "WebSocket Failure on $host: ${t.message}")
                 this@Mt5Service.webSocket = null
                 isConnecting = false
+                isConnected = false
+                dispatchToMain { onConnectionStatusUpdate(false) }
                 scheduleReconnect()
             }
 
@@ -352,15 +417,30 @@ class Mt5Service(
                 Log.w(TAG, "WebSocket Closed on $host: code=$code reason=$reason")
                 this@Mt5Service.webSocket = null
                 isConnecting = false
+                isConnected = false
+                dispatchToMain { onConnectionStatusUpdate(false) }
                 scheduleReconnect()
             }
         })
     }
 
     fun subscribe(symbol: String, timeframe: String = "1h") {
-        val msg = "{\"action\": \"subscribe\", \"symbol\": \"$symbol\", \"timeframe\": \"$timeframe\"}"
-        Log.d(TAG, "Subscribing to $symbol ($timeframe)")
+        val brokerSymbol = outboundSymbol(symbol)
+        val msg = "{\"action\": \"subscribe\", \"symbol\": \"$brokerSymbol\", \"timeframe\": \"$timeframe\"}"
+        Log.d(TAG, "Subscribing to $brokerSymbol ($timeframe)")
         sendOrQueue(msg)
+    }
+
+    fun updateWatchlist(symbols: List<String>) {
+        val normalized = symbols
+            .asSequence()
+            .map { outboundSymbol(it).trim() }
+            .filter { it.isNotEmpty() }
+            .distinctBy { it.uppercase(Locale.US) }
+            .toList()
+
+        if (normalized.isEmpty()) return
+        sendAction("watchlist_update", mapOf("symbols" to normalized))
     }
 
     fun sendAction(action: String, params: Map<String, Any>) {
@@ -384,6 +464,10 @@ class Mt5Service(
 
     fun requestNews() {
         sendAction("get_news", emptyMap())
+    }
+
+    fun requestSymbols() {
+        sendAction("get_symbols", emptyMap())
     }
 
     fun disconnect() {

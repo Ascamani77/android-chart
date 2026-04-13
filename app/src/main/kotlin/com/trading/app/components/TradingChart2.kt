@@ -42,6 +42,7 @@ import com.trading.app.models.Order
 import com.trading.app.models.BalanceRecord
 import com.trading.app.models.EconomicCalendarPayload
 import com.trading.app.models.OHLCData
+import com.trading.app.models.SymbolInfo
 import com.trading.app.data.Mt5Service
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -96,6 +97,8 @@ fun TradingChart2(
     onDataLoaded: (List<OHLCData>) -> Unit = {},
     selectedTimeZone: String = "UTC",
     onQuoteUpdate: (SymbolQuote) -> Unit = {},
+    onAnyQuoteUpdate: (SymbolQuote) -> Unit = {},
+    watchlistSymbols: List<String> = emptyList(),
     positions: List<Position>,
     onPositionUpdate: (Position) -> Unit,
     onPositionDelete: (String) -> Unit,
@@ -111,6 +114,7 @@ fun TradingChart2(
     calendarRequestVersion: Int = 0,
     isNewsVisible: Boolean = false,
     onNewsUpdate: (com.trading.app.models.NewsPayload) -> Unit = {},
+    onSymbolsUpdate: (List<SymbolInfo>) -> Unit = {},
     isTradingBarVisible: Boolean = false,
     reverseBridge: com.trading.app.data.Mt5ReverseBridge? = null,
     onTradeNotification: (com.trading.app.models.TradeNotification) -> Unit = {}
@@ -180,6 +184,8 @@ fun TradingChart2(
                     currentLiveQuote = it
                     onQuoteUpdate(it)
                 },
+                onAnyQuoteUpdate = onAnyQuoteUpdate,
+                watchlistSymbols = watchlistSymbols,
                 onAccountUpdate = onAccountUpdate,
                 onPositionsUpdate = onPositionsUpdate,
                 orders = orders,
@@ -192,6 +198,7 @@ fun TradingChart2(
                 calendarRequestVersion = calendarRequestVersion,
                 isNewsVisible = isNewsVisible,
                 onNewsUpdate = onNewsUpdate,
+                onSymbolsUpdate = onSymbolsUpdate,
                 positions = positions,
                 onPositionUpdate = { pos ->
                     reverseBridge?.modifyPosition(pos, pos.tp, pos.sl)
@@ -230,7 +237,7 @@ fun TradingChart2(
                         }
                     }
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF131722).copy(alpha = 0.95f))
+                    .background(Color(0xFF2A2E39).copy(alpha = 0.95f))
                     .padding(2.dp)
             ) {
                 Row(
@@ -461,9 +468,8 @@ fun TradingChart2(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(0.90f)
-                    .widthIn(max = 360.dp)
-                    .padding(bottom = 8.dp),
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.Start,
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
@@ -474,7 +480,7 @@ fun TradingChart2(
                             .align(Alignment.End)
                             .padding(horizontal = 12.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF1E222D))
+                            .background(Color(0xFF2A2E39))
                             .clickable {
                                 if (tradeNotifications.isNotEmpty()) {
                                     notificationsToDismiss.add(tradeNotifications.last().id)
@@ -580,7 +586,7 @@ fun ModifyTpSlModal(
     val primaryColor = Color(0xFF2962FF)
     val backgroundColor = Color.Black
     val boxBorderColor = Color(0xFF2A2E39)
-    val boxBackgroundColor = Color(0xFF1E222D)
+    val boxBackgroundColor = Color(0xFF121212)
     val topSectionBackground = Color(0xFF121212)
     val topSectionHeight = 8.dp
 
@@ -1045,7 +1051,7 @@ fun SimpleOrderStyleExitInputRow(
                 expanded = dropdownExpanded,
                 onDismissRequest = { onDropdownExpandedChange(false) },
                 modifier = Modifier
-                    .background(Color(0xFF1E222D))
+                    .background(Color(0xFF121212))
                     .border(1.dp, Color(0xFF2A2E39))
             ) {
                 dropdownOptions.forEach { (label, mode) ->
@@ -1117,7 +1123,7 @@ fun PriceInputRow(
             DropdownMenu(
                 expanded = sourceDropdownExpanded,
                 onDismissRequest = { sourceDropdownExpanded = false },
-                modifier = Modifier.background(Color(0xFF1E222D)).border(1.dp, Color(0xFF363A45))
+                modifier = Modifier.background(Color(0xFF121212)).border(1.dp, Color(0xFF363A45))
             ) {
                 listOf("Last", "Bid", "Ask").forEach { source ->
                     DropdownMenuItem(

@@ -53,7 +53,7 @@ fun FloatingTradingButtons(
                 }
             }
             .clip(RoundedCornerShape(10.dp))
-            .background(Color(0xFF1E222D).copy(alpha = 0.95f))
+            .background(Color(0xFF2A2E39).copy(alpha = 0.95f))
             .padding(2.dp)
     ) {
         Row(
@@ -80,13 +80,13 @@ fun FloatingTradingButtons(
                     .width(82.dp)
                     .height(32.dp)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFFF23645))
+                    .background(Color(0xFFF23645).copy(alpha = 0.2f))
                     .clickable { onSellClick() },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = sellPrice,
-                    color = Color.White,
+                    color = Color(0xFFF23645),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
@@ -124,13 +124,13 @@ fun FloatingTradingButtons(
                     .width(82.dp)
                     .height(32.dp)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF2962FF))
+                    .background(Color(0xFF2962FF).copy(alpha = 0.2f))
                     .clickable { onBuyClick() },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = buyPrice,
-                    color = Color.White,
+                    color = Color(0xFF2962FF),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,

@@ -401,7 +401,7 @@ fun CanvasSettingsModal(
                                 checkedThumbColor = Color.White,
                                 checkedTrackColor = Color(0xFF2962FF),
                                 uncheckedThumbColor = Color(0xFF787B86),
-                                uncheckedTrackColor = Color(0xFF1E222D)
+                                uncheckedTrackColor = Color(0xFF121212)
                             )
                         )
                     }
@@ -526,7 +526,7 @@ private fun MarginInputRow(label: String, value: Int, onValueChange: (Int) -> Un
                 modifier = Modifier
                     .width(60.dp)
                     .height(36.dp)
-                    .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                    .background(Color(0xFF121212), RoundedCornerShape(4.dp))
                     .border(1.dp, Color(0xFF434651), RoundedCornerShape(4.dp))
                     .padding(horizontal = 8.dp, vertical = 8.dp),
                 cursorBrush = SolidColor(Color.White),
@@ -562,7 +562,7 @@ private fun CanvasDropdown(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(36.dp)
-                .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+                .background(Color(0xFF121212), RoundedCornerShape(4.dp))
                 .border(1.dp, Color(0xFF434651), RoundedCornerShape(4.dp))
                 .clickable { expanded = true }
                 .padding(horizontal = 8.dp),
@@ -581,7 +581,7 @@ private fun CanvasDropdown(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.background(Color(0xFF1E222D)).border(1.dp, Color(0xFF434651))
+            modifier = Modifier.background(Color(0xFF121212)).border(1.dp, Color(0xFF434651))
         ) {
             options.forEach { option ->
                 DropdownMenuItem(
@@ -614,7 +614,7 @@ private fun CrosshairPreviewBox(color: String, thickness: Int, style: String, on
         modifier = Modifier
             .width(80.dp)
             .height(32.dp)
-            .background(Color(0xFF1E222D), RoundedCornerShape(4.dp))
+            .background(Color(0xFF121212), RoundedCornerShape(4.dp))
             .border(1.dp, Color(0xFF434651), RoundedCornerShape(4.dp))
             .clickable { onClick() },
         contentAlignment = Alignment.Center

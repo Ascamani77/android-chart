@@ -61,7 +61,7 @@ fun MarketStatusModal(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1E222D),
+        containerColor = Color(0xFF121212),
         dragHandle = {
             Box(
                 modifier = Modifier

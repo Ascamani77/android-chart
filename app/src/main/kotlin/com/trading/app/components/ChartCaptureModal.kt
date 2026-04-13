@@ -32,7 +32,7 @@ fun ChartCaptureModal(
                 .fillMaxWidth()
                 .wrapContentHeight(),
             shape = RoundedCornerShape(12.dp),
-            color = Color(0xFF1E222D)
+            color = Color(0xFF121212)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 // Header

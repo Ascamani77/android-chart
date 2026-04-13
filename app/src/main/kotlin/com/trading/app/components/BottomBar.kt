@@ -36,6 +36,7 @@ fun BottomBar(
     backgroundColor: Color = Color(0xFF08090C),
     settings: ChartSettings = ChartSettings(),
     currentQuote: SymbolQuote? = null,
+    recentPairQuotes: Map<String, SymbolQuote> = emptyMap(),
     onAccountUpdate: (Mt5Service.AccountInfo) -> Unit = {},
     selectedTzLabel: String = ""
 ) {
@@ -59,13 +60,23 @@ fun BottomBar(
             ) {
                 recentPairs.forEachIndexed { index, (symbol, timeframe) ->
                     val isActive = symbol == currentSymbol && timeframe == currentTimeframe
-                    
-                    val displayChange = if (isActive && currentQuote != null) {
-                        String.format(Locale.US, "%+.2f%%", currentQuote.changePercent)
-                    } else {
-                        "+2.4%"
-                    }
-                    val isUp = !displayChange.startsWith("-")
+                    val quoteKey = (symbol + "_" + timeframe).uppercase(Locale.US)
+                    val rowQuote = if (isActive) currentQuote else recentPairQuotes[quoteKey]
+                    val displayChange = rowQuote?.let {
+                        String.format(Locale.US, "%+.2f %%", it.changePercent)
+                    } ?: "--"
+                    val isUp = (rowQuote?.changePercent ?: 0f) >= 0f
+                    val displayPrice = rowQuote?.let {
+                        val decimals = when {
+                            symbol.uppercase(Locale.US).endsWith("JPY") -> 3
+                            symbol.length == 6 && (symbol.contains("USD") || symbol.contains("EUR")) -> 5
+                            it.lastPrice >= 1000f -> 2
+                            it.lastPrice >= 1f -> 2
+                            it.lastPrice >= 0.1f -> 4
+                            else -> 6
+                        }
+                        String.format(Locale.US, "%,.${decimals}f", it.lastPrice)
+                    } ?: "--"
 
                     val symbolInfo = remember(symbol) {
                         val type = when {
@@ -80,7 +91,7 @@ fun BottomBar(
                         modifier = Modifier
                             .padding(start = if (index == 0) 0.dp else 2.8.dp, end = 2.8.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (isActive) Color(0xFF1E222D) else Color.Transparent)
+                            .background(if (isActive) Color(0xFF121212) else Color.Transparent)
                             .border(
                                 width = 1.dp,
                                 color = if (isActive) Color(0xFF363A45) else Color(0xFF2A2E39),
@@ -98,17 +109,34 @@ fun BottomBar(
                                 fontSize = 13.sp,
                                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Icon(
-                                imageVector = if (isUp) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
-                                contentDescription = null,
-                                tint = if (isUp) Color(0xFF089981) else Color(0xFFF23645),
-                                modifier = Modifier.size(12.dp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = displayPrice,
+                                color = when {
+                                    rowQuote == null -> if (isActive) Color.White else Color(0xFFD1D4DC)
+                                    isUp -> Color(0xFF089981)
+                                    else -> Color(0xFFF23645)
+                                },
+                                fontSize = 13.sp,
+                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
                             )
-                            Spacer(modifier = Modifier.width(2.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            if (rowQuote != null) {
+                                Icon(
+                                    imageVector = if (isUp) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                    contentDescription = null,
+                                    tint = if (isUp) Color(0xFF089981) else Color(0xFFF23645),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                            }
                             Text(
                                 text = displayChange,
-                                color = if (isUp) Color(0xFF089981) else Color(0xFFF23645),
+                                color = when {
+                                    rowQuote == null -> Color(0xFF787B86)
+                                    isUp -> Color(0xFF089981)
+                                    else -> Color(0xFFF23645)
+                                },
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
                             )

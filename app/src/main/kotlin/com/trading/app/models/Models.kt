@@ -236,6 +236,7 @@ data class SymbolInfo(
     val name: String,
     val exchange: String = "",
     val type: String = "",
+    val brokerSymbol: String = ticker,
     val price: Float = 0f,
     val change: Float = 0f,
     val changePercent: Float = 0f

@@ -267,7 +267,7 @@ fun LevelItem(
     onDelete: () -> Unit
 ) {
     val tickSize = if (symbol.uppercase().contains("BTC")) 1f else if (symbol.length == 6 || symbol.contains("/")) 0.00001f else 0.01f
-    val fieldBackground = Color(0xFF1E222D)
+    val fieldBackground = Color(0xFF121212)
     val fieldBorder = Color(0xFF2A2E39)
     
     val tpVal = level.tp.replace(",", "").toFloatOrNull() ?: entryPrice

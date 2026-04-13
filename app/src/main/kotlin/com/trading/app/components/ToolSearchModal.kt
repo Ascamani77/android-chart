@@ -33,7 +33,7 @@ fun ToolSearchModal(
                 .fillMaxWidth()
                 .fillMaxHeight(0.6f)
                 .padding(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E222D))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
         ) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                 // Search Input
